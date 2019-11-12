@@ -1,9 +1,16 @@
+.. _Creating tests:
+
 Creating test cases
 ===================
 
 This section describes the overall test case syntax. Organizing test
 cases into `test suites`_ using `test case files`_ and `test suite
 directories`_ is discussed in the next section.
+
+When using Robot Framework for other automation purposes than test
+automation, it is recommended to create *tasks* instead of tests.
+The task syntax is for most parts identical to the test syntax,
+and the differences are explained in the `Creating tasks`_ section.
 
 .. contents::
    :depth: 2
@@ -86,11 +93,10 @@ below and explained later in this section.
    their own section.
 
 .. note:: Setting names are case-insensitive, but the format used above is
-      recommended. Prior to Robot Framework 3.1, settings were also
-      space-insensitive meaning that extra spaces could be added (e.g.
-      `[T a g s]`). This is now deprecated and only the format above,
-      case-insensitively, is supported. Possible space between brackets
-      and the name (e.g. `[ Tags ]`) is still allowed.
+      recommended. Settings used to be also space-insensitive, but that was
+      deprecated in Robot Framework 3.1 and trying to use something like
+      `[T a g s]` causes an error in Robot Framework 3.2. Possible spaces
+      between brackets and the name (e.g. `[ Tags ]`) are still allowed.
 
 Example test case with settings:
 
@@ -879,9 +885,11 @@ all the looped elements even if there are failures.
    Template and for
        [Template]    Example keyword
        FOR    ${item}    IN    @{ITEMS}
-       \    ${item}    2nd arg
+           ${item}    2nd arg
+       END
        FOR    ${index}    IN RANGE    42
-       \    1st arg    ${index}
+           1st arg    ${index}
+       END
 
 Different test case styles
 --------------------------
@@ -1001,6 +1009,6 @@ should be open`.
 Embedding data to keywords
 ''''''''''''''''''''''''''
 
-When writing concrete examples it is useful to be able pass actual data to
+When writing concrete examples it is useful to be able to pass actual data to
 keyword implementations. User keywords support this by allowing `embedding
 arguments into keyword name`_.

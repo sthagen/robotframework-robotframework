@@ -45,8 +45,8 @@ Selecting test cases
 --------------------
 
 Robot Framework offers several command line options for selecting
-which test cases to execute. The same options also work when
-post-processing outputs with Rebot_.
+which test cases to execute. The same options work also when `executing
+tasks`_ and when post-processing outputs with Rebot_.
 
 By test suite and test case names
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -87,6 +87,9 @@ practical when creating test cases, but quite limited when running tests
 automatically. The :option:`--suite` option can be useful in that
 case, but in general, selecting test cases by tag names is more
 flexible.
+
+When `executing tasks`_, it is possible to use the :option:`--task` option
+as an alias for :option:`--test`.
 
 By tag names
 ~~~~~~~~~~~~
@@ -168,7 +171,7 @@ __ `Merging outputs`_
 Re-executing failed test suites
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Command line option :option:`rerunfailedsuites (-S)` can be used to select all
+Command line option :option:`--rerunfailedsuites (-S)` can be used to select all
 failed suites from an earlier `output file`_ for re-execution. Like
 :option:`--rerunfailed (-R)`, this option is useful when full test execution
 takes a lot of time. Note that all tests from a failed test suite will be
@@ -453,7 +456,7 @@ resolved.
 It is possible to disable dry run validation of specific `user keywords`_
 by adding a special `robot:no-dry-run` `keyword tag`__ to them. This is useful
 if a keyword fails in the dry run mode for some reason, but work fine when
-executed normally. Disabling the dry run more is a new feature in Robot
+executed normally. Disabling the dry run mode is a new feature in Robot
 Framework 3.0.2.
 
 .. note:: The dry run mode does not validate variables.
@@ -534,6 +537,15 @@ If more than one pre-run modifier is needed, they can be specified by using
 the :option:`--prerunmodifier` option multiple times. If similar modifying
 is needed before creating logs and reports, `programmatic modification of
 results`_ can be enabled using the :option:`--prerebotmodifier` option.
+
+Pre-run modifiers are executed before other configuration affecting the
+executed test suite and test cases. Most importantly, options related to
+`selecting test cases`_ are processed after modifiers, making it possible to
+use options like :option:`--include` also with possible dynamically added
+tests.
+
+.. note:: Prior to Robot Framework 3.2 pre-run modifiers were executed
+          after other configuration.
 
 __ `Specifying library to import`_
 
