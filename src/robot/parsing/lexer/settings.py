@@ -13,7 +13,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from robot.utils import normalize_whitespace
+from robot.utils import normalize, normalize_whitespace, RecommendationFinder
 
 from .tokens import Token
 
@@ -21,77 +21,121 @@ from .tokens import Token
 class Settings(object):
     names = ()
     aliases = {}
-    multi_use = ()
-    single_value = ()
+    multi_use = (
+        'METADATA',
+        'LIBRARY',
+        'RESOURCE',
+        'VARIABLES'
+    )
+    single_value = (
+        'RESOURCE',
+        'TEST TIMEOUT',
+        'TEST TEMPLATE',
+        'TIMEOUT',
+        'TEMPLATE'
+    )
+    name_and_arguments = (
+        'METADATA',
+        'SUITE SETUP',
+        'SUITE TEARDOWN',
+        'TEST SETUP',
+        'TEST TEARDOWN',
+        'TEST TEMPLATE',
+        'SETUP',
+        'TEARDOWN',
+        'TEMPLATE',
+        'RESOURCE',
+        'VARIABLES'
+    )
+    name_arguments_and_with_name = (
+        'LIBRARY',
+    )
 
-    def __init__(self, ctx):
+    def __init__(self):
         self.settings = {n: None for n in self.names}
-        self._data_only = ctx.data_only
 
     def lex(self, statement):
-        name_token = statement[0]
-        name = self._format_name(normalize_whitespace(name_token.value))
+        setting = statement[0]
+        name = self._format_name(setting.value)
         normalized = self._normalize_name(name)
         try:
             self._validate(name, normalized, statement)
         except ValueError as err:
-            name_token.type = Token.ERROR
-            name_token.error = err.args[0]
+            self._lex_error(setting, statement[1:], err.args[0])
         else:
-            name_token.type = getattr(Token, normalized.replace(' ', '_'))
-            self.settings[normalized] = statement[1:]
-        for token in statement[1:]:
-            token.type = Token.ARGUMENT
-        if name_token.type in (Token.DOCUMENTATION, Token.METADATA) \
-                and self._data_only:
-            doc_index = 1 if name_token.type == Token.DOCUMENTATION else 2
-            self._merge_doc_tokens_on_same_line(statement[doc_index:])
+            self._lex_setting(setting, statement[1:], normalized)
+
+    def _format_name(self, name):
+        return name
+
+    def _normalize_name(self, name):
+        name = normalize_whitespace(name).upper()
+        if name in self.aliases:
+            return self.aliases[name]
+        return name
 
     def _validate(self, name, normalized, statement):
         if normalized not in self.settings:
-            raise ValueError("Non-existing setting '%s'." % name)  # TODO: Hints?
+            message = self._get_non_existing_setting_message(name, normalized)
+            raise ValueError(message)
         if self.settings[normalized] is not None and normalized not in self.multi_use:
-            raise ValueError("Setting '%s' allowed only once. "
+            raise ValueError("Setting '%s' is allowed only once. "
                              "Only the first value is used." % name)
         if normalized in self.single_value and len(statement) > 2:
             raise ValueError("Setting '%s' accepts only one value, got %s."
                              % (name, len(statement) - 1))
 
-    def _normalize_name(self, name):
-        name = name.upper()
-        if name in self.aliases:
-            return self.aliases[name]
-        return name
+    def _get_non_existing_setting_message(self, name, normalized):
+        if normalized in TestCaseFileSettings.names:
+            is_resource = isinstance(self, ResourceFileSettings)
+            return "Setting '%s' is not allowed in %s file." % (
+                name, 'resource' if is_resource else 'suite initialization'
+            )
+        candidates = tuple(self.settings) + tuple(self.aliases)
+        return RecommendationFinder(normalize).find_and_format(
+            name=normalized.title(),
+            candidates=[candidate.title() for candidate in candidates],
+            message="Non-existing setting '%s'." % name
+        )
 
-    def _format_name(self, name):
-        return name
+    def _lex_error(self, setting, values, error):
+        setting.set_error(error)
+        for token in values:
+            token.type = Token.COMMENT
 
-    def _merge_doc_tokens_on_same_line(self, tokens):
-        for line in self._doc_tokens_to_lines(tokens):
-            if len(line) > 1:
-                line[0].value = ' '.join(t.value for t in line)
-                for token in line[1:]:
-                    token.type = Token.IGNORE
+    def _lex_setting(self, setting, values, normalized_name):
+        self.settings[normalized_name] = values
+        setting.type = normalized_name.replace(' ', '_')
+        if normalized_name in self.name_and_arguments:
+            self._lex_name_and_arguments(values)
+        elif normalized_name in self.name_arguments_and_with_name:
+            self._lex_name_arguments_and_with_name(values)
+        else:
+            self._lex_arguments(values)
 
-    def _doc_tokens_to_lines(self, tokens):
-        line = []
-        current_line = -1
+    def _lex_name_and_arguments(self, tokens):
+        if tokens:
+            tokens[0].type = Token.NAME
+        self._lex_arguments(tokens[1:])
+
+    def _lex_name_arguments_and_with_name(self, tokens):
+        self._lex_name_and_arguments(tokens)
+        if len(tokens) > 1 and \
+                normalize_whitespace(tokens[-2].value) == 'WITH NAME':
+            tokens[-2].type = Token.WITH_NAME
+            tokens[-1].type = Token.NAME
+
+    def _lex_arguments(self, tokens):
         for token in tokens:
-            if token.lineno == current_line or current_line == -1:
-                line.append(token)
-            else:
-                yield line
-                line = [token]
-            current_line = token.lineno
-        yield line
+            token.type = Token.ARGUMENT
 
 
 class TestCaseFileSettings(Settings):
     names = (
         'DOCUMENTATION',
+        'METADATA',
         'SUITE SETUP',
         'SUITE TEARDOWN',
-        'METADATA',
         'TEST SETUP',
         'TEST TEARDOWN',
         'TEST TEMPLATE',
@@ -108,22 +152,22 @@ class TestCaseFileSettings(Settings):
         'TASK TEMPLATE': 'TEST TEMPLATE',
         'TASK TIMEOUT': 'TEST TIMEOUT',
     }
-    multi_use = (
+
+
+class InitFileSettings(Settings):
+    names = (
+        'DOCUMENTATION',
         'METADATA',
+        'SUITE SETUP',
+        'SUITE TEARDOWN',
+        'TEST SETUP',
+        'TEST TEARDOWN',
+        'TEST TIMEOUT',
+        'FORCE TAGS',
         'LIBRARY',
         'RESOURCE',
         'VARIABLES'
     )
-    single_value = (
-        'RESOURCE',
-        'TEST TIMEOUT',
-        'TEST TEMPLATE'
-    )
-
-
-# FIXME: Implementation missing. Need to check what settings are supported.
-class InitFileSettings(Settings):
-    pass
 
 
 class ResourceFileSettings(Settings):
@@ -133,32 +177,20 @@ class ResourceFileSettings(Settings):
         'RESOURCE',
         'VARIABLES'
     )
-    multi_use = (
-        'LIBRARY',
-        'RESOURCE',
-        'VARIABLES'
-    )
-    single_value = (
-        'RESOURCE'
-    )
 
 
 class TestCaseSettings(Settings):
     names = (
         'DOCUMENTATION',
+        'TAGS',
         'SETUP',
         'TEARDOWN',
         'TEMPLATE',
-        'TIMEOUT',
-        'TAGS'
-    )
-    single_value = (
-        'TIMEOUT',
-        'TEMPLATE'
+        'TIMEOUT'
     )
 
-    def __init__(self, ctx, parent):
-        Settings.__init__(self, ctx)
+    def __init__(self, parent):
+        Settings.__init__(self)
         self.parent = parent
 
     def _format_name(self, name):
@@ -189,9 +221,6 @@ class KeywordSettings(Settings):
         'TIMEOUT',
         'TAGS',
         'RETURN'
-    )
-    single_value = (
-        'TIMEOUT'
     )
 
     def _format_name(self, name):
