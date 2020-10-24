@@ -15,27 +15,29 @@
 
 """:mod:`robot.api` package exposes the public APIs of Robot Framework.
 
-Unless stated otherwise, the APIs exposed in this package are considered stable,
-and thus safe to use when building external tools on top of Robot Framework.
+Unless stated otherwise, the APIs exposed in this package are considered
+stable, and thus safe to use when building external tools on top of
+Robot Framework. Notice that all parsing APIs were rewritten in Robot
+Framework 3.2.
 
 Currently exposed APIs are:
 
-* :mod:`.logger` module for test libraries' logging purposes.
+* :mod:`.logger` module for libraries' logging purposes.
 
-* :mod:`.deco` module with decorators test libraries can utilize.
+* :mod:`.deco` module with decorators libraries can utilize.
 
-* :class:`~robot.parsing.model.TestCaseFile`,
-  :class:`~robot.parsing.model.TestDataDirectory`, and
-  :class:`~robot.parsing.model.ResourceFile` classes for parsing test
-  data files and directories.
-  In addition, a convenience factory method
-  :func:`~robot.parsing.model.TestData` creates either
-  :class:`~robot.parsing.model.TestCaseFile` or
-  :class:`~robot.parsing.model.TestDataDirectory` objects based on the input.
+* :mod:`.exceptions` module containing exceptions that libraries can utilize for
+  reporting failures and other events. These exceptions can be imported also directly
+  via :mod:`robot.api` like ``from robot.api import SkipExecution``.
+
+* Various functions and classes for parsing test data to tokens
+  or to a higher level model represented as an abstract syntax tree (AST).
+  See the :mod:`~robot.parsing` module documentation for a list of exposed
+  functions and classes as well as for more documentation and examples.
 
 * :class:`~robot.running.model.TestSuite` class for creating executable
   test suites programmatically and
-  :class:`~robot.running.builder.TestSuiteBuilder` class
+  :class:`~robot.running.builder.builders.TestSuiteBuilder` class
   for creating such suites based on existing test data on the file system.
 
 * :class:`~robot.model.visitor.SuiteVisitor` abstract class for processing testdata
@@ -68,10 +70,11 @@ See documentations of the individual APIs for more details.
 """
 
 from robot.model import SuiteVisitor
-# FIXME: Anything else to expose from parsing? Update parsing docs above.
 from robot.parsing import (get_tokens, get_resource_tokens, get_init_tokens,
                            get_model, get_resource_model, get_init_model,
-                           ModelTransformer, ModelVisitor, Token)
+                           Token)
 from robot.reporting import ResultWriter
 from robot.result import ExecutionResult, ResultVisitor
 from robot.running import TestSuite, TestSuiteBuilder
+
+from .exceptions import ContinuableFailure, Failure, FatalError, Error, SkipExecution

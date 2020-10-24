@@ -19,23 +19,31 @@ Slicing with variable
     Check Test Case    ${TESTNAME}
 
 Invalid index
-    Check Test Case    ${TESTNAME}
+    Check Test Case    ${TESTNAME} list
+    Check Test Case    ${TESTNAME} string
+    Check Test Case    ${TESTNAME} bytes
 
 Invalid index using variable
     Check Test Case    ${TESTNAME}
 
 Non-int index
-    Check Test Case    ${TESTNAME}
+    Check Test Case    ${TESTNAME} list
+    Check Test Case    ${TESTNAME} string
+    Check Test Case    ${TESTNAME} bytes
 
 Non-int index using variable
     Check Test Case    ${TESTNAME} 1
     Check Test Case    ${TESTNAME} 2
 
 Empty index
-    Check Test Case    ${TESTNAME}
+    Check Test Case    ${TESTNAME} list
+    Check Test Case    ${TESTNAME} string
+    Check Test Case    ${TESTNAME} bytes
 
 Invalid slice
-    Check Test Case    ${TESTNAME}
+    Check Test Case    ${TESTNAME} list
+    Check Test Case    ${TESTNAME} string
+    Check Test Case    ${TESTNAME} bytes
 
 Non-int slice index
     Check Test Case    ${TESTNAME} 1
@@ -48,27 +56,18 @@ Non-existing variable
 Non-existing index variable
     Check Test Case    ${TESTNAME}
 
-Non-list variable
+Non-subscriptable variable
     Check Test Case    ${TESTNAME}
 
-Old syntax with `@` still works but is deprecated
-    [Documentation]    `${list}[1]` and `@{list}[1]` work same way still.
-    ...                In the future latter is deprecated and changed.
-    ${tc} =    Check Test Case    ${TESTNAME}
-    Old item access syntax is deprecated    ${tc.kws[0].msgs[0]}    \@{LIST}[0]
-    Old item access syntax is deprecated    ${ERRORS[0]}            \@{LIST}[0]
-    Old item access syntax is deprecated    ${tc.kws[1].msgs[0]}    \@{LIST}[\${-1}]
-    Old item access syntax is deprecated    ${ERRORS[1]}            \@{LIST}[\${-1}]
-    Old item access syntax is deprecated    ${tc.kws[2].msgs[0]}    \@{LIST}[99]
-    Old item access syntax is deprecated    ${ERRORS[2]}            \@{LIST}[99]
-
-Old syntax with `@` doesn't support new slicing syntax
-    [Documentation]    Slicing support should be added in RF 3.3 when `@{list}[index]` changes.
+List expansion using `@` syntax
     Check Test Case    ${TESTNAME}
 
-*** Keywords ***
-Old item access syntax is deprecated
-    [Arguments]    ${msg}    ${deprecated}
-    Check log message    ${msg}
-    ...    Accessing variable items using '${deprecated}' syntax is deprecated. Use '$${deprecated[1:]}' instead.
-    ...    WARN
+List expansion fails if value is not list-like
+    Check Test Case    ${TESTNAME} 1
+    Check Test Case    ${TESTNAME} 2
+
+List expansion with slice
+    Check Test Case    ${TESTNAME}
+
+List expansion with slice fails if value is not list-like
+    Check Test Case    ${TESTNAME}

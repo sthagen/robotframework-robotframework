@@ -67,7 +67,7 @@ Boolean
     Boolean              oFF                       ${False}
     Boolean              0                         ${False}
     Boolean              ${EMPTY}                  ${False}
-    Boolean              none                      ${None}
+    Boolean              none                      ${False}
 
 Invalid boolean is accepted as-is
     Boolean              FooBar                    'FooBar'
@@ -157,6 +157,8 @@ Timedelta
     Timedelta            4:3:2.1                   timedelta(seconds=4*60*60 + 3*60 + 2 + 0.1)
     Timedelta            100:00:00                 timedelta(seconds=100*60*60)
     Timedelta            -00:01                    timedelta(seconds=-1)
+    Timedelta            ${8}                      timedelta(seconds=8)
+    Timedelta            ${16.4321}                timedelta(seconds=16, microseconds=432100)
 
 Invalid timedelta
     [Template]           Conversion Should Fail
@@ -168,19 +170,37 @@ Enum
     [Tags]               require-enum
     Enum                 FOO                       MyEnum.FOO
     Enum                 bar                       MyEnum.bar
+    Enum                 foo                       MyEnum.foo
+
+Normalized enum member match
+    [Tags]               require-enum
+    Enum                 b a r                     MyEnum.bar
+    Enum                 BAr                       MyEnum.bar
+    Enum                 B_A_r                     MyEnum.bar
+    Enum                 normalize_me              MyEnum.normalize_me
+    Enum                 normalize me              MyEnum.normalize_me
+    Enum                 Normalize Me              MyEnum.normalize_me
+
+Normalized enum member match with multiple matches
+    [Tags]               require-enum
+    [Template]           Conversion Should Fail
+    Enum                 Foo                       type=MyEnum           error=MyEnum has multiple members matching 'Foo'. Available: 'FOO' and 'foo'
 
 Invalid Enum
     [Tags]               require-enum
     [Template]           Conversion Should Fail
-    Enum                 foobar                    type=MyEnum           error=MyEnum does not have member 'foobar'. Available: 'FOO' and 'bar'
-    Enum                 BAR                       type=MyEnum           error=MyEnum does not have member 'BAR'. Available: 'FOO' and 'bar'
+    Enum                 foobar                    type=MyEnum           error=MyEnum does not have member 'foobar'. Available: 'FOO', 'bar', 'foo' and 'normalize_me'
+    Enum                 bar!                      type=MyEnum           error=MyEnum does not have member 'bar!'. Available: 'FOO', 'bar', 'foo' and 'normalize_me'
 
 NoneType
     NoneType             None                      None
     NoneType             NONE                      None
-    NoneType             Hello, world!             'Hello, world!'
-    NoneType             True                      'True'
-    NoneType             []                        '[]'
+
+Invalid NoneType
+    [Template]           Conversion Should Fail
+    NoneType             Hello, world!             type=None
+    NoneType             True                      type=None
+    NoneType             []                        type=None
 
 List
     List                 []                        []
@@ -363,8 +383,8 @@ Invalid kwonly
     [Template]           Conversion Should Fail
     Kwonly               argument=foobar           type=float
 
-Non-strings are not converted
-    [Template]           Non-string is not converted
+Boolean, None, List and Dict are not converted
+    [Template]           Boolean, None, List and Dict are not converted
     Integer
     Float
     Boolean
@@ -381,21 +401,6 @@ Non-strings are not converted
     Date
     Timedelta
     NoneType
-
-String None is converted to None object
-    [Template]           String None is converted to None object
-    Integer
-    Float
-    Boolean
-    Decimal
-    List
-    Tuple
-    Dictionary
-    Set
-    Frozenset
-    DateTime
-    Date
-    Timedelta
 
 Invalid type spec causes error
     [Documentation]    FAIL No keyword with name 'Invalid type spec' found.
@@ -420,3 +425,18 @@ Value contains variable
     Varargs              @{value}                  expected=(1, 2, 3)
     &{value} =           Create Dictionary         a=1    b=2    c=3
     Kwargs               &{value}                  expected={'a': 1, 'b': 2, 'c': 3}
+
+Default value is not used if explicit type conversion succeeds
+    Type and default 1    [1, 2]    [1, 2]
+    Type and default 2    42        42
+
+Default value is used if explicit type conversion fails
+    Type and default 1    none       None
+    Type and default 2    FALSE      False
+    Type and default 2    ok also    'ok also'
+    Type and default 3    10         ${{datetime.timedelta(seconds=10)}}
+
+Explicit conversion failure is used if both conversions fail
+    [Template]    Conversion Should Fail
+    Type and default 1    BANG!    type=list         error=Invalid expression.
+    Type and default 3    BANG!    type=timedelta    error=Invalid time string 'BANG!'.

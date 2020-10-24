@@ -122,17 +122,16 @@ class VariableMatch(object):
     # https://github.com/robotframework/robotframework/issues/3487
 
     def is_list_variable(self):
-        return (self.identifier == '@' and self.is_variable()
-                and not self.items)
+        return self.identifier == '@' and self.is_variable()
 
     def is_dict_variable(self):
-        return (self.identifier == '&' and self.is_variable()
-                and not self.items)
+        return self.identifier == '&' and self.is_variable()
 
     def is_assign(self, allow_assign_mark=False):
         if allow_assign_mark and self.string.endswith('='):
             return search_variable(rstrip(self.string[:-1])).is_assign()
         return (self.is_variable()
+                and self.identifier in '$@&'
                 and not self.items
                 and not search_variable(self.base))
 
@@ -151,7 +150,7 @@ class VariableMatch(object):
     def __unicode__(self):
         if not self:
             return '<no match>'
-        items = ''.join('[%s]' % i for i in self.item) if self.items else ''
+        items = ''.join('[%s]' % i for i in self.items) if self.items else ''
         return '%s{%s}%s' % (self.identifier, self.base, items)
 
 
@@ -251,11 +250,6 @@ class VariableSearcher(object):
             if self._open_brackets == 0:
                 self.items.append(''.join(self.item_chars))
                 self.item_chars = []
-                # Don't support chained item access with old @ and & syntax.
-                # The old syntax was deprecated in RF 3.2 and in RF 3.3 it'll
-                # be reassigned to mean using item in list/dict context.
-                if self.variable_chars[0] in '@&':
-                    return None
                 return self.waiting_item_state
         elif char == '[' and not self._escaped:
             self._open_brackets += 1
@@ -295,14 +289,16 @@ def unescape_variable_syntax(item):
 @py2to3
 class VariableIterator(object):
 
-    def __init__(self, string, identifiers='$@&%*'):
-        self._string = string
-        self._identifiers = identifiers
+    def __init__(self, string, identifiers='$@&%', ignore_errors=False):
+        self.string = string
+        self.identifiers = identifiers
+        self.ignore_errors = ignore_errors
 
     def __iter__(self):
-        remaining = self._string
+        remaining = self.string
         while True:
-            match = search_variable(remaining, self._identifiers)
+            match = search_variable(remaining, self.identifiers,
+                                    self.ignore_errors)
             if not match:
                 break
             remaining = match.after

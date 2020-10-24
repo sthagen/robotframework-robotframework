@@ -17,7 +17,8 @@ except ImportError:
     pass
 
 from robot.utils import (is_bytes, is_falsy, is_dict_like, is_list_like,
-                         is_string, is_truthy, type_name, JYTHON, PY3)
+                         is_string, is_truthy, type_name, IRONPYTHON, JYTHON,
+                         PY3)
 from robot.utils.asserts import assert_equal, assert_true
 
 
@@ -83,13 +84,19 @@ class TestListLike(unittest.TestCase):
             assert_equal(is_list_like(f), False)
         assert_equal(is_list_like(f), False)
 
-    def test_object_raising_exception_are_not_list_like(self):
-        class O(object):
+    def test_iter_makes_object_iterable_regardless_implementation(self):
+        class Example(object):
             def __iter__(self):
                 1/0
-        assert_equal(is_list_like(O()), False)
+        assert_equal(is_list_like(Example()), True)
 
-    def test_other_iterables_are_list_like(self):
+    def test_only_getitem_does_not_make_object_iterable(self):
+        class Example(object):
+            def __getitem__(self, item):
+                return "I'm not iterable!"
+        assert_equal(is_list_like(Example()), False)
+
+    def test_iterables_in_general_are_list_like(self):
         for thing in [[], (), set(), xrange(1), generator(), array('i'), UserList()]:
             assert_equal(is_list_like(thing), True, thing)
 
@@ -126,9 +133,9 @@ class TestDictLike(unittest.TestCase):
 class TestTypeName(unittest.TestCase):
 
     def test_base_types(self):
-        for item, exp in [('string', 'string'),
-                          (u'unicode', 'string'),
-                          (b'bytes', 'bytes' if PY3 else 'string'),
+        for item, exp in [('x', 'string'),
+                          (u'x', 'string'),
+                          (b'x', 'bytes' if (PY3 or IRONPYTHON) else 'string'),
                           (bytearray(), 'bytearray'),
                           (1, 'integer'),
                           (long(1), 'integer'),

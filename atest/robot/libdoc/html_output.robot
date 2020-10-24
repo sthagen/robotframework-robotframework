@@ -18,11 +18,7 @@ Generated
     ${MODEL}[generated]     \\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}
 
 Scope
-    ${MODEL}[scope]         global
-
-Named Args
-    [Template]    Should Be Equal
-    ${MODEL}[named_args]    ${True}
+    ${MODEL}[scope]         GLOBAL
 
 Inits
     [Template]    Should Be Empty
@@ -34,13 +30,13 @@ Keyword Names
     ${MODEL}[keywords][13][name]    Set Name Using Robot Name Attribute
 
 Keyword Arguments
-    [Template]    Should Be Equal As Strings
-    ${MODEL}[keywords][0][args]     []
-    ${MODEL}[keywords][1][args]     ['a1=d', '*a2']
-    ${MODEL}[keywords][6][args]     ['arg=hyv\\\\xe4']
-    ${MODEL}[keywords][10][args]    ['arg=hyvä']
-    ${MODEL}[keywords][12][args]    ['a=1', 'b=True', 'c=(1, 2, None)']
-    ${MODEL}[keywords][13][args]    ['a', 'b', '*args', '**kwargs']
+    [Template]    Verify Argument Models
+    ${MODEL}[keywords][0][args]     
+    ${MODEL}[keywords][1][args]     a1=d    *a2
+    ${MODEL}[keywords][6][args]     arg=hyv\\xe4
+    ${MODEL}[keywords][10][args]    arg=hyvä
+    ${MODEL}[keywords][12][args]    a=1    b=True    c=(1, 2, None)
+    ${MODEL}[keywords][13][args]    a    b    *args    **kwargs
 
 Embedded Arguments
     [Template]    NONE
@@ -81,12 +77,13 @@ Keyword tags
 
 User keyword documentation formatting
     [Setup]    Run Libdoc And Parse Model From HTML    ${TESTDATADIR}/resource.robot
-    ${MODEL}[keywords][1][doc]
     ${MODEL}[keywords][0][doc]    <p>$\{CURDIR}</p>
-    ${MODEL}[keywords][9][doc]
+    ${MODEL}[keywords][1][doc]    <p><b>DEPRECATED</b> for some reason.</p>
+    ${MODEL}[keywords][2][doc]
+    ${MODEL}[keywords][10][doc]
     ...    <p>Hyvää yötä.</p>
     ...    <p>Спасибо!</p>
-    ${MODEL}[keywords][7][doc]
+    ${MODEL}[keywords][8][doc]
     ...    <p>foo bar <a href="#kw" class="name">kw</a>.</p>
     ...    <p>FIRST <span class="name">\${a1}</span> alskdj alskdjlajd askf laskdjf asldkfj alsdkfj alsdkfjasldkfj END</p>
     ...    <p>SECOND askf laskdjf <i>asldkfj</i> alsdkfj alsdkfjasldkfj askf <b>laskdjf</b> END</p>
@@ -106,3 +103,11 @@ User keyword documentation formatting
     ...    <td>bar</td>
     ...    </tr>
     ...    </table>
+
+*** Keywords ***
+Verify Argument Models
+    [Arguments]    ${arg_models}    @{expected_reprs}
+    Should Be True    len($arg_models) == len($expected_reprs)
+    FOR    ${arg_model}    ${expected_repr}    IN ZIP    ${arg_models}    ${expected_reprs}
+       Run Keyword And Continue On Failure    Verify Argument Model    ${arg_model}    ${expected_repr}
+    END

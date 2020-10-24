@@ -22,6 +22,7 @@ List all keywords
 
 List some keywords
     Run Libdoc And Verify Output    ${TESTDATADIR}/resource.robot list o
+    ...   Deprecation
     ...   Keyword with some "stuff" to <escape>
     ...   non ascii doc
     Run Libdoc And Verify Output    ${TESTDATADIR}/resource.robot LIST KW? C*R
@@ -35,8 +36,7 @@ Show whole library
     Run Libdoc And Set Output    ${TESTDATADIR}/module.py show
     Should Contain Intro    module
     ...    Version=0.1-alpha
-    ...    Scope=global
-    ...    Named arguments=supported
+    ...    Scope=GLOBAL
     Should Contain Keyword    Get Hello    ${EMPTY}
     ...    Get hello.
     ...    ${EMPTY}
@@ -63,7 +63,6 @@ Show intro only
 
 Show intro and keywords
     Run Libdoc and set output    ${TESTDATADIR}/resource.robot SHOW NONASC* INTRO
-    Should Contain Intro    resource    Named arguments=supported
     Should Contain Keyword    non ascii doc    ${EMPTY}
     ...    Hyvää yötä.
     ...    ${EMPTY}
@@ -78,7 +77,7 @@ Show version
 Should Contain Intro
     [Arguments]    ${name}    &{meta}
     ${underline} =    Evaluate    '=' * len($name)
-    @{meta} =    Evaluate    [(n+':').ljust(18) + v for n, v in $meta.items()]
+    @{meta} =    Evaluate    [(n+':').ljust(10) + v for n, v in $meta.items()]
     ${expected} =    Catenate    SEPARATOR=\n
     ...    ${name}
     ...    ${underline}

@@ -32,8 +32,12 @@ def get_tokens(source, data_only=False, tokenize_variables=False):
         opened file object, or Unicode text containing the date directly.
         Source files must be UTF-8 encoded.
     :param data_only: When ``False`` (default), returns all tokens. When set
-        to ``True``, omits separators, comments, continuations, and other
-        non-data tokens.
+        to ``True``, omits separators, comments, continuation markers, and
+        other non-data tokens.
+    :param tokenize_variables: When ``True``, possible variables in keyword
+        arguments and elsewhere are tokenized. See the
+        :meth:`~robot.parsing.lexer.tokens.Token.tokenize_variables`
+        method for details.
 
     Returns a generator that yields :class:`~robot.parsing.lexer.tokens.Token`
     instances.
@@ -177,10 +181,11 @@ class Lexer(object):
             if not self._is_commented_or_empty(line):
                 break
             commented_or_empty.append(line)
-            lines.pop()
-        yield list(chain.from_iterable(lines))
-        for line in reversed(commented_or_empty):
-            yield line
+        if not commented_or_empty:
+            return [statement]
+        lines = lines[:-len(commented_or_empty)]
+        statement = list(chain.from_iterable(lines))
+        return [statement] + list(reversed(commented_or_empty))
 
     def _split_to_lines(self, statement):
         lines = []

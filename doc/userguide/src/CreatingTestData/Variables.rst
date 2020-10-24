@@ -163,15 +163,16 @@ the arguments as explained below:
 
 .. _list variable:
 .. _list variables:
+.. _list expansion:
 
 List variable syntax
 ~~~~~~~~~~~~~~~~~~~~
 
 When a variable is used as a scalar like `${EXAMPLE}`, its value is be
 used as-is. If a variable value is a list or list-like, it is also possible
-to use it as a list variable like `@{EXAMPLE}`. In this case individual list
-items are passed in as arguments separately. This is easiest to explain with
-an example. Assuming that a variable `@{USER}` has value `['robot', 'secret']`,
+to use it as a list variable like `@{EXAMPLE}`. In this case the list is expanded
+and individual items are passed in as separate arguments. This is easiest to explain
+with an example. Assuming that a variable `@{USER}` has value `['robot', 'secret']`,
 the following two test cases are equivalent:
 
 .. sourcecode:: robotframework
@@ -188,6 +189,23 @@ using them as scalars, lists or dictionaries. Using a variable as a list
 requires its value to be a Python list or list-like object. Robot Framework
 does not allow strings to be used as lists, but other iterable objects such
 as tuples or dictionaries are accepted.
+
+Starting from Robot Framework 4.0, list expansion can be used in combination with
+`list item access`__ making these usages possible:
+
+.. sourcecode:: robotframework
+
+   *** Test Cases ***
+   Nested container
+       ${nested} =    Evaluate    [['a', 'b', 'c'], {'key': ['x', 'y']}]
+       Log Many    @{nested}[0]         # Logs 'a', 'b' and 'c'.
+       Log Many    @{nested}[1][key]    # Logs 'x' and 'y'.
+
+   Slice
+       ${items} =    Create List    first    second    third
+       Log Many    @{items}[1:]         # Logs 'second' and  'third'.
+
+__ `Accessing sequence items`_
 
 Using list variables with other data
 ''''''''''''''''''''''''''''''''''''
@@ -229,6 +247,7 @@ __ `All available settings in test data`_
 
 .. _dictionary variable:
 .. _dictionary variables:
+.. _dictionary expansion:
 
 Dictionary variable syntax
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -237,7 +256,7 @@ As discussed above, a variable containing a list can be used as a `list
 variable`_ to pass list items to a keyword as individual arguments.
 Similarly a variable containing a Python dictionary or a dictionary-like
 object can be used as a dictionary variable like `&{EXAMPLE}`. In practice
-this means that individual items of the dictionary are passed as
+this means that the dictionary is expanded and individual items are passed as
 `named arguments`_ to the keyword. Assuming that a variable `&{USER}` has
 value `{'name': 'robot', 'password': 'secret'}`, the following two test cases
 are equivalent.
@@ -250,6 +269,11 @@ are equivalent.
 
    Dict Variable
        Login    &{USER}
+
+Starting from Robot Framework 4.0, dictionary expansion can be used in combination with
+`dictionary item access`__ making usages like `&{nested}[key]` possible.
+
+__ `Accessing individual dictionary items`_
 
 Using dictionary variables with other data
 ''''''''''''''''''''''''''''''''''''''''''
@@ -284,61 +308,75 @@ are imports, setups and teardowns where dictionaries can be used as arguments.
 Accessing list and dictionary items
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-It is possible to access items of lists and dictionaries using special
-syntax `${var}[item]`. Accessing items is an old feature, but prior to
-Robot Framework 3.1 the syntax was `@{var}[item]` with lists and
-`&{var}[item]` with dictionaries. The old syntax was deprecated in
-Robot Framework 3.2 and will not be supported in the future.
+It is possible to access items of subscriptable variables, e.g. lists and dictionaries,
+using special syntax like `${var}[item]` or `${var}[nested][item]`.
+Starting from Robot Framework 4.0, it is also possible to use item access together with
+`list expansion`_ and `dictionary expansion`_ by using syntax `@{var}[item]` and
+`&{var}[item]`, respectively.
 
-Accessing list items
-''''''''''''''''''''
+.. note:: Prior to Robot Framework 3.1 the normal item access syntax was  `@{var}[item]`
+          with lists and `&{var}[item]` with dictionaries. Robot Framework 3.1 introduced
+          the generic `${var}[item]` syntax along with some other nice enhancements and
+          the old item access syntax was deprecated in Robot Framework 3.2.
 
-It is possible to access a certain item of a list variable with the syntax
-`${var}[index]`, where `index` is the index of the selected value. Indices
-start from zero, negative indices can be used to access items from the end,
-and trying to access an item with too large an index causes an error.
-Indices are automatically converted to integers, and it is also possible to
-use variables as indices. List items accessed in this manner can be used
-similarly as scalar variables.
+.. _sequence items:
+
+Accessing sequence items
+''''''''''''''''''''''''
+
+It is possible to access a certain item of a variable containing a `sequence`__
+(e.g. list, string or bytes) with the syntax `${var}[index]`, where `index`
+is the index of the selected value. Indices start from zero, negative indices
+can be used to access items from the end, and trying to access an item with
+too large an index causes an error. Indices are automatically converted to
+integers, and it is also possible to use variables as indices.
 
 .. sourcecode:: robotframework
 
    *** Test Cases ***
-   List variable item
+   Positive index
        Login    ${USER}[0]    ${USER}[1]
        Title Should Be    Welcome ${USER}[0]!
 
    Negative index
-       Log    ${LIST}[-1]
+       Keyword    ${SEQUENCE}[-1]
 
    Index defined as variable
-       Log    ${LIST}[${INDEX}]
+       Keyword    ${SEQUENCE}[${INDEX}]
 
-List item access supports also the `same "slice" functionality as Python`__
+Sequence item access supports also the `same "slice" functionality as Python`__
 with syntax like `${var}[1:]`. With this syntax you do not get a single
-item but a slice of the original list. Same way as with Python you can
+item but a slice of the original sequence. Same way as with Python you can
 specify the start index, the end index, and the step:
 
 .. sourcecode:: robotframework
 
    *** Test Cases ***
    Start index
-       Keyword    ${LIST}[1:]
+       Keyword    ${SEQUENCE}[1:]
 
    End index
-       Keyword    ${LIST}[:4]
+       Keyword    ${SEQUENCE}[:4]
 
    Start and end
-       Keyword    ${LIST}[2:-1]
+       Keyword    ${SEQUENCE}[2:-1]
 
    Step
-       Keyword    ${LIST}[::2]
-       Keyword    ${LIST}[1:-1:10]
+       Keyword    ${SEQUENCE}[::2]
+       Keyword    ${SEQUENCE}[1:-1:10]
 
-.. note:: The slice syntax is new in Robot Framework 3.1 and does not work
-          with the old `@{var}[index]` syntax.
+.. note:: The slice syntax is new in Robot Framework 3.1. It was extended to work
+          with `list expansion`_ like `@{var}[1:]` in Robot Framework 4.0.
 
+.. note:: Prior to Robot Framework 3.2, item and slice access was only supported
+          with variables containing lists, tuples, or other objects considered
+          list-like. Nowadays all sequences, including strings and bytes, are
+          supported.
+
+__ https://docs.python.org/3/glossary.html#term-sequence
 __ https://docs.python.org/glossary.html#term-slice
+
+.. _dictionary items:
 
 Accessing individual dictionary items
 '''''''''''''''''''''''''''''''''''''
@@ -370,7 +408,7 @@ for more details about this syntax.
 Nested item access
 ''''''''''''''''''
 
-Also nested list and dictionary structures can be accessed using the same
+Also nested subscriptable variables can be accessed using the same
 item access syntax like `${var}[item1][item2]`. This is especially useful
 when working with JSON data often returned by REST services. For example,
 if a variable `${DATA}` contains `[{'id': 1, 'name': 'Robot'},
@@ -481,7 +519,7 @@ can be changed by having `SEPARATOR=<sep>` in the first cell.
    ${MULTILINE}    SEPARATOR=\n    First line
    ...             Second line     Third line
 
-__ `Dividing test data to several rows`_
+__ `Dividing data to several rows`_
 
 Creating list variables
 '''''''''''''''''''''''
@@ -492,7 +530,7 @@ values in the subsequent columns. A list variable can have any number
 of values, starting from zero, and if many values are needed, they
 can be `split into several rows`__.
 
-__ `Dividing test data to several rows`_
+__ `Dividing data to several rows`_
 
 .. sourcecode:: robotframework
 
@@ -579,7 +617,6 @@ In the examples above, variables are set so that
 - `${EXAMPLE}` gets the value `value`
 - `${HOST}` and `${USER}` get the values
   `localhost:7272` and `robot`
-- `${ESCAPED}` gets the value `"quotes and spaces"`
 
 The basic syntax for taking `variable files`_ into use from the command line
 is :option:`--variablefile path/to/variables.py`, and `Taking variable files into

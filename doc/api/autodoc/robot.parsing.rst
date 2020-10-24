@@ -10,20 +10,14 @@ Subpackages
 -----------
 
 .. toctree::
+   :maxdepth: 2
 
    robot.parsing.lexer
    robot.parsing.model
+   robot.parsing.parser
 
 Submodules
 ----------
-
-robot.parsing.builders module
------------------------------
-
-.. automodule:: robot.parsing.builders
-   :members:
-   :undoc-members:
-   :show-inheritance:
 
 robot.parsing.suitestructure module
 -----------------------------------
@@ -32,4 +26,3 @@ robot.parsing.suitestructure module
    :members:
    :undoc-members:
    :show-inheritance:
-

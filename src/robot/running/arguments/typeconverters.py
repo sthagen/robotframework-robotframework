@@ -12,7 +12,7 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-
+import sys
 from ast import literal_eval
 from collections import OrderedDict
 try:
@@ -30,14 +30,14 @@ from numbers import Integral, Real
 
 from robot.libraries.DateTime import convert_date, convert_time
 from robot.utils import (FALSE_STRINGS, IRONPYTHON, TRUE_STRINGS, PY_VERSION,
-                         PY2, seq2str, type_name, unicode)
+                         PY2, eq, seq2str, type_name, unicode)
 
 
 class TypeConverter(object):
     type = None
     abc = None
     aliases = ()
-    convert_none = True
+    value_types = (unicode,)
     _converters = OrderedDict()
     _type_aliases = {}
 
@@ -81,19 +81,20 @@ class TypeConverter(object):
     def get_converter(self, type_):
         return self
 
-    def convert(self, name, value, explicit_type=True):
-        if self.convert_none and value.upper() == 'NONE':
-            return None
+    def convert(self, name, value, explicit_type=True, strict=True):
+        if type(value) not in self.value_types:
+            # TODO: This can be an error once converters convert all meaningful values.
+            return value
         try:
             return self._convert(value, explicit_type)
         except ValueError as error:
-            return self._handle_error(name, value, error, explicit_type)
+            return self._handle_error(name, value, error, strict)
 
     def _convert(self, value, explicit_type=True):
         raise NotImplementedError
 
-    def _handle_error(self, name, value, error, explicit_type=True):
-        if not explicit_type:
+    def _handle_error(self, name, value, error, strict=True):
+        if not strict:
             return value
         ending = u': %s' % error if error.args else '.'
         raise ValueError("Argument '%s' got value '%s' that cannot be "
@@ -127,8 +128,11 @@ class BooleanConverter(TypeConverter):
     type = bool
     type_name = 'boolean'
     aliases = ('bool',)
+    value_types = (unicode, float, int)
 
     def _convert(self, value, explicit_type=True):
+        if isinstance(value, (float, int)):
+            return bool(value)
         upper = value.upper()
         if upper in TRUE_STRINGS:
             return True
@@ -143,8 +147,13 @@ class IntegerConverter(TypeConverter):
     abc = Integral
     type_name = 'integer'
     aliases = ('int', 'long')
+    value_types = (unicode, float)
 
     def _convert(self, value, explicit_type=True):
+        if isinstance(value, float) and not value.is_integer():
+            if not explicit_type:
+                return value
+            raise ValueError('Conversion would lose precision.')
         try:
             return int(value)
         except ValueError:
@@ -161,6 +170,7 @@ class FloatConverter(TypeConverter):
     type = float
     abc = Real
     aliases = ('double',)
+    value_types = (unicode, int)
 
     def _convert(self, value, explicit_type=True):
         try:
@@ -183,16 +193,23 @@ class DecimalConverter(TypeConverter):
             raise ValueError
 
 
+
+def _int_to_bytes(value):
+    return value.to_bytes((value.bit_length() // 8) + 1, byteorder=sys.byteorder)
+
+
 @TypeConverter.register
 class BytesConverter(TypeConverter):
     type = bytes
     abc = getattr(abc, 'ByteString', None)    # ByteString is new in Python 3
     type_name = 'bytes'                       # Needed on Python 2
-    convert_none = False
+    value_types = (unicode, int)
 
     def _convert(self, value, explicit_type=True):
         if PY2 and not explicit_type:
             return value
+        if not PY2 and isinstance(value, int):
+            return _int_to_bytes(value)
         try:
             value = value.encode('latin-1')
         except UnicodeEncodeError as err:
@@ -204,9 +221,11 @@ class BytesConverter(TypeConverter):
 @TypeConverter.register
 class ByteArrayConverter(TypeConverter):
     type = bytearray
-    convert_none = False
+    value_types = (unicode, int)
 
     def _convert(self, value, explicit_type=True):
+        if not PY2 and isinstance(value, int):
+            return bytearray(_int_to_bytes(value))
         try:
             return bytearray(value, 'latin-1')
         except UnicodeEncodeError as err:
@@ -217,6 +236,7 @@ class ByteArrayConverter(TypeConverter):
 @TypeConverter.register
 class DateTimeConverter(TypeConverter):
     type = datetime
+    value_types = (unicode, int, float)
 
     def _convert(self, value, explicit_type=True):
         return convert_date(value, result_format='datetime')
@@ -236,6 +256,7 @@ class DateConverter(TypeConverter):
 @TypeConverter.register
 class TimeDeltaConverter(TypeConverter):
     type = timedelta
+    value_types = (unicode, int, float)
 
     def _convert(self, value, explicit_type=True):
         return convert_time(value, result_format='timedelta')
@@ -262,9 +283,15 @@ class EnumConverter(TypeConverter):
             # wouldn't work with the old enum module.
             return getattr(self._enum, value)
         except AttributeError:
-            members = self._get_members(self._enum)
-            raise ValueError("%s does not have member '%s'. Available: %s"
-                             % (self.type_name, value, seq2str(members)))
+            members = sorted(self._get_members(self._enum))
+            matches = [m for m in members if eq(m, value, ignore='_')]
+            if not matches:
+                raise ValueError("%s does not have member '%s'. Available: %s"
+                                 % (self.type_name, value, seq2str(members)))
+            if len(matches) > 1:
+                raise ValueError("%s has multiple members matching '%s'. Available: %s"
+                                 % (self.type_name, value, seq2str(matches)))
+            return getattr(self._enum, matches[0])
 
     def _get_members(self, enum):
         try:
@@ -276,9 +303,12 @@ class EnumConverter(TypeConverter):
 @TypeConverter.register
 class NoneConverter(TypeConverter):
     type = type(None)
+    type_name = 'None'
 
     def _convert(self, value, explicit_type=True):
-        return value
+        if value.upper() == 'NONE':
+            return None
+        raise ValueError
 
 
 @TypeConverter.register

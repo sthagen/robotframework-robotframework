@@ -41,14 +41,6 @@ robot.variables.finders module
    :undoc-members:
    :show-inheritance:
 
-robot.variables.isvar module
-----------------------------
-
-.. automodule:: robot.variables.isvar
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 robot.variables.notfound module
 -------------------------------
 
@@ -104,4 +96,3 @@ robot.variables.variables module
    :members:
    :undoc-members:
    :show-inheritance:
-

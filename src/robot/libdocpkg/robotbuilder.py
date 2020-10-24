@@ -19,7 +19,7 @@ import sys
 from robot.errors import DataError
 from robot.running import (TestLibrary, UserLibrary, UserErrorHandler,
                            ResourceFileBuilder)
-from robot.utils import split_tags_from_doc, unescape, unic
+from robot.utils import split_tags_from_doc, unescape, unicode
 
 from .model import LibraryDoc, KeywordDoc
 
@@ -34,7 +34,9 @@ class LibraryDocBuilder(object):
                             doc=self._get_doc(lib),
                             version=lib.version,
                             scope=str(lib.scope),
-                            doc_format=lib.doc_format)
+                            doc_format=lib.doc_format,
+                            source=lib.source,
+                            lineno=lib.lineno)
         libdoc.inits = self._get_initializers(lib)
         libdoc.keywords = KeywordDocBuilder().build_keywords(lib)
         return libdoc
@@ -65,7 +67,10 @@ class ResourceDocBuilder(object):
         res = self._import_resource(path)
         libdoc = LibraryDoc(name=res.name,
                             doc=self._get_doc(res),
-                            type='resource')
+                            type='RESOURCE',
+                            scope='GLOBAL',
+                            source=res.source,
+                            lineno=1)
         libdoc.keywords = KeywordDocBuilder(resource=True).build_keywords(res)
         return libdoc
 
@@ -100,9 +105,11 @@ class KeywordDocBuilder(object):
     def build_keyword(self, kw):
         doc, tags = self._get_doc_and_tags(kw)
         return KeywordDoc(name=kw.name,
-                          args=self._get_args(kw.arguments),
+                          args=kw.arguments,
                           doc=doc,
-                          tags=tags)
+                          tags=tags,
+                          source=kw.source,
+                          lineno=kw.lineno)
 
     def _get_doc_and_tags(self, kw):
         doc = self._get_doc(kw)
@@ -113,28 +120,3 @@ class KeywordDocBuilder(object):
         if self._resource and not isinstance(kw, UserErrorHandler):
             return unescape(kw.doc)
         return kw.doc
-
-    def _get_args(self, argspec):
-        """:type argspec: :py:class:`robot.running.arguments.ArgumentSpec`"""
-        args = [self._format_arg(arg, argspec) for arg in argspec.positional]
-        if argspec.varargs:
-            args.append('*%s' % self._format_arg(argspec.varargs, argspec))
-        if argspec.kwonlyargs:
-            if not argspec.varargs:
-                args.append('*')
-            args.extend(self._format_arg(arg, argspec)
-                        for arg in argspec.kwonlyargs)
-        if argspec.kwargs:
-            args.append('**%s' % self._format_arg(argspec.kwargs, argspec))
-        return args
-
-    def _format_arg(self, arg, argspec):
-        result = arg
-        if argspec.types is not None and arg in argspec.types:
-            result = '%s: %s' % (result, self._format_type(argspec.types[arg]))
-        if arg in argspec.defaults:
-            result = '%s=%s' % (result, unic(argspec.defaults[arg]))
-        return result
-
-    def _format_type(self, type_):
-        return type_.__name__ if isinstance(type_, type) else type_

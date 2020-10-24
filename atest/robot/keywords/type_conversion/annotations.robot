@@ -82,10 +82,19 @@ Invalid timedelta
 Enum
     Check Test Case    ${TESTNAME}
 
+Normalized enum member match
+    Check Test Case    ${TESTNAME}
+
+Normalized enum member match with multiple matches
+    Check Test Case    ${TESTNAME}
+
 Invalid Enum
     Check Test Case    ${TESTNAME}
 
 NoneType
+    Check Test Case    ${TESTNAME}
+
+Invalid NoneType
     Check Test Case    ${TESTNAME}
 
 List
@@ -166,10 +175,7 @@ Kwonly
 Invalid kwonly
     Check Test Case    ${TESTNAME}
 
-Non-strings are not converted
-    Check Test Case    ${TESTNAME}
-
-String None is converted to None object
+Boolean, None, List and Dict are not converted
     Check Test Case    ${TESTNAME}
 
 Return value annotation causes no error
@@ -188,11 +194,20 @@ Forward references
 Type information mismatch caused by decorator
     Check Test Case    ${TESTNAME}
 
-Keyword decorator with wraps
+Decorator with wraps
     Check Test Case    ${TESTNAME}
 
-Keyword decorator with wraps mismatched type
+Decorator with wraps mismatched type
     Check Test Case    ${TESTNAME}
 
 Value contains variable
+    Check Test Case    ${TESTNAME}
+
+Default value is not used if explicit type conversion succeeds
+    Check Test Case    ${TESTNAME}
+
+Default value is used if explicit type conversion fails
+    Check Test Case    ${TESTNAME}
+
+Explicit conversion failure is used if both conversions fail
     Check Test Case    ${TESTNAME}

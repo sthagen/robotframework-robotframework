@@ -13,63 +13,107 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from robot.utils import XmlWriter, get_timestamp
+import os.path
+from datetime import datetime
 
-from .htmlwriter import DocToHtml
+from robot.utils import WINDOWS, XmlWriter, unicode
 
 
 class LibdocXmlWriter(object):
 
-    def __init__(self, force_html_doc=False):
-        self._force_html_doc = force_html_doc
+    def __init__(self, spec_doc_format):
+        self._spec_doc_format = spec_doc_format
 
     def write(self, libdoc, outfile):
-        formatter = DocFormatter(libdoc.doc_format, self._force_html_doc)
-        writer = XmlWriter(outfile, usage='Libdoc output')
-        self._write_start(libdoc, writer, formatter)
-        self._write_keywords('init', libdoc.inits, writer, formatter)
-        self._write_keywords('kw', libdoc.keywords, writer, formatter)
+        if self._spec_doc_format == 'HTML':
+            libdoc.convert_doc_to_html()
+        writer = XmlWriter(outfile, usage='Libdoc spec')
+        self._write_start(libdoc, writer)
+        self._write_keywords('inits', 'init', libdoc.inits, libdoc.source, writer)
+        self._write_keywords('keywords', 'kw', libdoc.keywords, libdoc.source, writer)
         self._write_end(writer)
 
-    def _write_start(self, libdoc, writer, formatter):
-        lib_attrs = {'name': libdoc.name,
-                     'type': libdoc.type,
-                     'format': formatter.format,
-                     'generated': get_timestamp(millissep=None)}
-        writer.start('keywordspec', lib_attrs)
+    def _write_start(self, libdoc, writer):
+        generated = datetime.utcnow().replace(microsecond=0).isoformat() + 'Z'
+        attrs = {'name': libdoc.name,
+                 'type': libdoc.type,
+                 'format': libdoc.doc_format,
+                 'scope': libdoc.scope,
+                 'generated': generated,
+                 'specversion': '3'}
+        self._add_source_info(attrs, libdoc, writer.output)
+        writer.start('keywordspec', attrs)
         writer.element('version', libdoc.version)
-        writer.element('scope', libdoc.scope)
-        writer.element('namedargs', 'yes' if libdoc.named_args else 'no')
-        writer.element('doc', formatter(libdoc.doc))
+        writer.element('doc', libdoc.doc)
 
-    def _write_keywords(self, type, keywords, writer, formatter):
+    def _add_source_info(self, attrs, item, outfile, lib_source=None):
+        if item.source and item.source != lib_source:
+            attrs['source'] = self._format_source(item.source, outfile)
+        if item.lineno > 0:
+            attrs['lineno'] = str(item.lineno)
+
+    def _format_source(self, source, outfile):
+        if not os.path.exists(source):
+            return source
+        source = os.path.normpath(source)
+        if not (hasattr(outfile, 'name')
+                and os.path.isfile(outfile.name)
+                and self._on_same_drive(source, outfile.name)):
+            return source
+        return os.path.relpath(source, os.path.dirname(outfile.name))
+
+    def _on_same_drive(self, path1, path2):
+        if not WINDOWS:
+            return True
+        return os.path.splitdrive(path1)[0] == os.path.splitdrive(path2)[0]
+
+    def _get_old_style_scope(self, libdoc):
+        if libdoc.type == 'RESOURCE':
+            return ''
+        return {'GLOBAL': 'global',
+                'SUITE': 'test suite',
+                'TEST': 'test case'}[libdoc.scope]
+
+    def _write_keywords(self, list_name, kw_type, keywords, lib_source, writer):
+        writer.start(list_name)
         for kw in keywords:
-            writer.start(type, {'name': kw.name} if type == 'kw' else {})
-            writer.start('arguments')
-            for arg in kw.args:
-                writer.element('arg', arg)
-            writer.end('arguments')
-            writer.element('doc', formatter(kw.doc))
-            writer.start('tags')
-            for tag in kw.tags:
-                writer.element('tag', tag)
-            writer.end('tags')
-            writer.end(type)
+            attrs = self._get_start_attrs(kw_type, kw, lib_source, writer)
+            writer.start(kw_type, attrs)
+            self._write_arguments(kw, writer)
+            writer.element('doc', kw.doc)
+            if kw_type == 'kw' and kw.tags:
+                writer.start('tags')
+                for tag in kw.tags:
+                    writer.element('tag', tag)
+                writer.end('tags')
+            writer.end(kw_type)
+        writer.end(list_name)
+
+    def _write_arguments(self, kw, writer):
+        writer.start('arguments', {'repr': unicode(kw.args)})
+        for arg in kw.args:
+            writer.start('arg', {'kind': arg.kind,
+                                 'required': 'true' if arg.required else 'false',
+                                 'repr': unicode(arg)})
+            if arg.name:
+                writer.element('name', arg.name)
+            if arg.type is not arg.NOTSET:
+                writer.element('type', arg.type_repr)
+            if arg.default is not arg.NOTSET:
+                writer.element('default', arg.default_repr)
+            writer.end('arg')
+        writer.end('arguments')
+
+    def _get_start_attrs(self, kw_type, kw, lib_source, writer):
+        if kw_type == 'init':
+            attrs = {}
+        else:
+            attrs = {'name': kw.name}
+            if kw.deprecated:
+                attrs['deprecated'] = 'true'
+        self._add_source_info(attrs, kw, writer.output, lib_source)
+        return attrs
 
     def _write_end(self, writer):
         writer.end('keywordspec')
         writer.close()
-
-
-class DocFormatter(object):
-
-    def __init__(self, doc_format, force_html=False):
-        if force_html:
-            self._formatter = DocToHtml(doc_format)
-            self.format = 'HTML'
-        else:
-            self._formatter = lambda doc: doc
-            self.format = doc_format
-
-    def __call__(self, doc):
-        return self._formatter(doc)

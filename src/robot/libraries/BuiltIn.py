@@ -13,11 +13,15 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+from __future__ import absolute_import
+
+from collections import OrderedDict
 import difflib
 import re
 import time
 
-from robot.api import logger
+from robot.api import logger, SkipExecution
+from robot.api.deco import keyword
 from robot.errors import (ContinueForLoop, DataError, ExecutionFailed,
                           ExecutionFailures, ExecutionPassed, ExitForLoop,
                           PassExecution, ReturnFromKeyword, VariableError)
@@ -1296,6 +1300,7 @@ class _Variables(_BuiltInBase):
         """
         return self._variables.as_dict(decoration=is_falsy(no_decoration))
 
+    @keyword(types=None)
     @run_keyword_variant(resolve=0)
     def get_variable_value(self, name, default=None):
         """Returns variable value or ``default`` if the variable does not exist.
@@ -1324,8 +1329,22 @@ class _Variables(_BuiltInBase):
         """Logs all variables in the current scope with given log level."""
         variables = self.get_variables()
         for name in sorted(variables, key=lambda s: s[2:-1].lower()):
-            msg = format_assign_message(name, variables[name], cut_long=False)
+            name, value = self._get_logged_variable(name, variables)
+            msg = format_assign_message(name, value, cut_long=False)
             self.log(msg, level)
+
+    def _get_logged_variable(self, name, variables):
+        value = variables[name]
+        try:
+            if name[0] == '@':
+                value = list(value)
+            if name[0] == '&':
+                value = OrderedDict(value)
+        except RERAISED_EXCEPTIONS:
+            raise
+        except:
+            name = '$' + name[1:]
+        return name, value
 
     @run_keyword_variant(resolve=0)
     def variable_should_exist(self, name, msg=None):
@@ -1574,9 +1593,11 @@ class _Variables(_BuiltInBase):
             name = self._resolve_var_name(replaced)
         except ValueError:
             name = original
-        if not search_variable(name).is_assign():
+        match = search_variable(name)
+        match.resolve_base(self._variables)
+        if not match.is_assign():
             raise DataError("Invalid variable name '%s'." % name)
-        return name
+        return unic(match)
 
     def _resolve_var_name(self, name):
         if name.startswith('\\'):
@@ -1826,6 +1847,25 @@ class _RunKeyword(_BuiltInBase):
             if err.dont_continue:
                 raise
             return 'FAIL', unic(err)
+
+    @run_keyword_variant(resolve=1)
+    def run_keyword_and_warn_on_failure(self, name, *args):
+        """Runs the specified keyword logs a warning if the keyword fails.
+
+        This keyword is similar to `Run Keyword And Ignore Error` but if the executed
+        keyword fails, the error message is logged as a warning to make it more
+        visible. Returns status and possible return value or error message exactly
+        like `Run Keyword And Ignore Error` does.
+
+        Errors caused by invalid syntax, timeouts, or fatal exceptions are not
+        caught by this keyword. Otherwise this keyword itself never fails.
+
+        New in Robot Framework 4.0.
+        """
+        status, message = self.run_keyword_and_ignore_error(name, *args)
+        if status == 'FAIL':
+            logger.warn("Executing keyword '%s' failed:\n%s" % (name, message))
+        return status, message
 
     @run_keyword_variant(resolve=1)
     def run_keyword_and_return_status(self, name, *args):
@@ -2183,33 +2223,13 @@ class _RunKeyword(_BuiltInBase):
 
     @run_keyword_variant(resolve=1)
     def run_keyword_if_all_critical_tests_passed(self, name, *args):
-        """Runs the given keyword with the given arguments, if all critical tests passed.
-
-        This keyword can only be used in suite teardown. Trying to use it in
-        any other place will result in an error.
-
-        Otherwise, this keyword works exactly like `Run Keyword`, see its
-        documentation for more details.
-        """
-        suite = self._get_suite_in_teardown('Run Keyword If '
-                                            'All Critical Tests Passed')
-        if suite.statistics.critical.failed == 0:
-            return self.run_keyword(name, *args)
+        """*DEPRECATED.* Use `BuiltIn.Run Keyword If All Tests Passed` instead."""
+        self.run_keyword_if_all_tests_passed(name, args)
 
     @run_keyword_variant(resolve=1)
     def run_keyword_if_any_critical_tests_failed(self, name, *args):
-        """Runs the given keyword with the given arguments, if any critical tests failed.
-
-        This keyword can only be used in a suite teardown. Trying to use it
-        anywhere else results in an error.
-
-        Otherwise, this keyword works exactly like `Run Keyword`, see its
-        documentation for more details.
-        """
-        suite = self._get_suite_in_teardown('Run Keyword If '
-                                            'Any Critical Tests Failed')
-        if suite.statistics.critical.failed > 0:
-            return self.run_keyword(name, *args)
+        """*DEPRECATED.* Use `BuiltIn.Run Keyword If Any Tests Failed` instead."""
+        self.run_keyword_if_any_tests_failed(name, args)
 
     @run_keyword_variant(resolve=1)
     def run_keyword_if_all_tests_passed(self, name, *args):
@@ -2222,7 +2242,7 @@ class _RunKeyword(_BuiltInBase):
         documentation for more details.
         """
         suite = self._get_suite_in_teardown('Run Keyword If All Tests Passed')
-        if suite.statistics.all.failed == 0:
+        if suite.statistics.failed == 0:
             return self.run_keyword(name, *args)
 
     @run_keyword_variant(resolve=1)
@@ -2236,7 +2256,7 @@ class _RunKeyword(_BuiltInBase):
         documentation for more details.
         """
         suite = self._get_suite_in_teardown('Run Keyword If Any Tests Failed')
-        if suite.statistics.all.failed > 0:
+        if suite.statistics.failed > 0:
             return self.run_keyword(name, *args)
 
     def _get_suite_in_teardown(self, kwname):
@@ -2248,6 +2268,26 @@ class _RunKeyword(_BuiltInBase):
 
 class _Control(_BuiltInBase):
 
+    def skip(self, msg='Skipped with Skip keyword.'):
+        """Skips the rest of the current test.
+
+        Skips the remaining keywords in the current test and sets the given
+        message to the test. If the test has teardown, it will be executed.
+        """
+        raise SkipExecution(msg)
+
+    def skip_if(self, condition, msg=None):
+        """Skips the rest of the current test if the ``condition`` is True.
+
+        Skips the remaining keywords in the current test and sets the given
+        message to the test. If ``msg`` is not given, the ``condition`` will
+        be used as the message. If the test has teardown, it will be executed.
+
+        If the ``condition`` evaluates to False, does nothing.
+        """
+        if self._is_true(condition):
+            raise SkipExecution(msg or condition)
+
     def continue_for_loop(self):
         """Skips the current for loop iteration and continues from the next.
 
@@ -2256,9 +2296,10 @@ class _Control(_BuiltInBase):
         in a keyword that the loop uses.
 
         Example:
-        | :FOR | ${var}         | IN                     | @{VALUES}         |
-        |      | Run Keyword If | '${var}' == 'CONTINUE' | Continue For Loop |
-        |      | Do Something   | ${var}                 |
+        | FOR | ${var}         | IN                     | @{VALUES}         |
+        |     | Run Keyword If | '${var}' == 'CONTINUE' | Continue For Loop |
+        |     | Do Something   | ${var}                 |
+        | END |
 
         See `Continue For Loop If` to conditionally continue a for loop without
         using `Run Keyword If` or other wrapper keywords.
@@ -2274,9 +2315,10 @@ class _Control(_BuiltInBase):
         semantics as with `Should Be True` keyword.
 
         Example:
-        | :FOR | ${var}               | IN                     | @{VALUES} |
-        |      | Continue For Loop If | '${var}' == 'CONTINUE' |
-        |      | Do Something         | ${var}                 |
+        | FOR | ${var}               | IN                     | @{VALUES} |
+        |     | Continue For Loop If | '${var}' == 'CONTINUE' |
+        |     | Do Something         | ${var}                 |
+        | END |
         """
         if self._is_true(condition):
             self.continue_for_loop()
@@ -2288,9 +2330,10 @@ class _Control(_BuiltInBase):
         Can be used directly in a for loop or in a keyword that the loop uses.
 
         Example:
-        | :FOR | ${var}         | IN                 | @{VALUES}     |
-        |      | Run Keyword If | '${var}' == 'EXIT' | Exit For Loop |
-        |      | Do Something   | ${var} |
+        | FOR | ${var}         | IN                 | @{VALUES}     |
+        |     | Run Keyword If | '${var}' == 'EXIT' | Exit For Loop |
+        |     | Do Something   | ${var} |
+        | END |
 
         See `Exit For Loop If` to conditionally exit a for loop without
         using `Run Keyword If` or other wrapper keywords.
@@ -2306,9 +2349,10 @@ class _Control(_BuiltInBase):
         semantics as with `Should Be True` keyword.
 
         Example:
-        | :FOR | ${var}           | IN                 | @{VALUES} |
-        |      | Exit For Loop If | '${var}' == 'EXIT' |
-        |      | Do Something     | ${var}             |
+        | FOR | ${var}           | IN                 | @{VALUES} |
+        |     | Exit For Loop If | '${var}' == 'EXIT' |
+        |     | Do Something     | ${var}             |
+        | END |
         """
         if self._is_true(condition):
             self.exit_for_loop()
@@ -2349,9 +2393,10 @@ class _Control(_BuiltInBase):
         | Find Index
         |    [Arguments]    ${element}    @{items}
         |    ${index} =    Set Variable    ${0}
-        |    :FOR    ${item}    IN    @{items}
-        |    \\    Run Keyword If    '${item}' == '${element}'    Return From Keyword    ${index}
-        |    \\    ${index} =    Set Variable    ${index + 1}
+        |    FOR    ${item}    IN    @{items}
+        |        Run Keyword If    '${item}' == '${element}'    Return From Keyword    ${index}
+        |        ${index} =    Set Variable    ${index + 1}
+        |    END
         |    Return From Keyword    ${-1}    # Also [Return] would work here.
 
         The most common use case, returning based on an expression, can be
@@ -2379,9 +2424,10 @@ class _Control(_BuiltInBase):
         | Find Index
         |    [Arguments]    ${element}    @{items}
         |    ${index} =    Set Variable    ${0}
-        |    :FOR    ${item}    IN    @{items}
-        |    \\    Return From Keyword If    '${item}' == '${element}'    ${index}
-        |    \\    ${index} =    Set Variable    ${index + 1}
+        |    FOR    ${item}    IN    @{items}
+        |        Return From Keyword If    '${item}' == '${element}'    ${index}
+        |        ${index} =    Set Variable    ${index + 1}
+        |    END
         |    Return From Keyword    ${-1}    # Also [Return] would work here.
 
         See also `Run Keyword And Return` and `Run Keyword And Return If`.
@@ -2495,9 +2541,10 @@ class _Control(_BuiltInBase):
         and ``*tags`` have same semantics as with `Pass Execution`.
 
         Example:
-        | :FOR | ${var}            | IN                     | @{VALUES}               |
-        |      | Pass Execution If | '${var}' == 'EXPECTED' | Correct value was found |
-        |      | Do Something      | ${var}                 |
+        | FOR | ${var}            | IN                     | @{VALUES}               |
+        |     | Pass Execution If | '${var}' == 'EXPECTED' | Correct value was found |
+        |     | Do Something      | ${var}                 |
+        | END |
         """
         if self._is_true(condition):
             message = self._variables.replace_string(message)

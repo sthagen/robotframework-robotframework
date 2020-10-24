@@ -41,11 +41,22 @@ Synopsis
 Options
 ~~~~~~~
 
-  -f, --format <html|xml|xml:html>
-                           Specifies whether to generate HTML or XML output.
-                           `xml:html` means generating XML output where keyword
-                           documentation is forced to be HTML. The default
-                           output format is got from the output file extension.
+  -f, --format <html|xml> Specifies whether to generate an HTML or XML
+                          output file. The default output `format` and the 
+                          default output `specdocformat` is got from the
+                          output file extension.
+                          :file:`*.html`    -> `-f HTML -s HTML`
+                          :file:`*.xml`     -> `-f XML  -s RAW`
+                          :file:`*.libspec` -> `-f XML  -s HTML`
+   -s --specdocformat <raw|html>
+                          Specifies for XML outputs whether the keyword
+                          documentation is converted to HTML regardless
+                          of the original documentation format or kept
+                          raw as in the library or source spec file.
+                          :file:`*.html` files always get HTML documentation
+                          format. Default is based on the format.
+                          `--format HTML` -> `HTML`
+                          `--format XML`  -> `RAW`
   -F, --docformat <robot|html|text|rest>
                            Specifies the source documentation format. Possible
                            values are Robot Framework's documentation format,
@@ -119,34 +130,105 @@ Resource files must always be specified using a path. If the path does
 not exist, resource files are also searched from all directories in
 the `module search path`_ similarly as when executing test cases.
 
+Libdoc spec files
+'''''''''''''''''
+
+Earlier generated Libdoc XML spec files can also be used as inputs. This
+works if spec files use either :file:`*.xml` or :file:`*.libspec` extension::
+
+   python -m robot.libdoc Example.xml Example.html
+   python -m robot.libdoc Example.libspec Example.html
+
+.. note:: Support for the :file:`*.libspec` extension is new in
+          Robot Framework 3.2.
+
 Generating documentation
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 Libdoc can generate documentation in HTML (for humans) and XML (for tools)
 formats. The file where to write the documentation is specified as the second
-argument after the library/resource name or path, and by default the output
-format is got from the output file extension::
+argument after the library/resource name or path, and the output format is
+got from the output file extension by default.
+
+Libdoc HTML documentation
+'''''''''''''''''''''''''
+
+Most Robot Framework libraries use Libdoc to generate library documentation
+in HTML format. This format is thus familiar for most people who have used
+Robot Framework. A simple example can be seen below, and it has been generated
+based on the example found a `bit later in this section`__.
+
+.. figure:: src/SupportingTools/ExampleLibrary.png
+   :target: src/SupportingTools/ExampleLibrary.html
+   :width: 581
+
+The HTML documentation starts with general library introduction, continues
+with a section about configuring the library when it is imported (when
+applicable), and finally has shortcuts to all keywords and the keywords
+themselves. The magnifying glass icon on the lower right corner opens the
+keyword search dialog that can also be opened by simply pressing the `s` key.
+
+Libdoc automatically creates HTML documentation if the output file extension
+is :file:`*.html`. If there is a need to use some other extension, the
+format can be specified explicitly with the :option:`--format` option.
+
+::
 
    python -m robot.libdoc OperatingSystem OperatingSystem.html
-   python -m robot.libdoc --name MyLibrary Remote::http://10.0.0.42:8270 MyLibrary.xml
-   python -m robot.libdoc test/resource.robot doc/resource.html
-   jython -m robot.libdoc --version 1.0 MyJavaLibrary.java MyJavaLibrary.html
-   jython -m robot.libdoc my.organization.DynamicJavaLibrary my.organization.DynamicJavaLibrary.xml
+   python -m robot.libdoc --name MyLibrary Remote::http://10.0.0.42:8270 MyLibrary.html
+   python -m robot.libdoc --format HTML test/resource.robot doc/resource.htm
 
-If needed, the output format can also be set explicitly by using the
-:option:`--format` option::
+__ `Python libraries`_
 
-   python -m robot.libdoc --format html MyLibrary MyLibrary.htm
+Libdoc XML spec files
+'''''''''''''''''''''
+
+Libdoc can also generate documentation in XML format that is suitable for
+external tools such as editors. It contains all the same information as
+the HTML format but in a machine readable format.
+
+XML spec files also contain library and keyword source information so that
+the library and each keyword can have source path (`source` attribute) and
+line number (`lineno` attribute). The source path is relative to the directory
+where the spec file is generated thus does not refer to a correct file if
+the spec is moved. The source path is omitted with keywords if it is
+the same as with the library, and both the source path and the line number
+are omitted if getting them from the library fails for whatever reason.
+
+Libdoc automatically uses the XML format if the output file extension is
+:file:`*.xml` or :file:`*.libspec`. When using the special :file:`*.libspec`
+extension, Libdoc automatically enables the options `-f XML -s HTML` which means
+creating an XML output file where keyword documentation is converted to HTML.
+If needed, the format can be explicitly set with the :option:`--format` option.
+
+::
+
+   python -m robot.libdoc OperatingSystem OperatingSystem.xml
+   python -m robot.libdoc test/resource.robot doc/resource.libspec
    python -m robot.libdoc --format xml MyLibrary MyLibrary.spec
+   python -m robot.libdoc --format xml -s html MyLibrary MyLibrary.xml
 
-By default keyword documentation in XML output files use the exact same
-`documentation syntax`_ (`ROBOT`, `HTML`, `TEXT` or `reST`) as the documented
-library or resource file uses. It is, however, possible to force the
-documentation to be HTML by using the special `xml:html` format::
+The exact Libdoc spec file format is documented with an `XML schema`__ (XSD)
+at https://github.com/robotframework/robotframework/tree/master/doc/schema.
+The spec file format may change between Robot Framework major releases.
+To make it easier for external tools to know how to parse a certain
+spec file, the spec file root element has a dedicated `specversion`
+attribute. It was added in Robot Framework 3.2 with value `2` and earlier
+spec files can be considered to have version `1`. The spec version will
+be incremented in the future if and when changes are made.
+Robot Framework 4.0 introduced new spec version `3`.
 
-   python -m robot.libdoc --format xml:html MyLibrary MyLibrary.xml
+.. note:: Robot Framework 4.0 introduced an updated xml format. It is
+          incompatible with former versions. LibDoc can only read and write
+          new XML format.
 
-.. note:: The `xml:html` format is new in Robot Framework 3.2.
+          The `xml:html` format introduced in Robot Framework 3.2. has been
+          replaced by the option `-s --specdocformat <raw|html>`.
+
+          Including source information and spec version are new in Robot
+          Framework 3.2 as well.
+
+__ https://en.wikipedia.org/wiki/XML_Schema_(W3C)
 
 Viewing information on console
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -202,36 +284,23 @@ a tool tip in links in the generated HTML documentation), and it should
 thus be as describing as possible, but not too long.
 
 The simple example below illustrates how to write the documentation in
-general, and there is a `bit longer example`__ at the end of this
-chapter containing also an example of the generated documentation.
+general. How the HTML documentation generated based on this example looks
+like can be seen above__, and there is also a `bit longer example`__ at
+the end of this chapter.
 
 .. sourcecode:: python
 
-    class ExampleLib:
-        """Library for demo purposes.
+    src/SupportingTools/ExampleLibrary.py
 
-        This library is only used in an example and it doesn't do anything useful.
-        """
+If you want to use non-ASCII characters in the documentation, the documentation
+must either be Unicode string (default in Python 3) or UTF-8 encoded bytes.
 
-        def my_keyword(self):
-            """Does nothing."""
-            pass
-
-        def your_keyword(self, arg):
-            """Takes one argument and *does nothing* with it.
-
-            Examples:
-            | Your Keyword | xxx |
-            | Your Keyword | yyy |
-            """
-            pass
-
-.. tip:: If you want to use non-ASCII characters in the documentation of
-         Python libraries, you must either use UTF-8 as your `source code
-         encoding`__ or create docstrings as Unicode.
+.. tip:: When using Python 2, you it is a good idea to set the
+         `source code encoding`__ to ease using non-ASCII characters.
 
          For more information on Python documentation strings, see `PEP-257`__.
 
+__ `Libdoc HTML documentation`_
 __ `Libdoc example`_
 __ http://www.python.org/dev/peps/pep-0263
 __ http://www.python.org/dev/peps/pep-0257
@@ -256,7 +325,7 @@ than the earlier Python example.
      *
      * This library is only used in an example and it doesn't do anything useful.
      */
-    public class ExampleLib {
+    public class ExampleLibrary {
 
         /**
          * Does nothing.
@@ -585,12 +654,12 @@ Linking to automatic sections
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The documentation generated by Libdoc always contains sections
-for overall library introduction, shortcuts to keywords, and for
-actual keywords.  If a library itself takes arguments, there is also
+for overall library introduction and for
+keywords.  If a library itself takes arguments, there is also
 separate `importing section`_. If any of the keywords has tags__,
-a separate section is added for them as well.
+a separate selector for them is also shown in the overview.
 
-All these sections act as targets that can be linked, and the possible
+All the sections act as targets that can be linked, and the possible
 target names are listed in the table below. Using these targets is
 shown in the example of the next section.
 
@@ -602,10 +671,12 @@ shown in the example of the next section.
    ================  ===========================================================
    Introduction      :codesc:`\`introduction\`` and :codesc:`\`library introduction\``
    Importing         :codesc:`\`importing\`` and :codesc:`\`library importing\``
-   Shortcuts         :codesc:`\`shortcuts\``
-   Tags              :codesc:`\`tags\`` (new in Robot Framework 3.2)
    Keywords          :codesc:`\`keywords\``
    ================  ===========================================================
+
+.. note:: Before Robot Framework 4.0 there were also sections for tags and shortcuts.
+          In Robot Framework 4.0 these have been removed in favor of the overview menu. This means
+          that prior linking to shortcuts or tags sections does not work.
 
 __ `Keyword tags`_
 

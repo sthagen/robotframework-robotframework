@@ -18,6 +18,8 @@ from robot.utils import PY2, unicode
 class MyEnum(Enum):
     FOO = 1
     bar = 'xxx'
+    foo = 'yyy'
+    normalize_me = True
 
 
 class Unknown(object):
@@ -197,6 +199,21 @@ def non_matching_name(argument):
 
 @keyword(types={'argument': int, 'return': float})
 def return_type(argument, expected=None):
+    _validate_type(argument, expected)
+
+
+@keyword(types=[list])
+def type_and_default_1(argument=None, expected=None):
+    _validate_type(argument, expected)
+
+
+@keyword(types=[int])
+def type_and_default_2(argument=True, expected=None):
+    _validate_type(argument, expected)
+
+
+@keyword(types=[timedelta])
+def type_and_default_3(argument=0, expected=None):
     _validate_type(argument, expected)
 
 

@@ -37,6 +37,7 @@ import os
 
 from robot import model
 from robot.conf import RobotSettings
+from robot.model import Keywords
 from robot.output import LOGGER, Output, pyloggingconf
 from robot.utils import seq2str, setter
 
@@ -80,10 +81,16 @@ class ForLoop(Keyword):
                  _header='FOR', _end='END'):
         Keyword.__init__(self, assign=variables, args=values,
                          type=Keyword.FOR_LOOP_TYPE)
+        self.keywords = None
         self.flavor = flavor
         self.lineno = lineno
         self._header = _header
         self._end = _end
+
+    @setter
+    def keywords(self, keywords):
+        """Child keywords as a :class:`~.Keywords` object."""
+        return Keywords(self.keyword_class or self.__class__, self, keywords)
 
     @property
     def variables(self):
@@ -92,6 +99,11 @@ class ForLoop(Keyword):
     @property
     def values(self):
         return self.args
+
+    def __unicode__(self):
+        variables = '    '.join(self.assign)
+        values = '    '.join(self.values)
+        return u'FOR    %s    %s    %s' % (variables, self.flavor, values)
 
 
 class TestCase(model.TestCase):
@@ -133,7 +145,7 @@ class TestSuite(model.TestSuite):
 
         ``paths`` are file or directory paths where to read the data from.
 
-        Internally utilizes the :class:`~.builder.TestSuiteBuilder` class
+        Internally utilizes the :class:`~.builders.TestSuiteBuilder` class
         and ``config`` can be used to configure how it is initialized.
 
         New in Robot Framework 3.2.
@@ -146,8 +158,8 @@ class TestSuite(model.TestSuite):
         """Create a :class:`TestSuite` object based on the given ``model``.
 
         The model can be created by using the
-        :func:`~robot.parsing.builders.get_model` function and possibly
-        modified by other tooling in the :mod:`~robot.parsing` module.
+        :func:`~robot.parsing.parser.parser.get_model` function and possibly
+        modified by other tooling in the :mod:`robot.parsing` module.
 
         New in Robot Framework 3.2.
         """
@@ -223,7 +235,7 @@ class TestSuite(model.TestSuite):
                                output='example.xml',
                                exitonfailure=True,
                                stdout=stdout)
-            print result.return_code
+            print(result.return_code)
 
         To save memory, the returned
         :class:`~robot.result.executionresult.Result` object does not

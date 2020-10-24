@@ -13,10 +13,9 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from robot.utils import is_list_like
+from robot.utils import is_list_like, type_name
 
 from .filesetter import VariableFileSetter
-from .finders import VariableFinder
 from .replacer import VariableReplacer
 from .store import VariableStore
 from .tablesetter import VariableTableSetter
@@ -32,14 +31,16 @@ class Variables(object):
 
     def __init__(self):
         self.store = VariableStore(self)
-        self._replacer = VariableReplacer(self)
-        self._finder = VariableFinder(self.store)
+        self._replacer = VariableReplacer(self.store)
+
+    # FIXME: __setitem__, __getitem__ and __contains__ are super inconsistent.
+    # Do we even need them?
 
     def __setitem__(self, name, value):
         self.store.add(name, value)
 
     def __getitem__(self, item):
-        return self._finder.find(item)
+        return self._replacer.replace_scalar(item)
 
     def __contains__(self, name):
         return name in self.store
@@ -49,7 +50,8 @@ class Variables(object):
 
     def replace_list(self, items, replace_until=None, ignore_errors=False):
         if not is_list_like(items):
-            raise ValueError("'replace_list' requires list-like input.")
+            raise ValueError("'replace_list' requires list-like input, "
+                             "got %s." % type_name(items))
         return self._replacer.replace_list(items, replace_until, ignore_errors)
 
     def replace_scalar(self, item, ignore_errors=False):
