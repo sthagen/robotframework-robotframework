@@ -409,15 +409,6 @@ in the test data.
           dependent line terminator is needed (`\r\n` on Windows and
           `\n` elsewhere).
 
-.. note:: Possible un-escaped space character after the `\n` is
-          ignored meaning that `two lines\nhere` and `two lines\n here` are
-          equivalent. This syntax has, however, been deprecated in Robot
-          Framework 3.2 and it will be removed later. See `issue #3333`__
-          for more information about why this syntax existed and why it
-          is going to be removed.
-
-__ https://github.com/robotframework/robotframework/issues/3333
-
 Handling empty values
 '''''''''''''''''''''
 
@@ -495,6 +486,12 @@ as well `suite metadata`__. With them split values are automatically
 `joined together with the newline character`__ to ease creating multiline
 values.
 
+The `...` syntax allows also splitting variables in the `Variable section`_.
+When long scalar variables (e.g. `${STRING}`) are split to multiple rows,
+the final value is got by concatenating the rows together. The separator is
+a space by default, but that can be changed by starting the value with
+`SEPARATOR=<sep>`.
+
 Splitting lines is illustrated in the following two examples containing
 exactly same data without and with splitting.
 
@@ -511,14 +508,16 @@ __ `Newlines in test data`_
    Default Tags       default tag 1    default tag 2    default tag 3    default tag 4    default tag 5
 
    *** Variable ***
+   ${STRING}          This is a long string. It has multiple sentences. It does not have newlines.
+   ${MULTILINE}       This is a long multiline string.\nThis is the second line.\nThis is the third and the last line.
    @{LIST}            this     list     is    quite    long     and    items in it can also be long
+   &{DICT}            first=This value is pretty long.    second=This value is even longer. It has two sentences.
 
    *** Test Cases ***
    Example
        [Tags]    you    probably    do    not    have    this    many    tags    in    real    life
        Do X    first argument    second argument    third argument    fourth argument    fifth argument    sixth argument
        ${var} =    Get X    first argument passed to this keyword is pretty long    second argument passed to this keyword is long too
-
 
 .. sourcecode:: robotframework
 
@@ -531,8 +530,17 @@ __ `Newlines in test data`_
    ...                default tag 4    default tag 5
 
    *** Variable ***
+   ${STRING}          This is a long string.
+   ...                It has multiple sentences.
+   ...                It does not have newlines.
+   ${MULTILINE}       SEPARATOR=\n
+   ...                This is a long multiline string.
+   ...                This is the second line.
+   ...                This is the third and the last line.
    @{LIST}            this     list     is      quite    long     and
    ...                items in it can also be long
+   &{DICT}            first=This value is pretty long.
+   ...                second=This value is even longer. It has two sentences.
 
    *** Test Cases ***
    Example

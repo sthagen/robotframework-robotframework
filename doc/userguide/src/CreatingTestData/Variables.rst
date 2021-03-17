@@ -472,11 +472,13 @@ Creating variables
 
 Variables can spring into existence from different sources.
 
-Variable table
-~~~~~~~~~~~~~~
+.. _Variable sections:
 
-The most common source for variables are Variable tables in `test case
-files`_ and `resource files`_. Variable tables are convenient, because they
+Variable section
+~~~~~~~~~~~~~~~~
+
+The most common source for variables are Variable sections in `test case
+files`_ and `resource files`_. Variable sections are convenient, because they
 allow creating variables in the same place as the rest of the test
 data, and the needed syntax is very simple. Their main disadvantages are
 that values are always strings and they cannot be created dynamically.
@@ -487,7 +489,7 @@ Creating scalar variables
 
 The simplest possible variable assignment is setting a string into a
 scalar variable. This is done by giving the variable name (including
-`${}`) in the first column of the Variable table and the value in
+`${}`) in the first column of the Variable section and the value in
 the second one. If the second column is empty, an empty string is set
 as a value. Also an already defined variable can be used in the value.
 
@@ -508,16 +510,19 @@ variables slightly more explicit.
    ${NAME} =       Robot Framework
    ${VERSION} =    2.0
 
-If a scalar variable has a long value, it can be split to multiple columns and
-rows__. By default cells are catenated together using a space, but this
-can be changed by having `SEPARATOR=<sep>` in the first cell.
+If a scalar variable has a long value, it can be `split into multiple rows`__
+by using the `...` syntax. By default rows are concatenated together using
+a space, but this can be changed by having `SEPARATOR=<sep>` as the first item.
 
 .. sourcecode:: robotframework
 
    *** Variables ***
-   ${EXAMPLE}      This value is joined    together with a space
-   ${MULTILINE}    SEPARATOR=\n    First line
-   ...             Second line     Third line
+   ${EXAMPLE}      This value is joined
+   ...             together with a space.
+   ${MULTILINE}    SEPARATOR=\n
+   ...             First line.
+   ...             Second line.
+   ...             Third line.
 
 __ `Dividing data to several rows`_
 
@@ -525,7 +530,7 @@ Creating list variables
 '''''''''''''''''''''''
 
 Creating list variables is as easy as creating scalar variables. Again, the
-variable name is in the first column of the Variable table and
+variable name is in the first column of the Variable section and
 values in the subsequent columns. A list variable can have any number
 of values, starting from zero, and if many values are needed, they
 can be `split into several rows`__.
@@ -544,7 +549,7 @@ __ `Dividing data to several rows`_
 Creating dictionary variables
 '''''''''''''''''''''''''''''
 
-Dictionary variables can be created in the variable table similarly as
+Dictionary variables can be created in the Variable section similarly as
 list variables. The difference is that items need to be created using
 `name=value` syntax or existing dictionary variables. If there are multiple
 items with same name, the last value has precedence. If a name contains
@@ -568,9 +573,8 @@ Python dictionaries have. For example, individual value `&{USER}[name]` can
 also be accessed like `${USER.name}` (notice that `$` is needed in this
 context), but using `${MANY.3}` is not possible.
 
-.. note:: Starting from Robot Framework 3.0.3, dictionary variable keys are
-          accessible recursively like `${VAR.nested.key}`. This eases working
-          with nested data structures.
+.. tip:: With nested dictionary variables keys are accessible like
+         `${VAR.nested.key}`. This eases working with nested data structures.
 
 Another special property of dictionary variables is
 that they are ordered. This means that if these dictionaries are iterated,
@@ -598,7 +602,7 @@ Variables can be set from the command line either individually with
 the :option:`--variable (-v)` option or using a variable file with the
 :option:`--variablefile (-V)` option. Variables set from the command line
 are globally available for all executed test data files, and they also
-override possible variables with the same names in the Variable table and in
+override possible variables with the same names in the Variable section and in
 variable files imported in the test data.
 
 The syntax for setting individual variables is :option:`--variable
@@ -722,7 +726,7 @@ verifies that the returned value is a dictionary or dictionary-like similarly
 as it verifies that list variables can only get a list-like value.
 
 A bigger benefit is that the value is converted into a special dictionary
-that it uses also when `creating dictionary variables`_ in the variable table.
+that it uses also when `creating dictionary variables`_ in the Variable section.
 Values in these dictionaries can be accessed using attribute access like
 `${dict.first}` in the above example. These dictionaries are also ordered, but
 if the original dictionary was not ordered, the resulting order is arbitrary.
@@ -775,7 +779,7 @@ keyword.
 Variables set with :name:`Set Suite Variable` keyword are available
 everywhere within the scope of the currently executed test
 suite. Setting variables with this keyword thus has the same effect as
-creating them using the `Variable table`_ in the test data file or
+creating them using the `Variable section`_ in the test data file or
 importing them from `variable files`_. Other test suites, including
 possible child test suites, will not see variables set with this
 keyword.
@@ -1062,7 +1066,7 @@ Variable priorities
 
    Variables `set in the command line`__ have the highest priority of all
    variables that can be set before the actual test execution starts. They
-   override possible variables created in Variable tables in test case
+   override possible variables created in Variable sections in test case
    files, as well as in resource and variable files imported in the
    test data.
 
@@ -1076,16 +1080,16 @@ Variable priorities
 
 __ `Setting variables in command line`_
 
-*Variable table in a test case file*
+*Variable section in a test case file*
 
-   Variables created using the `Variable table`_ in a test case file
+   Variables created using the `Variable section`_ in a test case file
    are available for all the test cases in that file. These variables
    override possible variables with same names in imported resource and
    variable files.
 
-   Variables created in the variable tables are available in all other tables
+   Variables created in the Variable sections are available in all other sections
    in the file where they are created. This means that they can be used also
-   in the Setting table, for example, for importing more variables from
+   in the Setting section, for example, for importing more variables from
    resource and variable files.
 
 *Imported resource and variable files*
@@ -1097,13 +1101,13 @@ __ `Setting variables in command line`_
    variables, the ones in the file imported first are taken into use.
 
    If a resource file imports resource files or variable files,
-   variables in its own Variable table have a higher priority than
+   variables in its own Variable section have a higher priority than
    variables it imports. All these variables are available for files that
    import this resource file.
 
    Note that variables imported from resource and variable files are not
-   available in the Variable table of the file that imports them. This
-   is due to the Variable table being processed before the Setting table
+   available in the Variable section of the file that imports them. This
+   is due to the Variable section being processed before the Setting section
    where the resource files and variable files are imported.
 
 *Variables set during test execution*
@@ -1119,7 +1123,7 @@ __ `Setting variables in command line`_
 
    `Built-in variables`_ like `${TEMPDIR}` and `${TEST_NAME}`
    have the highest priority of all variables. They cannot be overridden
-   using Variable table or from command line, but even they can be reset during
+   using Variable section or from command line, but even they can be reset during
    the test execution. An exception to this rule are `number variables`_, which
    are resolved dynamically if no variable is found otherwise. They can thus be
    overridden, but that is generally a bad idea. Additionally `${CURDIR}`
@@ -1148,7 +1152,7 @@ Test suite scope
 
 Variables with the test suite scope are available anywhere in the
 test suite where they are defined or imported. They can be created
-in Variable tables, imported from `resource and variable files`_,
+in Variable sections, imported from `resource and variable files`_,
 or set during the test execution using the BuiltIn_ keyword
 :name:`Set Suite Variable`.
 
@@ -1419,6 +1423,9 @@ or `${JANE HOME}`, depending on if :name:`Get Name` returns
        ${name} =    Get Name
        Do X    ${${name} HOME}
 
+
+.. _inline Python evaluation:
+
 Inline Python evaluation
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1437,13 +1444,13 @@ Main usages for this pretty advanced functionality are:
   (`${{len('${var}') > 3}}`, `${{$var[0] if $var is not None else None}}`).
 
 - Creating values that are not Python base types
-  (`${{decimal.Decimal('0.11')}}`, `${{datatime.date(2019, 11, 5)}}`).
+  (`${{decimal.Decimal('0.11')}}`, `${{datetime.date(2019, 11, 5)}}`).
 
 - Creating values dynamically (`${{random.randint(0, 100)}}`,
   `${{datetime.date.today()}}`).
 
 - Constructing collections, especially nested collections (`${{[1, 2, 3, 4]}}`,
-  `${{ {'id': 1, 'name': 'Example', children: [7, 9]} }}`).
+  `${{ {'id': 1, 'name': 'Example', 'children': [7, 9]} }}`).
 
 - Accessing constants and other useful attributes in Python modules
   (`${{math.pi}}`, `${{platform.system()}}`).
@@ -1453,101 +1460,14 @@ discussed earlier. As the examples above illustrate, this syntax is even more
 powerful as it provides access to Python built-ins like `len()` and modules
 like `math`. In addition to being able to use variables like `${var}` in
 the expressions (they are replaced before evaluation), variables are also
-available using the special `$var` syntax during evaluation. All these
-features are discussed in more detail below.
+available using the special `$var` syntax during evaluation. The whole expression
+syntax is explained in the `Evaluating expressions`_ appendix.
 
 .. tip:: Instead of creating complicated expressions, it is often better
-         to move the logic into a `custom test library`__. That eases
+         to move the logic into a `custom library`__. That eases
          maintenance, makes test data easier to understand and can also
          enhance execution speed.
 
 .. note:: The inline Python evaluation syntax is new in Robot Framework 3.2.
 
 __ `Creating test libraries`_
-
-Evaluation namespace
-''''''''''''''''''''
-
-Expressions are evaluated using Python's eval__ function so that all Python
-built-in functions like `len()` and `int()` are available. In addition to that,
-all unrecognized Python variables are considered to be modules that are
-automatically imported. It is possible to use all available Python modules,
-including the standard modules and the installed third party modules.
-
-Examples:
-
-.. sourcecode:: robotframework
-
-   *** Variables ***
-   ${VAR}    123
-
-   *** Test Cases ***
-   Use builtins
-       Should Be Equal      ${{len('${VAR}')}}        ${3}
-       Should Be Equal      ${{int('${VAR}')}}        ${123}
-
-   Access modules
-       Should Be Equal      ${{os.sep}}               ${/}
-       Should Be Equal      ${{round(math.pi, 2)}}    ${3.14}
-       Should Start With    ${{robot.__version__}}    3.
-
-This syntax is basically the same syntax that the :name:`Evaluate` keyword and
-some other keywords in the BuiltIn_ library support. The main difference is
-that these keywords always evaluate expressions and thus the `${{ }}`
-decoration is not needed with them.
-
-A limitation of the `${{expression}}` syntax is that nested modules like
-`rootmod.submod` can only be used if the root module automatically imports
-the sub module. That is not always the case and using such modules is not
-possible. An example that is relevant in the automation context is the
-`selenium` module that is implemented, at least at the time of this writing,
-so that just importing `selenium` does not import the `selenium.webdriver` sub
-module. A workaround is using the aforementioned :name:`Evaluate` keyword
-that accepts modules to be imported and added to the evaluation namespace
-as an argument:
-
-.. sourcecode:: robotframework
-
-   *** Test Cases ***
-   Does not work due to nested module structure
-       Log    ${{selenium.webdriver.ChromeOptions()}}
-
-   Evaluate keyword to the rescue
-       ${options} =    Evaluate    selenium.webdriver.ChromeOptions()
-       ...    modules=selenium.webdriver
-       Log    ${options}
-
-__ http://docs.python.org/library/functions.html#eval
-
-Using variables
-'''''''''''''''
-
-When a variable is used in the expression using the normal `${variable}`
-syntax, its value is replaced before the expression is evaluated. This
-means that the value used in the expression will be the string
-representation of the variable value, not the variable value itself.
-This is not a problem with numbers and other objects that have a string
-representation that can be evaluated directly. For example, if we have
-a return code as an integer in variable `${rc}`, using something like
-`${{ ${rc} < 10 }}` is fine.
-
-With other objects the behavior depends on the string representation.
-Most importantly, strings must always be quoted, and if they can contain
-newlines, they must be triple quoted. Examples in the previous section already
-showed using `${{len('${VAR}')}}`, and it needed to be converted to
-`${{len('''${VAR}''')}}` if the `${VAR}` variable could contain newlines.
-This is not that convenient, but luckily there is another alternative
-discussed below.
-
-Actual variables values are also available in the evaluation namespace.
-They can be accessed using special variable syntax without the curly
-braces like `$variable` and they must never be quoted. Using this syntax,
-the previous examples in this section could be written like `${{ $rc < 10 }}`
-and `${{len($VAR)}}`, and the latter would work also if the `${VAR}` variable
-contains newlines.
-
-Using the `$variable` syntax slows down expression evaluation a little.
-This should not typically matter, but should be taken into account if
-complex expressions are evaluated often and there are strict time
-constrains. Moving such logic to test libraries is typically a good idea
-anyway.

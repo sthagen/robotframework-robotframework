@@ -16,10 +16,11 @@
 import os.path
 
 from robot.errors import DataError
+from robot.running import ArgInfo, ArgumentSpec
 from robot.utils import ET, ETSource
-from robot.running.arguments import ArgumentSpec, ArgInfo
 
 from .model import LibraryDoc, KeywordDoc
+from .datatypes import EnumDoc, TypedDictDoc
 
 
 class SpecDocBuilder(object):
@@ -36,6 +37,7 @@ class SpecDocBuilder(object):
                             lineno=int(spec.get('lineno', -1)))
         libdoc.inits = self._create_keywords(spec, 'inits/init')
         libdoc.keywords = self._create_keywords(spec, 'keywords/kw')
+        libdoc.data_types.update(self._create_data_types(spec))
         return libdoc
 
     def _parse_spec(self, path):
@@ -48,7 +50,8 @@ class SpecDocBuilder(object):
         version = root.get('specversion')
         if version != '3':
             raise DataError("Invalid spec file version '%s'. "
-                            "Robot Framework 4.0 and newer requires spec version 3." % version)
+                            "Robot Framework 4.0 and newer requires spec version 3."
+                            % version)
         return root
 
     def _create_keywords(self, spec, path):
@@ -60,6 +63,7 @@ class SpecDocBuilder(object):
         return KeywordDoc(name=elem.get('name', ''),
                           args=self._create_arguments(elem),
                           doc=elem.find('doc').text or '',
+                          shortdoc=elem.find('shortdoc').text or '',
                           tags=[t.text for t in elem.findall('tags/tag')],
                           source=elem.get('source'),
                           lineno=int(elem.get('lineno', -1)))
@@ -68,8 +72,10 @@ class SpecDocBuilder(object):
         spec = ArgumentSpec()
         setters = {
             ArgInfo.POSITIONAL_ONLY: spec.positional_only.append,
+            ArgInfo.POSITIONAL_ONLY_MARKER: lambda value: None,
             ArgInfo.POSITIONAL_OR_NAMED: spec.positional_or_named.append,
             ArgInfo.VAR_POSITIONAL: lambda value: setattr(spec, 'var_positional', value),
+            ArgInfo.NAMED_ONLY_MARKER: lambda value: None,
             ArgInfo.NAMED_ONLY: spec.named_only.append,
             ArgInfo.VAR_NAMED: lambda value: setattr(spec, 'var_named', value),
         }
@@ -82,9 +88,35 @@ class SpecDocBuilder(object):
             default_elem = arg.find('default')
             if default_elem is not None:
                 spec.defaults[name] = default_elem.text or ''
-            type_elem = arg.find('type')
-            if type_elem is not None:
-                if not spec.types:
-                    spec.types = {}
-                spec.types[name] = type_elem.text
+            type_elems = arg.findall('type')
+            if not spec.types:
+                spec.types = {}
+            spec.types[name] = tuple(t.text for t in type_elems)
         return spec
+
+    def _create_data_types(self, spec):
+        enums = [self._create_enum_doc(dt)
+                 for dt in spec.findall('datatypes/enums/enum')]
+        typed_dicts = [self._create_typed_dict_doc(dt)
+                       for dt in spec.findall('datatypes/typeddicts/typeddict')]
+        return enums + typed_dicts
+
+    def _create_enum_doc(self, dt):
+        return EnumDoc(name=dt.get('name'),
+                       doc=dt.find('doc').text or '',
+                       members=[{'name': member.get('name'),
+                                 'value': member.get('value')}
+                                for member in dt.findall('members/member')])
+
+    def _create_typed_dict_doc(self, dt):
+        items = []
+        for item in dt.findall('items/item'):
+            required = item.get('required', None)
+            if required is not None:
+                required = True if required == 'true' else False
+            items.append({'key': item.get('key'),
+                          'type': item.get('type'),
+                          'required': required})
+        return TypedDictDoc(name=dt.get('name'),
+                            doc=dt.find('doc').text or '',
+                            items=items)

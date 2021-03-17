@@ -21,7 +21,7 @@ import signal as signal_module
 
 from robot.utils import (ConnectionCache, abspath, cmdline2list, console_decode,
                          is_list_like, is_string, is_truthy, NormalizedDict,
-                         py2to3, secs_to_timestr, system_decode, system_encode,
+                         py3to2, secs_to_timestr, system_decode, system_encode,
                          timestr_to_secs, IRONPYTHON, JYTHON, WINDOWS)
 from robot.version import get_version
 from robot.api import logger
@@ -205,8 +205,6 @@ class Process(object):
     | `Start Process` | program | output_encoding=UTF-8 |
     | `Run Process`   | program | stdout=${path} | output_encoding=SYSTEM |
 
-    The support to set output encoding is new in Robot Framework 3.0.
-
     == Alias ==
 
     A custom name given to the process that can be used when selecting the
@@ -274,8 +272,7 @@ class Process(object):
     | `Terminate Process` | kill=${EMPTY} | # Empty string is false.       |
     | `Terminate Process` | kill=${FALSE} | # Python ``False`` is false.   |
 
-    Considering string ``NONE`` false is new in Robot Framework 3.0.3 and
-    considering also ``OFF`` and ``0`` false is new in Robot Framework 3.1.
+    Considering ``OFF`` and ``0`` false is new in Robot Framework 3.1.
 
     = Example =
 
@@ -733,8 +730,6 @@ class Process(object):
         Examples:
         | @{cmd} = | Split Command Line | --option "value with spaces" |
         | Should Be True | $cmd == ['--option', 'value with spaces'] |
-
-        New in Robot Framework 2.9.2.
         """
         return cmdline2list(args, escaping=escaping)
 
@@ -751,8 +746,6 @@ class Process(object):
         Example:
         | ${cmd} = | Join Command Line | --option | value with spaces |
         | Should Be Equal | ${cmd} | --option "value with spaces" |
-
-        New in Robot Framework 2.9.2.
         """
         if len(args) == 1 and is_list_like(args[0]):
             args = args[0]
@@ -838,7 +831,7 @@ class ExecutionResult(object):
         return '<result object with rc %d>' % self.rc
 
 
-@py2to3
+@py3to2
 class ProcessConfiguration(object):
 
     def __init__(self, cwd=None, shell=False, stdout=None, stderr=None,
@@ -932,7 +925,7 @@ class ProcessConfiguration(object):
                 'stderr': self.stderr_stream,
                 'output_encoding': self.output_encoding}
 
-    def __unicode__(self):
+    def __str__(self):
         return """\
 cwd:     %s
 shell:   %s

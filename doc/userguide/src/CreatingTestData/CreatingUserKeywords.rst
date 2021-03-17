@@ -229,7 +229,7 @@ the equals sign (`=`) and then the value, for example `${arg}=default`.
 There can be many arguments with defaults, but they all must be given after
 the normal positional arguments. The default value can contain a variable_
 created on `test, suite or global scope`__, but local variables of the keyword
-executor cannot be used. Starting from Robot Framework 3.0, default value can
+executor cannot be used. Default value can
 also be defined based on earlier arguments accepted by the keyword.
 
 .. note:: The syntax for default values is space sensitive. Spaces
@@ -750,6 +750,20 @@ specifying those values in different cells after the :setting:`[Return]` setting
 
    Return Three Values
        [Return]    foo    bar    zap
+
+The :setting:`[Return]` setting just defines what the keyword should return after
+all keywords it contains have been executed. Although it is recommended to have it
+at the end of keyword where it logically belongs, its position does not affect how
+it is used. For example, the following keyword works exactly like the one above.
+
+.. sourcecode:: robotframework
+
+   *** Keywords ***
+   Return One Value
+       [Return]    ${value}
+       [Arguments]    ${arg}
+       Do Something    ${arg}
+       ${value} =    Get Some Value
 
 Using special keywords to return
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

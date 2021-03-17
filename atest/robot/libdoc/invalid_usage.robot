@@ -18,15 +18,17 @@ Invalid option
     --invalid         option --invalid not recognized
 
 Invalid format
-    -f XXX BuiltIn ${OUT HTML}               Format must be 'HTML', 'XML' or 'LIBSPEC', got 'XXX'.
-    --format XML:XXX BuiltIn ${OUT HTML}     Format must be 'HTML', 'XML' or 'LIBSPEC', got 'XML:XXX'.
-    --format XML:HTML BuiltIn ${OUT HTML}    Format must be 'HTML', 'XML' or 'LIBSPEC', got 'XML:HTML'.
-    BuiltIn out.ext                          Format must be 'HTML', 'XML' or 'LIBSPEC', got 'EXT'.
+    -f XXX BuiltIn ${OUT HTML}               Format must be 'HTML', 'XML', 'JSON' or 'LIBSPEC', got 'XXX'.
+    --format XML:XXX BuiltIn ${OUT HTML}     Format must be 'HTML', 'XML', 'JSON' or 'LIBSPEC', got 'XML:XXX'.
+    --format XML:HTML BuiltIn ${OUT HTML}    Format must be 'HTML', 'XML', 'JSON' or 'LIBSPEC', got 'XML:HTML'.
+    BuiltIn out.ext                          Format must be 'HTML', 'XML', 'JSON' or 'LIBSPEC', got 'EXT'.
 
 Invalid specdocformat
-    -s XXX BuiltIn ${OUT HTML}                Spec Doc Format must be 'RAW' or 'HTML', got 'XXX'.
-    --specdocformat MD BuiltIn ${OUT HTML}    Spec Doc Format must be 'RAW' or 'HTML', got 'MD'.
+    -s XXX BuiltIn ${OUT HTML}                Spec doc format must be 'RAW' or 'HTML', got 'XXX'.
+    --specdocformat MD BuiltIn ${OUT HTML}    Spec doc format must be 'RAW' or 'HTML', got 'MD'.
 
+Invalid specdocformat for HTML output format
+    --specdocformat HTML BuiltIn ${OUT HTML}    The --specdocformat option is not applicable with HTML outputs.
 
 Invalid doc format
     --docformat inv BuiltIn ${OUT HTML}    Doc format must be 'ROBOT', 'TEXT', 'HTML' or 'REST', got 'INV'.
@@ -35,7 +37,7 @@ Invalid doc format in library
     ${TESTDATADIR}/DocFormatInvalid.py ${OUT HTML}   Invalid documentation format 'INVALID'.
 
 Non-existing library
-    NonExistingLib ${OUT HTML}   Importing test library 'NonExistingLib' failed: *
+    NonExistingLib ${OUT HTML}   Importing library 'NonExistingLib' failed: *
 
 Non-existing spec
     nonex.xml ${OUT HTML}    Spec file 'nonex.xml' does not exist.
