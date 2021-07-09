@@ -34,8 +34,8 @@ except ImportError:    # Standard in Py 3.4+ but can be separately installed
 from numbers import Integral, Real
 
 from robot.libraries.DateTime import convert_date, convert_time
-from robot.utils import (FALSE_STRINGS, IRONPYTHON, TRUE_STRINGS, PY_VERSION, PY2,
-                         eq, get_error_message, seq2str, type_name, typeddict_types,
+from robot.utils import (FALSE_STRINGS, IRONPYTHON, TRUE_STRINGS, PY2,
+                         eq, get_error_message, is_string, seq2str, type_name,
                          unic, unicode)
 
 
@@ -142,6 +142,69 @@ class TypeConverter(object):
                                                        expected.__name__))
         return value
 
+    def _remove_number_separators(self, value):
+        if is_string(value):
+            for sep in ' ', '_':
+                if sep in value:
+                    value = value.replace(sep, '')
+        return value
+
+
+@TypeConverter.register
+class EnumConverter(TypeConverter):
+    type = Enum
+
+    @property
+    def type_name(self):
+        return self.used_type.__name__
+
+    @property
+    def value_types(self):
+        return (unicode, int) if issubclass(self.used_type, int) else (unicode,)
+
+    def _convert(self, value, explicit_type=True):
+        enum = self.used_type
+        if isinstance(value, int):
+            return self._find_by_int_value(enum, value)
+        try:
+            # This is compatible with the enum module in Python 3.4, its
+            # enum34 backport, and the older enum module. `enum[value]`
+            # wouldn't work with the old enum module.
+            return getattr(enum, value)
+        except AttributeError:
+            return self._find_by_normalized_name_or_int_value(enum, value)
+
+    def _find_by_normalized_name_or_int_value(self, enum, value):
+        members = sorted(self._get_members(enum))
+        matches = [m for m in members if eq(m, value, ignore='_')]
+        if len(matches) == 1:
+            return getattr(enum, matches[0])
+        if len(matches) > 1:
+            raise ValueError("%s has multiple members matching '%s'. Available: %s"
+                             % (self.type_name, value, seq2str(matches)))
+        try:
+            if issubclass(self.used_type, int):
+                return self._find_by_int_value(enum, value)
+        except ValueError:
+            members = ['%s (%d)' % (m, getattr(enum, m)) for m in members]
+        raise ValueError("%s does not have member '%s'. Available: %s"
+                         % (self.type_name, value, seq2str(members)))
+
+    def _get_members(self, enum):
+        try:
+            return list(enum.__members__)
+        except AttributeError:    # old enum module
+            return [attr for attr in dir(enum) if not attr.startswith('_')]
+
+    def _find_by_int_value(self, enum, value):
+        value = int(value)
+        for member in enum:
+            if member.value == value:
+                return member
+        values = sorted(member.value for member in enum)
+        raise ValueError("%s does not have value '%d'. Available: %s"
+                         % (self.type_name, value, seq2str(values)))
+
 
 @TypeConverter.register
 class StringConverter(TypeConverter):
@@ -196,15 +259,26 @@ class IntegerConverter(TypeConverter):
         raise ValueError('Conversion would lose precision.')
 
     def _convert(self, value, explicit_type=True):
+        value = self._remove_number_separators(value)
+        value, base = self._get_base(value)
         try:
-            return int(value)
+            return int(value, base)
         except ValueError:
-            if not explicit_type:
+            if base == 10 and not explicit_type:
                 try:
                     return float(value)
                 except ValueError:
                     pass
         raise ValueError
+
+    def _get_base(self, value):
+        value = value.lower()
+        for prefix, base in [('0x', 16), ('0o', 8), ('0b', 2)]:
+            if prefix in value:
+                parts = value.split(prefix)
+                if len(parts) == 2 and parts[0] in ('', '-', '+'):
+                    return ''.join(parts), base
+        return value, 10
 
 
 @TypeConverter.register
@@ -217,7 +291,7 @@ class FloatConverter(TypeConverter):
 
     def _convert(self, value, explicit_type=True):
         try:
-            return float(value)
+            return float(self._remove_number_separators(value))
         except ValueError:
             raise ValueError
 
@@ -230,7 +304,7 @@ class DecimalConverter(TypeConverter):
 
     def _convert(self, value, explicit_type=True):
         try:
-            return Decimal(value)
+            return Decimal(self._remove_number_separators(value))
         except InvalidOperation:
             # With Python 3 error messages by decimal module are not very
             # useful and cannot be included in our error messages:
@@ -306,39 +380,6 @@ class TimeDeltaConverter(TypeConverter):
 
     def _convert(self, value, explicit_type=True):
         return convert_time(value, result_format='timedelta')
-
-
-@TypeConverter.register
-class EnumConverter(TypeConverter):
-    type = Enum
-
-    @property
-    def type_name(self):
-        return self.used_type.__name__
-
-    def _convert(self, value, explicit_type=True):
-        enum = self.used_type
-        try:
-            # This is compatible with the enum module in Python 3.4, its
-            # enum34 backport, and the older enum module. `enum[value]`
-            # wouldn't work with the old enum module.
-            return getattr(enum, value)
-        except AttributeError:
-            members = sorted(self._get_members(enum))
-            matches = [m for m in members if eq(m, value, ignore='_')]
-            if not matches:
-                raise ValueError("%s does not have member '%s'. Available: %s"
-                                 % (self.type_name, value, seq2str(members)))
-            if len(matches) > 1:
-                raise ValueError("%s has multiple members matching '%s'. Available: %s"
-                                 % (self.type_name, value, seq2str(matches)))
-            return getattr(enum, matches[0])
-
-    def _get_members(self, enum):
-        try:
-            return list(enum.__members__)
-        except AttributeError:    # old enum module
-            return [attr for attr in dir(enum) if not attr.startswith('_')]
 
 
 @TypeConverter.register

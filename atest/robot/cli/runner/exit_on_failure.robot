@@ -8,15 +8,23 @@ Resource          atest_resource.robot
 ${EXIT ON FAILURE}          Failure occurred and exit-on-failure mode is in use.
 
 *** Test Cases ***
-Passing tests do not initiate exit-on-failure
-    Check Test Case    Passing
-    Check Test Case    Passing tests do not initiate exit-on-failure
+Passing test does not initiate exit-on-failure
+    Check Test Case    ${TEST NAME}
 
-Skip-on-failure tests do not initiate exit-on-failure
-    Check Test Case    Skipped on failure
+Skipped test does not initiate exit-on-failure
+    Check Test Case    ${TEST NAME}
 
-Failing tests initiate exit-on-failure
-    Check Test Case    Failing
+Test skipped in teardown does not initiate exit-on-failure
+    Check Test Case    ${TEST NAME}
+
+Skip-on-failure test does not initiate exit-on-failure
+    Check Test Case    ${TEST NAME}
+
+Test skipped-on-failure in teardown does not initiate exit-on-failure
+    Check Test Case    ${TEST NAME}
+
+Failing test initiates exit-on-failure
+    Check Test Case    ${TEST NAME}
     Test Should Not Have Been Run    Not executed
 
 Tests in subsequent suites are skipped
