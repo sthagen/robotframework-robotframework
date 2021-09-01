@@ -1692,6 +1692,8 @@ class _Variables(_BuiltInBase):
         variable in a user keyword, it is available both in the test case level
         and also in all other user keywords used in the current test. Other
         test cases will not see variables set with this keyword.
+        It is an error to call `Set Test Variable` outside the
+        scope of a test (e.g. in a Suite Setup or Teardown).
 
         See `Set Suite Variable` for more information and examples.
         """
@@ -3030,12 +3032,12 @@ class _Misc(_BuiltInBase):
         are running. That may be necessary, if the library itself is dynamic
         and not yet available when test data is processed. In a normal case,
         libraries should be imported using the Library setting in the Setting
-        table.
+        section.
 
         This keyword supports importing libraries both using library
         names and physical paths. When paths are used, they must be
         given in absolute format or found from
-        [http://robotframework.org/robotframework/latest/RobotFrameworkUserGuide.html#pythonpath-jythonpath-and-ironpythonpath|
+        [http://robotframework.org/robotframework/latest/RobotFrameworkUserGuide.html#module-search-path|
         search path]. Forward slashes can be used as path separators in all
         operating systems.
 
