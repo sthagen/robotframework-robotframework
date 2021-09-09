@@ -1,7 +1,7 @@
 *** Settings ***
-Library           unions.py
+Library           unionsugar.py
 Resource          conversion.resource
-Force Tags        require-py3
+Force Tags        require-py3.10
 
 *** Test Cases ***
 Union
@@ -73,53 +73,6 @@ Union with custom type
     Custom type in union    ${myobject}    MyObject
     Custom type in union    ${object}      UnexpectedObject
 
-Multiple types using tuple
-    [Template]    Tuple of int float and string
-    1          1
-    2.1        2.1
-    ${21.0}    ${21.0}
-    2hello     2hello
-    ${-110}    ${-110}
-
-Argument not matching tuple types
-    [Template]    Conversion Should Fail
-    Tuple of int and float    not a number    type=integer or float
-    Tuple of int and float    ${NONE}         type=integer or float    arg_type=None
-    Tuple of int and float    ${{type('Custom', (), {})()}}
-    ...                                       type=integer or float    arg_type=Custom
-
-Optional argument
-    [Template]    Optional argument
-    1          ${1}
-    None       ${None}
-    ${None}    ${None}
-
-Optional argument with default
-    [Template]    Optional argument with default
-    1.1        ${1.1}
-    ${1}       ${1.0}
-    None       ${None}
-    ${None}    ${None}
-    expected=${None}
-
-Optional string with None default
-    [Template]    Optional string with None default
-    Hyvä!      Hyvä!
-    1          1
-    ${1}       1
-    None       None
-    ${None}    ${None}
-    expected=${None}
-
-String with None default
-    [Template]    String with None default
-    Hyvä!      Hyvä!
-    1          1
-    ${1}       1
-    None       None
-    ${None}    ${None}
-    expected=${None}
-
 Avoid unnecessary conversion
     [Template]    Union With String First
     Hyvä!      Hyvä!
@@ -134,13 +87,3 @@ Avoid unnecessary conversion with ABC
     1                                1
     ${1}                             ${1}
     ${{fractions.Fraction(1, 3)}}    ${{fractions.Fraction(1, 3)}}
-
-Union with invalid types
-    [Template]    Union with invalid types
-    xxx      xxx
-    ${42}    ${42}
-
-Tuple with invalid types
-    [Template]    Tuple with invalid types
-    xxx      xxx
-    ${42}    ${42}
