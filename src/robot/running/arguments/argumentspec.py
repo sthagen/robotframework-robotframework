@@ -13,23 +13,13 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from inspect import isclass
 import re
 import sys
+from enum import Enum
+from inspect import isclass
+from typing import Union
 
-try:
-    from typing import Union
-except ImportError:
-    class Union(object):
-        pass
-
-try:
-    from enum import Enum
-except ImportError:    # Standard in Py 3.4+ but can be separately installed
-    class Enum(object):
-        pass
-
-from robot.utils import setter, py3to2, unicode, unic
+from robot.utils import safe_str, setter
 
 from .argumentconverter import ArgumentConverter
 from .argumentmapper import ArgumentMapper
@@ -37,8 +27,7 @@ from .argumentresolver import ArgumentResolver
 from .typevalidator import TypeValidator
 
 
-@py3to2
-class ArgumentSpec(object):
+class ArgumentSpec:
 
     def __init__(self, name=None, type='Keyword', positional_only=None,
                  positional_or_named=None, var_positional=None, named_only=None,
@@ -77,13 +66,14 @@ class ArgumentSpec(object):
                 self.named_only +
                 ([self.var_named] if self.var_named else []))
 
-    def resolve(self, arguments, variables=None, resolve_named=True,
-                resolve_variables_until=None, dict_to_kwargs=False):
+    def resolve(self, arguments, variables=None, converters=None,
+                resolve_named=True, resolve_variables_until=None,
+                dict_to_kwargs=False):
         resolver = ArgumentResolver(self, resolve_named,
                                     resolve_variables_until, dict_to_kwargs)
         positional, named = resolver.resolve(arguments, variables)
         if self.types or self.defaults:
-            converter = ArgumentConverter(self, dry_run=not variables)
+            converter = ArgumentConverter(self, converters, dry_run=not variables)
             positional, named = converter.convert(positional, named)
         return positional, named
 
@@ -120,11 +110,10 @@ class ArgumentSpec(object):
                     self.named_only, self.var_named])
 
     def __str__(self):
-        return ', '.join(unicode(arg) for arg in self)
+        return ', '.join(str(arg) for arg in self)
 
 
-@py3to2
-class ArgInfo(object):
+class ArgInfo:
     NOTSET = object()
     POSITIONAL_ONLY = 'POSITIONAL_ONLY'
     POSITIONAL_ONLY_MARKER = 'POSITIONAL_ONLY_MARKER'
@@ -147,17 +136,8 @@ class ArgInfo(object):
         if isinstance(typ, tuple):
             return typ
         if getattr(typ, '__origin__', None) is Union:
-            return self._get_union_args(typ)
+            return typ.__args__
         return (typ,)
-
-    def _get_union_args(self, union):
-        try:
-            return union.__args__
-        except AttributeError:
-            # Python 3.5.2's typing uses __union_params__ instead
-            # of __args__. This block can likely be safely removed
-            # when Python 3.5 support is dropped
-            return union.__union_params__
 
     @property
     def required(self):
@@ -176,7 +156,7 @@ class ArgInfo(object):
             return 'None'
         if isclass(typ):
             return typ.__name__
-        return re.sub(r'^typing\.(.+)', r'\1', unic(typ))
+        return re.sub(r'^typing\.(.+)', r'\1', str(typ))
 
     @property
     def default_repr(self):
@@ -184,7 +164,7 @@ class ArgInfo(object):
             return None
         if isinstance(self.default, Enum):
             return self.default.name
-        return unic(self.default)
+        return safe_str(self.default)
 
     def __str__(self):
         if self.kind == self.POSITIONAL_ONLY_MARKER:

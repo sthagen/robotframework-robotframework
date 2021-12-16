@@ -68,7 +68,7 @@ internally by Robot Framework itself. Some good examples are
 """
 
 
-class SuiteVisitor(object):
+class SuiteVisitor:
     """Abstract class to ease traversing through the test suite structure.
 
     See the :mod:`module level <robot.model.visitor>` documentation for more
@@ -237,6 +237,76 @@ class SuiteVisitor(object):
 
     def end_if_branch(self, branch):
         """Called when IF/ELSE branch ends. Default implementation does nothing."""
+        pass
+
+    def visit_try(self, try_):
+        """Called when a TRY/EXCEPT block starts
+
+        Can be overridden to allow modifying the passed in ``try``-structure without
+        calling :meth:`start_try` or :meth:`end_try` nor visiting body.
+        """
+        if self.start_try(try_) is not False:
+            try_.try_block.visit(self)
+            try_.except_blocks.visit(self)
+            try_.else_block.visit(self)
+            self.end_try(try_)
+
+    def start_try(self, try_):
+        """Called when TRY/EXCEPT block starts. Default implementation does nothing.
+
+        Can return explicit ``False`` to stop visiting.
+        """
+        pass
+
+    def end_try(self, try_):
+        """Called when TRY/EXCEPT branch ends. Default implementation does nothing."""
+        pass
+
+    def visit_try_block(self, block):
+        if self.start_try_block(block) is not False:
+            block.body.visit(self)
+            self.end_try_block(block)
+
+    def start_try_block(self, block):
+        pass
+
+    def end_try_block(self, block):
+        pass
+
+    def visit_else_block(self, block):
+        if self.start_else_block(block) is not False:
+            block.body.visit(self)
+            self.end_else_block(block)
+
+    def start_else_block(self, block):
+        pass
+
+    def end_else_block(self, block):
+        pass
+
+    def visit_except_block(self, block):
+        """Called when IF/ELSE branch starts. Default implementation does nothing.
+
+        Can return explicit ``False`` to stop visiting.
+        """
+        if self.start_except_block(block) is not False:
+            block.visit(self)
+            self.end_except_block(block)
+
+    def start_except_block(self, block):
+        """Called when EXCEPT branch starts. Default implementation does nothing."""
+        pass
+
+    def end_except_block(self, block):
+        """Called when EXCEPT branch ends. Default implementation does nothing."""
+        pass
+
+    def visit_return(self, return_):
+        """Called when RETURN is encountered. Default implementation does nothing.
+
+        Because RETURN cannot have children, does not call separate
+        ``start_return`` or ``end_return`` methods.
+        """
         pass
 
     def visit_message(self, msg):

@@ -16,7 +16,6 @@
 import functools
 
 from robot.errors import DataError
-from robot.utils import PY2
 
 try:
     from docutils.core import publish_doctree
@@ -30,7 +29,7 @@ except ImportError:
                     "'docutils' module version 0.9 or newer installed.")
 
 
-class RobotDataStorage(object):
+class RobotDataStorage:
 
     def __init__(self, doctree):
         if not hasattr(doctree, '_robot_data'):
@@ -81,11 +80,6 @@ def role(*args, **kwargs):
     return role_function
 
 
-if PY2:
-    directive.__wrapped__ = directives.directive
-    role.__wrapped__ = roles.role
-
-
 directives.directive = directive
 roles.role = role
 
@@ -96,6 +90,7 @@ def read_rest_data(rstfile):
         source_path=rstfile.name,
         settings_overrides={
             'input_encoding': 'UTF-8',
+            'report_level': 4
         })
     store = RobotDataStorage(doctree)
     return store.get_data()

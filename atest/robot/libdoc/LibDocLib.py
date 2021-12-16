@@ -8,34 +8,29 @@ from subprocess import run, PIPE, STDOUT
 from xmlschema import XMLSchema
 
 from robot.api import logger
-from robot.utils import CONSOLE_ENCODING, SYSTEM_ENCODING, unicode
+from robot.utils import SYSTEM_ENCODING
 from robot.running.arguments import ArgInfo
 
 
 ROOT = join(dirname(abspath(__file__)), '..', '..', '..')
 
 
-class LibDocLib(object):
+class LibDocLib:
 
     def __init__(self, interpreter=None):
         self.interpreter = interpreter
-        self.schema = XMLSchema(join(ROOT, 'doc', 'schema', 'libdoc.03.xsd'))
+        self.schema = XMLSchema(join(ROOT, 'doc', 'schema', 'libdoc.04.xsd'))
 
     @property
     def libdoc(self):
         return self.interpreter.libdoc
-
-    @property
-    def encoding(self):
-        return SYSTEM_ENCODING \
-                if not self.interpreter.is_ironpython else CONSOLE_ENCODING
 
     def run_libdoc(self, args):
         cmd = self.libdoc + self._split_args(args)
         cmd[-1] = cmd[-1].replace('/', os.sep)
         logger.info(' '.join(cmd))
         result = run(cmd, cwd=join(ROOT, 'src'), stdout=PIPE, stderr=STDOUT,
-                     encoding=self.encoding, timeout=120, universal_newlines=True)
+                     encoding=SYSTEM_ENCODING, timeout=120, universal_newlines=True)
         logger.info(result.stdout)
         return result.stdout
 
@@ -70,13 +65,13 @@ class LibDocLib(object):
             return normpath(path)
 
     def get_repr_from_arg_model(self, model):
-        return unicode(ArgInfo(kind=model['kind'],
-                               name=model['name'],
-                               types=tuple(model['type']),
-                               default=model['default'] or ArgInfo.NOTSET))
+        return str(ArgInfo(kind=model['kind'],
+                           name=model['name'],
+                           types=tuple(model['type']),
+                           default=model['default'] or ArgInfo.NOTSET))
 
     def get_repr_from_json_arg_model(self, model):
-        return unicode(ArgInfo(kind=model['kind'],
-                               name=model['name'],
-                               types=tuple(model['types']),
-                               default=model['defaultValue'] or ArgInfo.NOTSET))
+        return str(ArgInfo(kind=model['kind'],
+                           name=model['name'],
+                           types=tuple(model['types']),
+                           default=model['defaultValue'] or ArgInfo.NOTSET))

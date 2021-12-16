@@ -20,15 +20,15 @@ from .jsbuildingcontext import JsBuildingContext
 from .jsexecutionresult import JsExecutionResult
 
 
-IF_ELSE_ROOT = BodyItem.IF_ELSE_ROOT
 STATUSES = {'FAIL': 0, 'PASS': 1, 'SKIP': 2, 'NOT RUN': 3}
 KEYWORD_TYPES = {'KEYWORD': 0, 'SETUP': 1, 'TEARDOWN': 2,
                  'FOR': 3, 'FOR ITERATION': 4,
-                 'IF': 5, 'ELSE IF': 6, 'ELSE': 7}
-MESSAGE_TYPE = 8
+                 'IF': 5, 'ELSE IF': 6, 'ELSE': 7,
+                 'RETURN': 8, 'TRY': 9, 'EXCEPT': 10,
+                 'TRY ELSE': 7, 'FINALLY': 11}
 
 
-class JsModelBuilder(object):
+class JsModelBuilder:
 
     def __init__(self, log_path=None, split_log=False, expand_keywords=None,
                  prune_input_to_save_memory=False):
@@ -49,7 +49,7 @@ class JsModelBuilder(object):
         )
 
 
-class _Builder(object):
+class _Builder:
 
     def __init__(self, context):
         self._context = context
@@ -73,19 +73,26 @@ class _Builder(object):
     def _build_keywords(self, steps, split=False):
         splitting = self._context.start_splitting_if_needed(split)
         # tuple([<listcomp>>]) is faster than tuple(<genex>) with short lists.
-        model = tuple([self._build_keyword(step) for step in self._flatten_ifs(steps)])
+        model = tuple([self._build_keyword(step) for step in self._flatten(steps)])
         return model if not splitting else self._context.end_splitting(model)
 
     def _build_keyword(self, step):
         raise NotImplementedError
 
-    def _flatten_ifs(self, steps):
+    def _flatten(self, steps):
         result = []
         for step in steps:
-            if step.type != IF_ELSE_ROOT:
-                result.append(step)
-            else:
+            if step.type == BodyItem.IF_ELSE_ROOT:
                 result.extend(step.body)
+            elif step.type == BodyItem.TRY_EXCEPT_ROOT:
+                result.append(step.try_block)
+                result.extend(step.except_blocks)
+                if step.else_block:
+                    result.append(step.else_block)
+                if step.finally_block:
+                    result.append(step.finally_block)
+            else:
+                result.append(step)
         return result
 
 
@@ -162,10 +169,15 @@ class KeywordBuilder(_Builder):
 
     def build_keyword(self, kw, split=False):
         self._context.check_expansion(kw)
-        kws = list(kw.body)
-        if getattr(kw, 'has_teardown', False):
-            kws.append(kw.teardown)
-        with self._context.prune_input(kw.body):
+        if hasattr(kw, 'body'):
+            kws = list(kw.body)
+            if getattr(kw, 'has_teardown', False):
+                kws.append(kw.teardown)
+            prune = (kw.body,)
+        else:
+            kws = []
+            prune = ()
+        with self._context.prune_input(*prune):
             return (KEYWORD_TYPES[kw.type],
                     self._string(kw.kwname, attr=True),
                     self._string(kw.libname, attr=True),
@@ -187,13 +199,12 @@ class MessageBuilder(_Builder):
         return self._build(msg)
 
     def _build(self, msg):
-        return (MESSAGE_TYPE,
-                self._timestamp(msg.timestamp),
+        return (self._timestamp(msg.timestamp),
                 LEVELS[msg.level],
                 self._string(msg.html_message, escape=False))
 
 
-class StatisticsBuilder(object):
+class StatisticsBuilder:
 
     def build(self, statistics):
         return (self._build_stats(statistics.total),

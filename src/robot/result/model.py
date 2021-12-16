@@ -75,12 +75,16 @@ class IfBranches(Body, model.IfBranches):
     __slots__ = []
 
 
+class ExceptBlocks(Body, model.ExceptBlocks):
+    __slots__ = []
+
+
 @Body.register
 class Message(model.Message):
     __slots__ = []
 
 
-class StatusMixin(object):
+class StatusMixin:
     __slots__ = []
     PASS = 'PASS'
     FAIL = 'FAIL'
@@ -138,6 +142,19 @@ class StatusMixin(object):
         if not not_run:
             raise ValueError("`not_run` value must be truthy, got '%s'." % not_run)
         self.status = self.NOT_RUN
+
+
+class Block(model.Block, StatusMixin, DeprecatedAttributesMixin):
+    __slots__ = ['status', 'starttime', 'endtime', 'doc']
+    body_class = Body
+
+    def __init__(self, type, status='FAIL', starttime=None, endtime=None,
+                 doc='', parent=None):
+        super().__init__(type, parent)
+        self.status = status
+        self.starttime = starttime
+        self.endtime = endtime
+        self.doc = doc
 
 
 @ForIterations.register
@@ -220,6 +237,65 @@ class IfBranch(model.IfBranch, StatusMixin, DeprecatedAttributesMixin):
     @deprecated
     def name(self):
         return self.condition
+
+
+@Body.register
+class Try(model.Try, StatusMixin, DeprecatedAttributesMixin):
+    try_class = Block
+    excepts_class = ExceptBlocks
+    else_class = Block
+    finally_class = Block
+    __slots__ = ['status', 'starttime', 'endtime', 'doc']
+
+    def __init__(self, parent=None, status='FAIL', starttime=None, endtime=None, doc=''):
+        model.Try.__init__(self, parent)
+        self.status = status
+        self.starttime = starttime
+        self.endtime = endtime
+        self.doc = doc
+
+
+@ExceptBlocks.register
+class Except(model.Except, StatusMixin, DeprecatedAttributesMixin):
+    body_class = Body
+    __slots__ = ['status', 'starttime', 'endtime', 'doc']
+
+    def __init__(self, patterns=None, variable=None, status='FAIL',
+                 starttime=None, endtime=None, doc='', parent=None):
+        model.Except.__init__(self, patterns, variable, parent)
+        self.status = status
+        self.starttime = starttime
+        self.endtime = endtime
+        self.doc = doc
+
+    @property
+    @deprecated
+    def name(self):
+        as_part = f' AS {self.variable}' if self.variable else ''
+        return ' | '.join(self.patterns) + as_part
+
+
+@Body.register
+class Return(model.Return, StatusMixin, DeprecatedAttributesMixin):
+    __slots__ = ['status', 'starttime', 'endtime']
+
+    def __init__(self, values=(), status='FAIL', starttime=None, endtime=None, parent=None):
+        model.Return.__init__(self, values, parent)
+        self.status = status
+        self.starttime = starttime
+        self.endtime = endtime
+
+    # FIXME: Remove attributes.
+
+    @property
+    @deprecated
+    def args(self):
+        return self.values
+
+    @property
+    @deprecated
+    def doc(self):
+        return ''
 
 
 @Body.register

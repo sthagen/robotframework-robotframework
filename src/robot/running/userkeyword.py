@@ -17,7 +17,7 @@ import os
 
 from robot.errors import DataError
 from robot.output import LOGGER
-from robot.utils import getshortdoc, unic
+from robot.utils import getshortdoc
 
 from .arguments import EmbeddedArguments, UserKeywordArgumentParser
 from .handlerstore import HandlerStore
@@ -25,7 +25,7 @@ from .userkeywordrunner import UserKeywordRunner, EmbeddedArgumentsRunner
 from .usererrorhandler import UserErrorHandler
 
 
-class UserLibrary(object):
+class UserLibrary:
     TEST_CASE_FILE_TYPE = HandlerStore.TEST_CASE_FILE_TYPE
     RESOURCE_FILE_TYPE = HandlerStore.RESOURCE_FILE_TYPE
 
@@ -68,12 +68,12 @@ class UserLibrary(object):
 
 # TODO: Should be merged with running.model.UserKeyword
 
-class UserKeywordHandler(object):
+class UserKeywordHandler:
 
     def __init__(self, keyword, libname):
         self.name = keyword.name
         self.libname = libname
-        self.doc = unic(keyword.doc)
+        self.doc = keyword.doc
         self.source = keyword.source
         self.lineno = keyword.lineno
         self.tags = keyword.tags

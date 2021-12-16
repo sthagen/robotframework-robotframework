@@ -42,7 +42,7 @@ class MyIntFlag(IntFlag):
     X = 1
 
 
-class Unknown(object):
+class Unknown:
     pass
 
 
@@ -171,6 +171,10 @@ def unknown(argument: Unknown, expected=None):
 
 
 def non_type(argument: 'this is string, not type', expected=None):
+    _validate_type(argument, expected)
+
+
+def unhashable(argument: {}, expected=None):
     _validate_type(argument, expected)
 
 

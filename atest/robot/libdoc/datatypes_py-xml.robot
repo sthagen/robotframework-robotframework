@@ -1,10 +1,9 @@
 *** Settings ***
 Resource          libdoc_resource.robot
-Force Tags        require-py3.6
 Suite Setup       Run Libdoc And Parse Output    ${TESTDATADIR}/DataTypesLibrary.py
 
 *** Test Cases ***
-Check DataType Enums
+Enum
     DataType Enums Should Be    0
     ...    AssertionOperator
     ...    This is some Doc\n\nThis has was defined by assigning to __doc__.
@@ -22,7 +21,7 @@ Check DataType Enums
     ...    {"name": "three","value": "3"}
     ...    {"name": "four","value": "4"}
 
-Check DataType TypedDict
+TypedDict
     ${required}     Get Element Count    ${LIBDOC}    xpath=dataTypes/typedDicts/typedDict/items/item[@required]
     IF   $required == 0
         DataType TypedDict Should Be    0
@@ -39,3 +38,11 @@ Check DataType TypedDict
         ...    {"key": "latitude", "type": "float", "required": "true"}
         ...    {"key": "accuracy", "type": "float", "required": "false"}
     END
+
+Custom
+    DataType Custom Should Be    0
+    ...    CustomType
+    ...    Converter method doc is used when defined.
+    DataType Custom Should Be    1
+    ...    CustomType2
+    ...    Class doc is used when converter method has no doc.

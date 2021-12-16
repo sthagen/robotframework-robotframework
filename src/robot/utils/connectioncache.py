@@ -13,15 +13,11 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import warnings
-
-from .compat import py3to2
 from .normalizing import NormalizedDict
 from .robottypes import is_string
 
 
-@py3to2
-class ConnectionCache(object):
+class ConnectionCache:
     """Cache for test libs to use with concurrent connections, processes, etc.
 
     The cache stores the registered connections (or other objects) and allows
@@ -138,12 +134,12 @@ class ConnectionCache(object):
         return self.current is not self._no_current
 
     def resolve_alias_or_index(self, alias_or_index):
-        for resolver in self._resolve_alias, self._resolve_index:
+        for resolver in self._resolve_alias, self._resolve_index, self._is_connection:
             try:
                 return resolver(alias_or_index)
             except ValueError:
                 pass
-        raise ValueError("Non-existing index or alias '%s'." % alias_or_index)
+        raise ValueError(f"Non-existing index or alias '{alias_or_index}'.")
 
     def _resolve_alias(self, alias):
         if is_string(alias) and alias in self._aliases:
@@ -159,9 +155,11 @@ class ConnectionCache(object):
             raise ValueError
         return index
 
+    def _is_connection(self, conn):
+        return self._connections.index(conn) + 1
 
-@py3to2
-class NoConnection(object):
+
+class NoConnection:
 
     def __init__(self, message):
         self.message = message

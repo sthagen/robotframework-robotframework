@@ -16,7 +16,7 @@
 import difflib
 
 
-class RecommendationFinder(object):
+class RecommendationFinder:
 
     def __init__(self, normalizer=None):
         self.normalizer = normalizer or (lambda x: x)
@@ -60,6 +60,7 @@ class RecommendationFinder(object):
 
     def _get_normalized_candidates(self, candidates):
         norm_candidates = {}
+        # TODO: maybe this can be changed since Jython is not supported.
         # sort before normalization for consistent Python/Jython ordering
         for cand in sorted(candidates):
             norm = self.normalizer(cand)

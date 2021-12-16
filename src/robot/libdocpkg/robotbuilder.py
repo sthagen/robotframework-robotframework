@@ -26,7 +26,7 @@ from robot.variables import VariableIterator, search_variable
 from .model import LibraryDoc, KeywordDoc
 
 
-class LibraryDocBuilder(object):
+class LibraryDocBuilder:
     _argument_separator = '::'
 
     def build(self, library):
@@ -37,10 +37,14 @@ class LibraryDocBuilder(object):
                             version=lib.version,
                             scope=str(lib.scope),
                             doc_format=lib.doc_format,
+                            converters=lib.converters,
                             source=lib.source,
                             lineno=lib.lineno)
         libdoc.inits = self._get_initializers(lib)
         libdoc.keywords = KeywordDocBuilder().build_keywords(lib)
+        for kw in libdoc.inits + libdoc.keywords:
+            for arg in kw.args:
+                libdoc.data_types.update(arg.types)
         return libdoc
 
     def _split_library_name_and_args(self, library):
@@ -63,7 +67,7 @@ class LibraryDocBuilder(object):
         return []
 
 
-class ResourceDocBuilder(object):
+class ResourceDocBuilder:
 
     def build(self, path):
         res = self._import_resource(path)
@@ -96,7 +100,7 @@ class ResourceDocBuilder(object):
         return "Documentation for resource file ``%s``." % res.name
 
 
-class KeywordDocBuilder(object):
+class KeywordDocBuilder:
 
     def __init__(self, resource=False):
         self._resource = resource

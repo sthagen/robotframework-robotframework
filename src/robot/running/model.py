@@ -37,12 +37,15 @@ import os
 
 from robot import model
 from robot.conf import RobotSettings
+from robot.errors import ReturnFromKeyword
 from robot.model import Keywords, BodyItem
 from robot.output import LOGGER, Output, pyloggingconf
+from robot.result import Return as ReturnResult
 from robot.utils import seq2str, setter
 
-from .bodyrunner import ForRunner, IfRunner, KeywordRunner
+from .bodyrunner import ForRunner, IfRunner, KeywordRunner, TryRunner
 from .randomizer import Randomizer
+from .statusreporter import StatusReporter
 
 
 class Body(model.Body):
@@ -51,6 +54,15 @@ class Body(model.Body):
 
 class IfBranches(model.IfBranches):
     __slots__ = []
+
+
+class ExceptBlocks(model.ExceptBlocks):
+    __slots__ = []
+
+
+class Block(model.Block):
+    __slots__ = ['lineno', 'error']
+    body_class = Body
 
 
 @Body.register
@@ -126,6 +138,59 @@ class IfBranch(model.IfBranch):
     @property
     def source(self):
         return self.parent.source if self.parent is not None else None
+
+
+@Body.register
+class Try(model.Try):
+    __slots__ = ['lineno', 'error']
+    try_class = Block
+    excepts_class = ExceptBlocks
+    else_class = Block
+    finally_class = Block
+
+    def __init__(self, parent=None, lineno=None, error=None):
+        model.Try.__init__(self, parent)
+        self.lineno = lineno
+        self.error = error
+
+    @property
+    def source(self):
+        return self.parent.source if self.parent is not None else None
+
+    def run(self, context, run=True, templated=False):
+        return TryRunner(context, run, templated).run(self)
+
+
+@ExceptBlocks.register
+class Except(model.Except):
+    __slots__ = ['lineno', 'error']
+    body_class = Body
+
+    def __init__(self, patterns=None, variable=None, parent=None, lineno=None, error=None):
+        model.Except.__init__(self, patterns, variable, parent)
+        self.lineno = lineno
+        self.error = error
+
+    @property
+    def source(self):
+        return self.parent.source if self.parent is not None else None
+
+    def run(self, context, run=True, templated=False):
+        return TryRunner(context, run, templated).run(self)
+
+
+@Body.register
+class Return(model.Return):
+    __slots__ = ['lineno']
+
+    def __init__(self, values=(), parent=None, lineno=None):
+        model.Return.__init__(self, values, parent)
+        self.lineno = lineno
+
+    def run(self, context, run=True, templated=False):
+        with StatusReporter(self, ReturnResult(self.values), context, run):
+            if run:
+                raise ReturnFromKeyword(self.values)
 
 
 class TestCase(model.TestCase):
@@ -298,7 +363,7 @@ class TestSuite(model.TestSuite):
         return runner.result
 
 
-class Variable(object):
+class Variable:
 
     def __init__(self, name, value, source=None, lineno=None, error=None):
         self.name = name
@@ -314,7 +379,7 @@ class Variable(object):
                      % (source, line, self.name, message), level)
 
 
-class ResourceFile(object):
+class ResourceFile:
 
     def __init__(self, doc='', source=None):
         self.doc = doc
@@ -336,7 +401,7 @@ class ResourceFile(object):
         return model.ItemList(Variable, {'source': self.source}, items=variables)
 
 
-class UserKeyword(object):
+class UserKeyword:
 
     def __init__(self, name, args=(), doc='', tags=(), return_=None,
                  timeout=None, lineno=None, parent=None, error=None):
@@ -387,7 +452,7 @@ class UserKeyword(object):
         return self.parent.source if self.parent is not None else None
 
 
-class Import(object):
+class Import:
     ALLOWED_TYPES = ('Library', 'Resource', 'Variables')
 
     def __init__(self, type, name, args=(), alias=None, source=None, lineno=None):

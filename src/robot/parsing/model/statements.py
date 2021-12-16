@@ -67,6 +67,8 @@ class Statement(ast.AST):
         for token in tokens:
             if token.type in handlers:
                 return handlers[token.type](tokens)
+        if tokens and all(token.type == Token.ASSIGN for token in tokens):
+            return KeywordCall(tokens)
         return EmptyLine(tokens)
 
     @classmethod
@@ -720,7 +722,6 @@ class Return(MultiValue):
 @Statement.register
 class KeywordCall(Statement):
     type = Token.KEYWORD
-    handles_types = (Token.KEYWORD, Token.ASSIGN)
 
     @classmethod
     def from_params(cls, name, assign=(), args=(), indent=FOUR_SPACES, separator=FOUR_SPACES, eol=EOL):
@@ -816,19 +817,30 @@ class ForHeader(Statement):
         self.errors += ('FOR loop has %s.' % error,)
 
 
+class IfElseHeader(Statement):
+
+    @property
+    def condition(self):
+        return None
+
+    @property
+    def assign(self):
+        return None
+
+
 @Statement.register
-class IfHeader(Statement):
+class IfHeader(IfElseHeader):
     type = Token.IF
 
     @classmethod
     def from_params(cls, condition, indent=FOUR_SPACES, separator=FOUR_SPACES, eol=EOL):
-        return cls([
-            Token(Token.SEPARATOR, indent),
-            Token(Token.IF),
-            Token(Token.SEPARATOR, separator),
-            Token(Token.ARGUMENT, condition),
-            Token(Token.EOL, eol)
-        ])
+        tokens = [Token(Token.SEPARATOR, indent),
+                  Token(cls.type),
+                  Token(Token.SEPARATOR, separator),
+                  Token(Token.ARGUMENT, condition)]
+        if cls.type != Token.INLINE_IF:
+            tokens.append(Token(Token.EOL, eol))
+        return cls(tokens)
 
     @property
     def condition(self):
@@ -843,22 +855,21 @@ class IfHeader(Statement):
 
 
 @Statement.register
-class ElseIfHeader(IfHeader):
-    type = Token.ELSE_IF
+class InlineIfHeader(IfHeader):
+    type = Token.INLINE_IF
 
-    @classmethod
-    def from_params(cls, condition, indent=FOUR_SPACES, separator=FOUR_SPACES, eol=EOL):
-        return cls([
-            Token(Token.SEPARATOR, indent),
-            Token(Token.ELSE_IF),
-            Token(Token.SEPARATOR, separator),
-            Token(Token.ARGUMENT, condition),
-            Token(Token.EOL, eol)
-        ])
+    @property
+    def assign(self):
+        return self.get_values(Token.ASSIGN)
 
 
 @Statement.register
-class ElseHeader(Statement):
+class ElseIfHeader(IfHeader):
+    type = Token.ELSE_IF
+
+
+@Statement.register
+class ElseHeader(IfElseHeader):
     type = Token.ELSE
 
     @classmethod
@@ -869,13 +880,76 @@ class ElseHeader(Statement):
             Token(Token.EOL, eol)
         ])
 
-    @property
-    def condition(self):
-        return None
-
     def validate(self):
         if self.get_tokens(Token.ARGUMENT):
             self.errors += ('ELSE has condition.',)
+
+
+class NoArgumentHeader(Statement):
+
+    @classmethod
+    def from_params(cls, indent=FOUR_SPACES, eol=EOL):
+        return cls([
+            Token(Token.SEPARATOR, indent),
+            Token(cls.type),
+            Token(Token.EOL, eol)
+        ])
+
+    def validate(self):
+        if self.get_tokens(Token.ARGUMENT):
+            self.errors += (f'{self.type} has an argument.',)
+
+
+@Statement.register
+class TryHeader(NoArgumentHeader):
+    type = Token.TRY
+
+
+@Statement.register
+class ExceptHeader(Statement):
+    type = Token.EXCEPT
+
+    @classmethod
+    def from_params(cls, patterns=None, variable=None, indent=FOUR_SPACES, separator=FOUR_SPACES, eol=EOL):
+        tokens = [
+            Token(Token.SEPARATOR, indent),
+            Token(Token.EXCEPT),
+            Token(Token.SEPARATOR, separator)
+        ]
+        for pattern in patterns:
+            tokens.append(pattern)
+            tokens.append(Token(Token.SEPARATOR, separator))
+        if variable:
+            tokens.append(Token(Token.AS))
+            tokens.append(Token(Token.SEPARATOR, separator))
+            tokens.append(Token(Token.VARIABLE, variable))
+        tokens.append(Token(Token.EOL, eol))
+        return cls(tokens)
+
+    @property
+    def patterns(self):
+        return self.get_values(Token.ARGUMENT)
+
+    @property
+    def variable(self):
+        return self.get_value(Token.VARIABLE)
+
+    def validate(self):
+        as_seen = False
+        for token in self.tokens:
+            if token.type == Token.AS:
+                as_seen = True
+                if token != self.tokens[-2]:
+                    self.errors += ('AS must be second to last.',)
+        if as_seen:
+            var = self.tokens[-1].value
+            if not is_scalar_assign(var, allow_assign_mark=False):
+                self.errors += (f"Invalid AS variable '{var}'.",)
+
+
+@Statement.register
+class FinallyHeader(NoArgumentHeader):
+    type = Token.FINALLY
 
 
 @Statement.register
@@ -893,6 +967,25 @@ class End(Statement):
     def validate(self):
         if self.get_tokens(Token.ARGUMENT):
             self.errors += ('END does not accept arguments.',)
+
+
+@Statement.register
+class ReturnStatement(Statement):
+    type = Token.RETURN_STATEMENT
+
+    @property
+    def values(self):
+        return self.get_values(Token.ARGUMENT)
+
+    @classmethod
+    def from_params(cls, values=(), indent=FOUR_SPACES, separator=FOUR_SPACES, eol=EOL):
+        tokens = [Token(Token.SEPARATOR, indent),
+                  Token(Token.RETURN_STATEMENT)]
+        for value in values:
+            tokens.extend([Token(Token.SEPARATOR, separator),
+                           Token(Token.ARGUMENT, value)])
+        tokens.append(Token(Token.EOL, eol))
+        return cls(tokens)
 
 
 @Statement.register

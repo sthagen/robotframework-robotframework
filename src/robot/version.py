@@ -18,7 +18,7 @@ import sys
 
 # Version number typically updated by running `invoke set-version <version>`.
 # Run `invoke --help set-version` or see tasks.py for details.
-VERSION = '4.1.3.dev1'
+VERSION = '5.0.dev1'
 
 
 def get_version(naked=False):
@@ -37,10 +37,6 @@ def get_full_version(program=None, naked=False):
 
 
 def get_interpreter():
-    if sys.platform.startswith('java'):
-        return 'Jython'
-    if sys.platform == 'cli':
-        return 'IronPython'
     if 'PyPy' in sys.version:
         return 'PyPy'
     return 'Python'

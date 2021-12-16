@@ -2,7 +2,6 @@
 Library                  Annotations.py
 Library                  OperatingSystem
 Resource                 conversion.resource
-Force Tags               require-py3
 
 *** Variables ***
 @{LIST}                  foo                       bar
@@ -468,6 +467,12 @@ Non-type values don't cause errors
     Non type             None                      'None'
     Non type             none                      'none'
     Non type             []                        '[]'
+    Unhashable           foo                       'foo'
+    Unhashable           1                         '1'
+    Unhashable           true                      'true'
+    Unhashable           None                      'None'
+    Unhashable           none                      'none'
+    Unhashable           []                        '[]'
     Invalid              foo                       'foo'
     Invalid              1                         '1'
     Invalid              true                      'true'

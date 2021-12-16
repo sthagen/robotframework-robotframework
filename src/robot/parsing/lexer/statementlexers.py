@@ -19,7 +19,7 @@ from robot.variables import is_assign
 from .tokens import Token
 
 
-class Lexer(object):
+class Lexer:
     """Base class for lexers."""
 
     def __init__(self, ctx):
@@ -52,11 +52,25 @@ class StatementLexer(Lexer):
         self.statement = statement
 
     def lex(self):
+        raise NotImplementedError
+
+
+class SingleType(StatementLexer):
+
+    def lex(self):
         for token in self.statement:
             token.type = self.token_type
 
 
-class SectionHeaderLexer(StatementLexer):
+class TypeAndArguments(StatementLexer):
+
+    def lex(self):
+        self.statement[0].type = self.token_type
+        for token in self.statement[1:]:
+            token.type = Token.ARGUMENT
+
+
+class SectionHeaderLexer(SingleType):
 
     def handles(self, statement):
         return statement[0].value.startswith('*')
@@ -88,7 +102,7 @@ class ErrorSectionHeaderLexer(SectionHeaderLexer):
         self.ctx.lex_invalid_section(self.statement)
 
 
-class CommentLexer(StatementLexer):
+class CommentLexer(SingleType):
     token_type = Token.COMMENT
 
 
@@ -105,12 +119,8 @@ class TestOrKeywordSettingLexer(SettingLexer):
         return marker and marker[0] == '[' and marker[-1] == ']'
 
 
-class VariableLexer(StatementLexer):
-
-    def lex(self):
-        self.statement[0].type = Token.VARIABLE
-        for token in self.statement[1:]:
-            token.type = Token.ARGUMENT
+class VariableLexer(TypeAndArguments):
+    token_type = Token.VARIABLE
 
 
 class KeywordCallLexer(StatementLexer):
@@ -156,45 +166,81 @@ class ForHeaderLexer(StatementLexer):
                 token.type = Token.VARIABLE
 
 
-class IfHeaderLexer(StatementLexer):
+class IfHeaderLexer(TypeAndArguments):
+    token_type = Token.IF
 
     def handles(self, statement):
-        return statement[0].value == 'IF'
-
-    def lex(self):
-        self.statement[0].type = Token.IF
-        for token in self.statement[1:]:
-            token.type = Token.ARGUMENT
+        return statement[0].value == 'IF' and len(statement) <= 2
 
 
-class ElseIfHeaderLexer(StatementLexer):
+class InlineIfHeaderLexer(TypeAndArguments):
+    token_type = Token.INLINE_IF
+
+    def handles(self, statement):
+        for token in statement:
+            if token.value == 'IF':
+                return True
+            if is_assign(token.value, allow_assign_mark=True):
+                continue
+            return False
+
+
+class ElseIfHeaderLexer(TypeAndArguments):
+    token_type = Token.ELSE_IF
 
     def handles(self, statement):
         return normalize_whitespace(statement[0].value) == 'ELSE IF'
 
-    def lex(self):
-        self.statement[0].type = Token.ELSE_IF
-        for token in self.statement[1:]:
-            token.type = Token.ARGUMENT
 
-
-class ElseHeaderLexer(StatementLexer):
+class ElseHeaderLexer(TypeAndArguments):
+    token_type = Token.ELSE
 
     def handles(self, statement):
         return statement[0].value == 'ELSE'
 
+
+class TryHeaderLexer(TypeAndArguments):
+    token_type = Token.TRY
+
+    def handles(self, statement):
+        return statement[0].value == 'TRY'
+
+
+class ExceptHeaderLexer(StatementLexer):
+    token_type = Token.EXCEPT
+
+    def handles(self, statement):
+        return statement[0].value == 'EXCEPT'
+
     def lex(self):
-        self.statement[0].type = Token.ELSE
+        self.statement[0].type = Token.EXCEPT
+        as_seen = False
         for token in self.statement[1:]:
-            token.type = Token.ARGUMENT
+            if token.value == 'AS':
+                token.type = Token.AS
+                as_seen = True
+            elif as_seen:
+                token.type = Token.VARIABLE
+            else:
+                token.type = Token.ARGUMENT
 
 
-class EndLexer(StatementLexer):
+class FinallyHeaderLexer(TypeAndArguments):
+    token_type = Token.FINALLY
+
+    def handles(self, statement):
+        return statement[0].value == 'FINALLY'
+
+
+class EndLexer(TypeAndArguments):
+    token_type = Token.END
 
     def handles(self, statement):
         return statement[0].value == 'END'
 
-    def lex(self):
-        self.statement[0].type = Token.END
-        for token in self.statement[1:]:
-            token.type = Token.ARGUMENT
+
+class ReturnLexer(TypeAndArguments):
+    token_type = Token.RETURN_STATEMENT
+
+    def handles(self, statement):
+        return statement[0].value == 'RETURN'

@@ -42,14 +42,8 @@ from robot.conf import RobotSettings
 from robot.htmldata import HtmlFileWriter, ModelWriter, JsonWriter, TESTDOC
 from robot.running import TestSuiteBuilder
 from robot.utils import (abspath, Application, file_writer, get_link_path,
-                         html_escape, html_format, IRONPYTHON, is_string,
-                         PY_VERSION, secs_to_timestr, seq2str2,
-                         timestr_to_secs, unescape)
-
-
-# http://ironpython.codeplex.com/workitem/31549
-if IRONPYTHON and PY_VERSION < (2, 7, 2):
-    int = long
+                         html_escape, html_format, is_string, secs_to_timestr,
+                         seq2str2, timestr_to_secs, unescape)
 
 
 USAGE = """robot.testdoc -- Robot Framework test data documentation tool
@@ -103,15 +97,14 @@ Data can be given as a single file, directory, or as multiple files and
 directories. In all these cases, the last argument must be the file where
 to write the output. The output is always created in HTML format.
 
-Testdoc works with all interpreters supported by Robot Framework (Python,
-Jython and IronPython). It can be executed as an installed module like
+Testdoc works with all interpreters supported by Robot Framework.
+It can be executed as an installed module like
 `python -m robot.testdoc` or as a script like `python path/robot/testdoc.py`.
 
 Examples:
 
   python -m robot.testdoc my_test.robot testdoc.html
-  jython -m robot.testdoc -N smoke_tests -i smoke path/to/my_tests smoke.html
-  ipy path/to/robot/testdoc.py first_suite.txt second_suite.txt output.html
+  python path/to/robot/testdoc.py first_suite.txt second_suite.txt output.html
 
 For more information about Testdoc and other built-in tools, see
 http://robotframework.org/robotframework/#built-in-tools.
@@ -166,7 +159,7 @@ class TestdocModelWriter(ModelWriter):
         JsonWriter(self._output).write_json('testdoc = ', model)
 
 
-class JsonConverter(object):
+class JsonConverter:
 
     def __init__(self, output_path=None):
         self._output_path = output_path

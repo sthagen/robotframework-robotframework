@@ -15,11 +15,10 @@
 
 from robot.errors import ExecutionStatus, PassExecution
 from robot.model import TagPatterns
-from robot.utils import html_escape, py3to2, unic, test_or_task
+from robot.utils import html_escape, test_or_task
 
 
-@py3to2
-class Failure(object):
+class Failure:
 
     def __init__(self):
         self.setup = None
@@ -36,8 +35,7 @@ class Failure(object):
         )
 
 
-@py3to2
-class Exit(object):
+class Exit:
 
     def __init__(self, failure_mode=False, error_mode=False, skip_teardown_mode=False):
         self.failure_mode = failure_mode
@@ -65,7 +63,7 @@ class Exit(object):
         return self.failure or self.error or self.fatal
 
 
-class _ExecutionStatus(object):
+class _ExecutionStatus:
 
     def __init__(self, parent=None, *exit_modes):
         self.parent = parent
@@ -81,14 +79,14 @@ class _ExecutionStatus(object):
     def setup_executed(self, failure=None):
         if failure and not isinstance(failure, PassExecution):
             if failure.skip:
-                self.failure.setup_skipped = unic(failure)
+                self.failure.setup_skipped = str(failure)
                 self.skipped = True
             elif self._skip_on_failure():
                 msg = self._skip_on_failure_message('Setup failed:\n%s' % failure)
                 self.failure.test = msg
                 self.skipped = True
             else:
-                self.failure.setup = unic(failure)
+                self.failure.setup = str(failure)
                 self.exit.failure_occurred(failure)
 
         self._teardown_allowed = True
@@ -96,7 +94,7 @@ class _ExecutionStatus(object):
     def teardown_executed(self, failure=None):
         if failure and not isinstance(failure, PassExecution):
             if failure.skip:
-                self.failure.teardown_skipped = unic(failure)
+                self.failure.teardown_skipped = str(failure)
                 # Keep the Skip status in case the teardown failed
                 self.skipped = self.skipped or failure.skip
             elif self._skip_on_failure():
@@ -104,7 +102,7 @@ class _ExecutionStatus(object):
                 self.failure.test = msg
                 self.skipped = True
             else:
-                self.failure.teardown = unic(failure)
+                self.failure.teardown = str(failure)
                 self.exit.failure_occurred(failure)
 
     def failure_occurred(self):
@@ -135,7 +133,7 @@ class _ExecutionStatus(object):
     def _skip_on_failure_message(self, failure):
         return test_or_task(
             "{Test} failed but its tags matched '--SkipOnFailure' and it was marked "
-            "skipped.\n\nOriginal failure:\n%s" % unic(failure), rpa=self._rpa
+            "skipped.\n\nOriginal failure:\n%s" % failure, rpa=self._rpa
         )
 
     @property
@@ -183,12 +181,12 @@ class TestStatus(_ExecutionStatus):
             self.failure.test = msg
             self.skipped = True
         else:
-            self.failure.test = unic(failure)
+            self.failure.test = str(failure)
             self.exit.failure_occurred(failure)
 
     def test_skipped(self, reason):
         self.skipped = True
-        self.failure.test_skipped = unic(reason)
+        self.failure.test_skipped = str(reason)
 
     def skip_if_needed(self):
         if not self.skipped and self.failed and self._skip_on_failure():
@@ -210,7 +208,7 @@ class TestStatus(_ExecutionStatus):
         return TestMessage(self).message
 
 
-class _Message(object):
+class _Message:
     setup_message = NotImplemented
     setup_skipped_message = NotImplemented
     teardown_skipped_message = NotImplemented

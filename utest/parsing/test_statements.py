@@ -27,10 +27,12 @@ from robot.parsing.model.statements import (
     Timeout,
     Arguments,
     Return,
+    ReturnStatement,
     KeywordCall,
     TemplateArguments,
     ForHeader,
     IfHeader,
+    InlineIfHeader,
     ElseHeader,
     ElseIfHeader,
     End,
@@ -684,6 +686,21 @@ class TestCreateStatementsFromParams(unittest.TestCase):
             condition='${var} not in [@{list}]'
         )
 
+    def test_InlineIfHeader(self):
+        # Test/Keyword
+        #     IF    $x > 0
+        tokens = [
+            Token(Token.SEPARATOR, '    '),
+            Token(Token.INLINE_IF),
+            Token(Token.SEPARATOR, '    '),
+            Token(Token.ARGUMENT, '$x > 0')
+        ]
+        assert_created_statement(
+            tokens,
+            InlineIfHeader,
+            condition='$x > 0'
+        )
+
     def test_ElseIfHeader(self):
         # Test/Keyword
         #     ELSE IF    ${var} not in [@{list}]
@@ -723,6 +740,22 @@ class TestCreateStatementsFromParams(unittest.TestCase):
             tokens,
             End
         )
+
+    def test_Return(self):
+        tokens = [
+            Token(Token.SEPARATOR, '    '),
+            Token(Token.RETURN_STATEMENT),
+            Token(Token.EOL)
+        ]
+        assert_created_statement(tokens, ReturnStatement)
+        tokens = [
+            Token(Token.SEPARATOR, '    '),
+            Token(Token.RETURN_STATEMENT, 'RETURN'),
+            Token(Token.SEPARATOR, '    '),
+            Token(Token.ARGUMENT, 'x'),
+            Token(Token.EOL, '\n')
+        ]
+        assert_created_statement(tokens, ReturnStatement, values=('x',))
 
     def test_Comment(self):
         tokens = [

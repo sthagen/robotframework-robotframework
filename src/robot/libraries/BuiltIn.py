@@ -13,8 +13,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from __future__ import absolute_import
-
 from collections import OrderedDict
 import difflib
 import re
@@ -28,25 +26,20 @@ from robot.errors import (ContinueForLoop, DataError, ExecutionFailed,
 from robot.running import Keyword, RUN_KW_REGISTER
 from robot.running.context import EXECUTION_CONTEXTS
 from robot.running.usererrorhandler import UserErrorHandler
-from robot.utils import (DotDict, escape, format_assign_message,
-                         get_error_message, get_time, html_escape, is_falsy,
-                         is_integer, is_list_like, is_string, is_truthy,
-                         is_unicode, IRONPYTHON, JYTHON, Matcher, normalize,
-                         normalize_whitespace, parse_time, prepr,
-                         plural_or_not as s, PY3, RERAISED_EXCEPTIONS,
-                         roundup, secs_to_timestr, seq2str, split_from_equals,
-                         timestr_to_secs, type_name, unic)
+from robot.utils import (DotDict, escape, format_assign_message, get_error_message,
+                         get_time, html_escape, is_falsy, is_integer, is_list_like,
+                         is_string, is_truthy, Matcher, normalize,
+                         normalize_whitespace, parse_time, prepr, plural_or_not as s,
+                         RERAISED_EXCEPTIONS, roundup, safe_str, secs_to_timestr,
+                         seq2str, split_from_equals, timestr_to_secs, type_name)
 from robot.utils.asserts import assert_equal, assert_not_equal
 from robot.variables import (evaluate_expression, is_dict_variable,
                              is_list_variable, search_variable,
                              DictVariableTableValue, VariableTableValue)
 from robot.version import get_version
 
-if JYTHON:
-    from java.lang import String, Number
 
-
-# TODO: Clean-up registering run keyword variants in RF 3.1.
+# FIXME: Clean-up registering run keyword variants in RF 5!
 # https://github.com/robotframework/robotframework/issues/2190
 
 def run_keyword_variant(resolve):
@@ -57,7 +50,7 @@ def run_keyword_variant(resolve):
     return decorator
 
 
-class _BuiltInBase(object):
+class _BuiltInBase:
 
     @property
     def _context(self):
@@ -95,9 +88,6 @@ class _BuiltInBase(object):
         self.log('\n'.join(msg), level)
 
     def _get_type(self, arg):
-        # In IronPython type(u'x') is str. We want to report unicode anyway.
-        if is_unicode(arg):
-            return "<type 'unicode'>"
         return str(type(arg))
 
 
@@ -134,23 +124,13 @@ class _Converter(_BuiltInBase):
 
     def _convert_to_integer(self, orig, base=None):
         try:
-            item = self._handle_java_numbers(orig)
-            item, base = self._get_base(item, base)
+            item, base = self._get_base(orig, base)
             if base:
                 return int(item, self._convert_to_integer(base))
             return int(item)
         except:
             raise RuntimeError("'%s' cannot be converted to an integer: %s"
                                % (orig, get_error_message()))
-
-    def _handle_java_numbers(self, item):
-        if not JYTHON:
-            return item
-        if isinstance(item, String):
-            return unic(item)
-        if isinstance(item, Number):
-            return item.doubleValue()
-        return item
 
     def _get_base(self, item, base):
         if not is_string(item):
@@ -291,8 +271,6 @@ class _Converter(_BuiltInBase):
 
     def _convert_to_number_without_precision(self, item):
         try:
-            if JYTHON:
-                item = self._handle_java_numbers(item)
             return float(item)
         except:
             error = get_error_message()
@@ -314,10 +292,7 @@ class _Converter(_BuiltInBase):
         want to create byte strings.
         """
         self._log_types(item)
-        return self._convert_to_string(item)
-
-    def _convert_to_string(self, item):
-        return unic(item)
+        return safe_str(item)
 
     def convert_to_boolean(self, item):
         """Converts the given item to Boolean true or false.
@@ -336,14 +311,14 @@ class _Converter(_BuiltInBase):
         return bool(item)
 
     def convert_to_bytes(self, input, input_type='text'):
-        u"""Converts the given ``input`` to bytes according to the ``input_type``.
+        r"""Converts the given ``input`` to bytes according to the ``input_type``.
 
         Valid input types are listed below:
 
         - ``text:`` Converts text to bytes character by character. All
           characters with ordinal below 256 can be used and are converted to
           bytes with same values. Many characters are easiest to represent
-          using escapes like ``\\x00`` or ``\\xff``. Supports both Unicode
+          using escapes like ``\x00`` or ``\xff``. Supports both Unicode
           strings and bytes.
 
         - ``int:`` Converts integers separated by spaces to bytes. Similarly as
@@ -365,16 +340,17 @@ class _Converter(_BuiltInBase):
         they cannot contain extra spaces.
 
         Examples (last column shows returned bytes):
-        | ${bytes} = | Convert To Bytes | hyv\xe4    |     | # hyv\\xe4        |
-        | ${bytes} = | Convert To Bytes | \\xff\\x07 |     | # \\xff\\x07      |
-        | ${bytes} = | Convert To Bytes | 82 70      | int | # RF              |
-        | ${bytes} = | Convert To Bytes | 0b10 0x10  | int | # \\x02\\x10      |
-        | ${bytes} = | Convert To Bytes | ff 00 07   | hex | # \\xff\\x00\\x07 |
-        | ${bytes} = | Convert To Bytes | 5246212121 | hex | # RF!!!           |
-        | ${bytes} = | Convert To Bytes | 0000 1000  | bin | # \\x08           |
-        | ${input} = | Create List      | 1          | 2   | 12                |
-        | ${bytes} = | Convert To Bytes | ${input}   | int | # \\x01\\x02\\x0c |
-        | ${bytes} = | Convert To Bytes | ${input}   | hex | # \\x01\\x02\\x12 |
+        | ${bytes} = | Convert To Bytes | hyvä      |     | # hyv\xe4      |
+        | ${bytes} = | Convert To Bytes | hyv\xe4   |     | # hyv\xe4      |
+        | ${bytes} = | Convert To Bytes | \xff\x07  |     | # \xff\x07     |
+        | ${bytes} = | Convert To Bytes | 82 70     | int | # RF           |
+        | ${bytes} = | Convert To Bytes | 0b10 0x10 | int | # \x02\x10     |
+        | ${bytes} = | Convert To Bytes | ff 00 07  | hex | # \xff\x00\x07 |
+        | ${bytes} = | Convert To Bytes | 52462121  | hex | # RF!!         |
+        | ${bytes} = | Convert To Bytes | 0000 1000 | bin | # \x08         |
+        | ${input} = | Create List      | 1         | 2   | 12             |
+        | ${bytes} = | Convert To Bytes | ${input}  | int | # \x01\x02\x0c |
+        | ${bytes} = | Convert To Bytes | ${input}  | hex | # \x01\x02\x12 |
 
         Use `Encode String To Bytes` in ``String`` library if you need to
         convert text to bytes using a certain encoding.
@@ -389,9 +365,6 @@ class _Converter(_BuiltInBase):
             raise RuntimeError("Creating bytes failed: %s" % get_error_message())
 
     def _get_ordinals_from_text(self, input):
-        # https://github.com/IronLanguages/main/issues/1237
-        if IRONPYTHON and isinstance(input, bytearray):
-            input = bytes(input)
         for char in input:
             ordinal = char if is_integer(char) else ord(char)
             yield self._test_ordinal(ordinal, char, 'Character')
@@ -582,16 +555,6 @@ class _Verify(_BuiltInBase):
         Examples:
         | Should Be True | $rc < 10          |
         | Should Be True | $status == 'PASS' | # Expected string must be quoted |
-
-        `Should Be True` automatically imports Python's
-        [http://docs.python.org/library/os.html|os] and
-        [http://docs.python.org/library/sys.html|sys] modules that contain
-        several useful attributes:
-
-        | Should Be True | os.linesep == '\\n'             | # Unixy   |
-        | Should Be True | os.linesep == '\\r\\n'          | # Windows |
-        | Should Be True | sys.platform == 'darwin'        | # OS X    |
-        | Should Be True | sys.platform.startswith('java') | # Jython  |
         """
         if not self._is_true(condition):
             raise AssertionError(msg or "'%s' should be true." % condition)
@@ -856,8 +819,8 @@ class _Verify(_BuiltInBase):
         in Robot Framework 4.1.
         """
         self._log_types_at_info_if_different(first, second)
-        first = self._convert_to_string(first)
-        second = self._convert_to_string(second)
+        first = safe_str(first)
+        second = safe_str(second)
         if ignore_case:
             first = first.lower()
             second = second.lower()
@@ -897,8 +860,8 @@ class _Verify(_BuiltInBase):
         and ``collapse_spaces`` is new in Robot Framework 4.1.
         """
         self._log_types_at_info_if_different(first, second)
-        first = self._convert_to_string(first)
-        second = self._convert_to_string(second)
+        first = safe_str(first)
+        second = safe_str(second)
         if ignore_case:
             first = first.lower()
             second = second.lower()
@@ -1280,8 +1243,8 @@ class _Verify(_BuiltInBase):
                     container = [self._collapse_spaces(x) for x in container]
         x = self.get_count(container, item)
         if not msg:
-            msg = "'%s' contains '%s' %d time%s, not %d time%s." \
-                    % (unic(orig_container), unic(item), x, s(x), count, s(count))
+            msg = "%r contains '%s' %d time%s, not %d time%s." \
+                    % (orig_container, item, x, s(x), count, s(count))
         self.should_be_equal_as_integers(x, count, msg, values=False)
 
     def get_count(self, container, item):
@@ -1479,8 +1442,8 @@ class _Verify(_BuiltInBase):
                         delimiter, quote_item1=True, quote_item2=True):
         if custom_message and not self._include_values(include_values):
             return custom_message
-        item1 = "'%s'" % unic(item1) if quote_item1 else unic(item1)
-        item2 = "'%s'" % unic(item2) if quote_item2 else unic(item2)
+        item1 = "'%s'" % safe_str(item1) if quote_item1 else safe_str(item1)
+        item2 = "'%s'" % safe_str(item2) if quote_item2 else safe_str(item2)
         default_message = '%s %s %s' % (item1, delimiter, item2)
         if not custom_message:
             return default_message
@@ -1814,7 +1777,7 @@ class _Variables(_BuiltInBase):
         match.resolve_base(self._variables)
         if not match.is_assign():
             raise DataError("Invalid variable name '%s'." % name)
-        return unic(match)
+        return str(match)
 
     def _resolve_var_name(self, name):
         if name.startswith('\\'):
@@ -1827,7 +1790,7 @@ class _Variables(_BuiltInBase):
         match.resolve_base(self._variables)
         if not match.is_assign():
             raise ValueError
-        return unic(match)
+        return str(match)
 
     def _get_var_value(self, name, values):
         if not values:
@@ -2002,15 +1965,6 @@ class _RunKeyword(_BuiltInBase):
         explicitly and thus cannot come from variables. If you need to use
         literal ``ELSE`` and ``ELSE IF`` strings as arguments, you can escape
         them with a backslash like ``\\ELSE`` and ``\\ELSE IF``.
-
-        Python's [http://docs.python.org/library/os.html|os] and
-        [http://docs.python.org/library/sys.html|sys] modules are
-        automatically imported when evaluating the ``condition``.
-        Attributes they contain can thus be used in the condition:
-
-        | `Run Keyword If` | os.sep == '/' | `Unix Keyword`        |
-        | ...              | ELSE IF       | sys.platform.startswith('java') | `Jython Keyword` |
-        | ...              | ELSE          | `Windows Keyword`     |
         """
         args, branch = self._split_elif_or_else_branch(args)
         if self._is_true(condition):
@@ -2066,7 +2020,7 @@ class _RunKeyword(_BuiltInBase):
         except ExecutionFailed as err:
             if err.dont_continue or err.skip:
                 raise
-            return 'FAIL', unic(err)
+            return 'FAIL', str(err)
 
     @run_keyword_variant(resolve=1)
     def run_keyword_and_warn_on_failure(self, name, *args):
@@ -2602,17 +2556,30 @@ class _Control(_BuiltInBase):
     def return_from_keyword(self, *return_values):
         """Returns from the enclosing user keyword.
 
+        ---
+
+        *NOTE:* Robot Framework 5.0 added support for native ``RETURN`` statement that
+        is recommended over this keyword. In the examples below, ``Return From Keyword``
+        can simply be replaced with ``RETURN``. In addition to that, native ``IF``
+        syntax (new in RF 4.0) or inline ``IF`` syntax (new in RF 5.0) can be used
+        instead of ``Run Keyword If``. For example, the first example below could be
+        written like this instead:
+
+        | IF    ${rc} < 0    RETURN
+
+        This keyword will eventually be deprecated and removed.
+
+        ---
+
         This keyword can be used to return from a user keyword with PASS status
         without executing it fully. It is also possible to return values
         similarly as with the ``[Return]`` setting. For more detailed information
         about working with the return values, see the User Guide.
 
         This keyword is typically wrapped to some other keyword, such as
-        `Run Keyword If` or `Run Keyword If Test Passed`, to return based
-        on a condition:
+        `Run Keyword If`, to return based on a condition:
 
-        | Run Keyword If | ${rc} < 0 | Return From Keyword |
-        | Run Keyword If Test Passed | Return From Keyword |
+        | Run Keyword If    ${rc} < 0    Return From Keyword
 
         It is possible to use this keyword to return from a keyword also inside
         a for loop. That, as well as returning values, is demonstrated by the
@@ -2638,7 +2605,7 @@ class _Control(_BuiltInBase):
         |        Run Keyword If    '${item}' == '${element}'    Return From Keyword    ${index}
         |        ${index} =    Set Variable    ${index + 1}
         |    END
-        |    Return From Keyword    ${-1}    # Also [Return] would work here.
+        |    Return From Keyword    ${-1}
 
         The most common use case, returning based on an expression, can be
         accomplished directly with `Return From Keyword If`. See also
@@ -2653,6 +2620,19 @@ class _Control(_BuiltInBase):
     @run_keyword_variant(resolve=1)
     def return_from_keyword_if(self, condition, *return_values):
         """Returns from the enclosing user keyword if ``condition`` is true.
+
+        ---
+
+        *NOTE:* Robot Framework 5.0 added support for native ``RETURN`` statement
+        and inline ``IF`` and that combination should be used instead of this
+        keyword. For example, ``Return From Keyword`` usage in the example below
+        could be replaced with
+
+        | IF    '${item}' == '${element}'    RETURN    ${index}
+
+        This keyword will eventually be deprecated and removed.
+
+        ---
 
         A wrapper for `Return From Keyword` to return based on the given
         condition. The condition is evaluated using the same semantics as
@@ -2669,7 +2649,7 @@ class _Control(_BuiltInBase):
         |        Return From Keyword If    '${item}' == '${element}'    ${index}
         |        ${index} =    Set Variable    ${index + 1}
         |    END
-        |    Return From Keyword    ${-1}    # Also [Return] would work here.
+        |    Return From Keyword    ${-1}
 
         See also `Run Keyword And Return` and `Run Keyword And Return If`.
         """
@@ -2851,7 +2831,7 @@ class _Misc(_BuiltInBase):
         """
         if not items:
             return ''
-        items = [unic(item) for item in items]
+        items = [str(item) for item in items]
         if items[0].startswith('SEPARATOR='):
             sep = items[0][len('SEPARATOR='):]
             items = items[1:]
@@ -2860,8 +2840,8 @@ class _Misc(_BuiltInBase):
         return sep.join(items)
 
     def log(self, message, level='INFO', html=False, console=False,
-            repr=False, formatter='str'):
-        u"""Logs the given message with the given level.
+            repr='DEPRECATED', formatter='str'):
+        r"""Logs the given message with the given level.
 
         Valid levels are TRACE, DEBUG, INFO (default), HTML, WARN, and ERROR.
         Messages below the current active log level are ignored. See
@@ -2888,16 +2868,15 @@ class _Misc(_BuiltInBase):
 
         The ``formatter`` argument controls how to format the string
         representation of the message. Possible values are ``str`` (default),
-        ``repr`` and ``ascii``, and they work similarly to Python built-in
-        functions with same names. When using ``repr``, bigger lists,
-        dictionaries and other containers are also pretty-printed so that
-        there is one item per row. For more details see `String
+        ``repr``, ``ascii``, ``len``, and ``type``. They work similarly to
+        Python built-in functions with same names. When using ``repr``, bigger
+        lists, dictionaries and other containers are also pretty-printed so
+        that there is one item per row. For more details see `String
         representations`.
 
         The old way to control string representation was using the ``repr``
-        argument, and ``repr=True`` is still equivalent to using
-        ``formatter=repr``. The ``repr`` argument will be deprecated in the
-        future, though, and using ``formatter`` is thus recommended.
+        argument. This argument has been deprecated and ``formatter=repr``
+        should be used instead.
 
         Examples:
         | Log | Hello, world!        |          |   | # Normal INFO message.   |
@@ -2906,16 +2885,20 @@ class _Misc(_BuiltInBase):
         | Log | <b>Hello</b>, world! | HTML     |   | # Same as above.         |
         | Log | <b>Hello</b>, world! | DEBUG    | html=true | # DEBUG as HTML. |
         | Log | Hello, console!   | console=yes | | # Log also to the console. |
-        | Log | Null is \\x00  | formatter=repr | | # Log ``'Null is \\x00'``. |
+        | Log | Null is \x00    | formatter=repr | | # Log ``'Null is \x00'``. |
 
         See `Log Many` if you want to log multiple messages in one go, and
         `Log To Console` if you only want to write to the console.
+
+        Formatter options ``type`` and ``log`` are new in Robot Framework 5.0.
         """
-        # TODO: Deprecate `repr` in RF 3.2 or latest in RF 3.3.
-        if repr:
-            formatter = prepr
-        else:
+        # TODO: Remove `repr` altogether in RF 5.2. It was deprecated in RF 5.0.
+        if repr == 'DEPRECATED':
             formatter = self._get_formatter(formatter)
+        else:
+            logger.warn("The 'repr' argument of 'BuiltIn.Log' is deprecated. "
+                        "Use 'formatter=repr' instead.")
+            formatter = prepr if is_truthy(repr) else self._get_formatter(formatter)
         message = formatter(message)
         logger.write(message, level, html)
         if console:
@@ -2923,12 +2906,14 @@ class _Misc(_BuiltInBase):
 
     def _get_formatter(self, formatter):
         try:
-            return {'str': unic,
+            return {'str': safe_str,
                     'repr': prepr,
-                    'ascii': ascii if PY3 else repr}[formatter.lower()]
+                    'ascii': ascii,
+                    'len': len,
+                    'type': lambda x: type(x).__name__}[formatter.lower()]
         except KeyError:
             raise ValueError("Invalid formatter '%s'. Available "
-                             "'str', 'repr' and 'ascii'." % formatter)
+                             "'str', 'repr', 'ascii', 'len', and 'type'." % formatter)
 
     @run_keyword_variant(resolve=0)
     def log_many(self, *messages):
@@ -3006,7 +2991,7 @@ class _Misc(_BuiltInBase):
         try:
             old = self._context.output.set_log_level(level)
         except DataError as err:
-            raise RuntimeError(unic(err))
+            raise RuntimeError(str(err))
         self._namespace.variables.set_global('${LOG_LEVEL}', level.upper())
         self.log('Log level changed from %s to %s.' % (old, level.upper()))
         return old
@@ -3048,14 +3033,13 @@ class _Misc(_BuiltInBase):
 
         Examples:
         | Import Library | MyLibrary |
-        | Import Library | ${CURDIR}/../Library.py | arg1 | named=arg2 |
-        | Import Library | ${LIBRARIES}/Lib.java | arg | WITH NAME | JavaLib |
+        | Import Library | ${CURDIR}/Lib.py | arg1 | named=arg2 | WITH NAME | Custom |
         """
         args, alias = self._split_alias(args)
         try:
             self._namespace.import_library(name, args, alias)
         except DataError as err:
-            raise RuntimeError(unic(err))
+            raise RuntimeError(str(err))
 
     def _split_alias(self, args):
         if len(args) > 1 and normalize_whitespace(args[-2]) == 'WITH NAME':
@@ -3073,8 +3057,8 @@ class _Misc(_BuiltInBase):
         variables, for example, for each test in a test suite.
 
         The given path must be absolute or found from
-        [http://robotframework.org/robotframework/latest/RobotFrameworkUserGuide.html#pythonpath-jythonpath-and-ironpythonpath|
-        search path]. Forward slashes can be used as path separator regardless
+        [http://robotframework.org/robotframework/latest/RobotFrameworkUserGuide.html##module-search-path|search path].
+        Forward slashes can be used as path separator regardless
         the operating system.
 
         Examples:
@@ -3085,7 +3069,7 @@ class _Misc(_BuiltInBase):
         try:
             self._namespace.import_variables(path, list(args), overwrite=True)
         except DataError as err:
-            raise RuntimeError(unic(err))
+            raise RuntimeError(str(err))
 
     @run_keyword_variant(resolve=0)
     def import_resource(self, path):
@@ -3096,8 +3080,8 @@ class _Misc(_BuiltInBase):
         setting.
 
         The given path must be absolute or found from
-        [http://robotframework.org/robotframework/latest/RobotFrameworkUserGuide.html#pythonpath-jythonpath-and-ironpythonpath|
-        search path]. Forward slashes can be used as path separator regardless
+        [http://robotframework.org/robotframework/latest/RobotFrameworkUserGuide.html#module-search-path|search path].
+        Forward slashes can be used as path separator regardless
         the operating system.
 
         Examples:
@@ -3108,7 +3092,7 @@ class _Misc(_BuiltInBase):
         try:
             self._namespace.import_resource(path)
         except DataError as err:
-            raise RuntimeError(unic(err))
+            raise RuntimeError(str(err))
 
     def set_library_search_order(self, *search_order):
         """Sets the resolution order to use when a name matches multiple keywords.
@@ -3392,8 +3376,8 @@ class _Misc(_BuiltInBase):
         self.log('Set test message to:\n%s' % message, level)
 
     def _get_new_text(self, old, new, append, handle_html=False):
-        if not is_unicode(new):
-            new = unic(new)
+        if not is_string(new):
+            new = str(new)
         if not (is_truthy(append) and old):
             return new
         if handle_html:
@@ -3464,8 +3448,8 @@ class _Misc(_BuiltInBase):
         ``${SUITE METADATA}`` in a Python dictionary. Notice that modifying this
         variable directly has no effect on the actual metadata the suite has.
         """
-        if not is_unicode(name):
-            name = unic(name)
+        if not is_string(name):
+            name = str(name)
         metadata = self._get_context(top).suite.metadata
         original = metadata.get(name, '')
         metadata[name] = self._get_new_text(original, value, append)
@@ -3557,11 +3541,11 @@ class _Misc(_BuiltInBase):
         try:
             return self._namespace.get_library_instance(name)
         except DataError as err:
-            raise RuntimeError(unic(err))
+            raise RuntimeError(str(err))
 
 
 class BuiltIn(_Verify, _Converter, _Variables, _RunKeyword, _Control, _Misc):
-    u"""An always available standard library with often needed keywords.
+    r"""An always available standard library with often needed keywords.
 
     ``BuiltIn`` is Robot Framework's standard library that provides a set
     of generic keywords needed often. It is imported automatically and
@@ -3694,7 +3678,7 @@ class BuiltIn(_Verify, _Converter, _Variables, _RunKeyword, _Control, _Misc):
     | ``[!a-z]``   | matches one character not from the range in the bracket |
 
     Unlike with glob patterns normally, path separator characters ``/`` and
-    ``\\`` and the newline character ``\\n`` are matches by the above
+    ``\`` and the newline character ``\n`` are matches by the above
     wildcards.
 
     == Regular expressions ==
@@ -3706,9 +3690,9 @@ class BuiltIn(_Verify, _Converter, _Variables, _RunKeyword, _Control, _Misc):
     [http://docs.python.org/library/re.html|re module] and its documentation
     should be consulted for more information about the syntax.
 
-    Because the backslash character (``\\``) is an escape character in
+    Because the backslash character (``\``) is an escape character in
     Robot Framework test data, possible backslash characters in regular
-    expressions need to be escaped with another backslash like ``\\\\d\\\\w+``.
+    expressions need to be escaped with another backslash like ``\\d\\w+``.
     Strings that may contain special characters but should be handled
     as literal strings, can be escaped with the `Regexp Escape` keyword.
 
@@ -3719,8 +3703,8 @@ class BuiltIn(_Verify, _Converter, _Variables, _RunKeyword, _Control, _Misc):
     format] if both strings have more than two lines.
 
     Example:
-    | ${first} =  | `Catenate` | SEPARATOR=\\n | Not in second | Same | Differs | Same |
-    | ${second} = | `Catenate` | SEPARATOR=\\n | Same | Differs2 | Same | Not in first |
+    | ${first} =  | `Catenate` | SEPARATOR=\n | Not in second | Same | Differs | Same |
+    | ${second} = | `Catenate` | SEPARATOR=\n | Same | Differs2 | Same | Not in first |
     | `Should Be Equal` | ${first} | ${second} |
 
     Results in the following error message:
@@ -3753,21 +3737,20 @@ class BuiltIn(_Verify, _Converter, _Variables, _RunKeyword, _Control, _Misc):
 
     - Trailing whitespace is not visible.
 
-    - Different newlines (``\\r\\n`` on Windows, ``\\n`` elsewhere) cannot
+    - Different newlines (``\r\n`` on Windows, ``\n`` elsewhere) cannot
       be separated from each others.
 
     - There are several Unicode characters that are different but look the
-      same. One example is the Latin ``\u0061`` (``\\u0061``) and the Cyrillic
-      ``\u0430`` (``\\u0430``). Error messages like ``\u0061 != \u0430`` are
-      not very helpful.
+      same. One example is the Latin ``a`` (``\u0061``) and the Cyrillic
+      ``а`` (``\u0430``). Error messages like ``a != а`` are not very helpful.
 
     - Some Unicode characters can be represented using
       [https://en.wikipedia.org/wiki/Unicode_equivalence|different forms].
-      For example, ``\xe4`` can be represented either as a single code point
-      ``\\u00e4`` or using two code points ``\\u0061`` and ``\\u0308`` combined
+      For example, ``ä`` can be represented either as a single code point
+      ``\u00e4`` or using two code points ``\u0061`` and ``\u0308`` combined
       together. Such forms are considered canonically equivalent, but strings
       containing them are not considered equal when compared in Python. Error
-      messages like ``\xe4 != \u0061\u0308`` are not that helpful either.
+      messages like ``ä != ä`` are not that helpful either.
 
     - Containers such as lists and dictionaries are formatted into a single
       line making it hard to see individual items they contain.
@@ -3781,37 +3764,27 @@ class BuiltIn(_Verify, _Converter, _Variables, _RunKeyword, _Control, _Misc):
 
     == str ==
 
-    Use the "human readable" string representation. Equivalent to using
-    ``str()`` in Python 3 and ``unicode()`` in Python 2. This is the default.
+    Use the "human readable" string representation. Equivalent to using ``str()``
+    in Python. This is the default.
 
     == repr ==
 
     Use the "machine readable" string representation. Similar to using
     ``repr()`` in Python, which means that strings like ``Hello`` are logged
     like ``'Hello'``, newlines and non-printable characters are escaped like
-    ``\\n`` and ``\\x00``, and so on. Non-ASCII characters are shown as-is
-    like ``\xe4`` in Python 3 and in escaped format like ``\\xe4`` in Python 2.
-    Use ``ascii`` to always get the escaped format.
+    ``\n`` and ``\x00``, and so on. Non-ASCII characters are shown as-is like ``ä``.
 
-    There are also some enhancements compared to the standard ``repr()``:
-    - Bigger lists, dictionaries and other containers are pretty-printed so
-      that there is one item per row.
-    - On Python 2 the ``u`` prefix is omitted with Unicode strings and
-      the ``b`` prefix is added to byte strings.
+    In this mode bigger lists, dictionaries and other containers are
+    pretty-printed so that there is one item per row.
 
     == ascii ==
 
-    Same as using ``ascii()`` in Python 3 or ``repr()`` in Python 2 where
-    ``ascii()`` does not exist. Similar to using ``repr`` explained above
+    Same as using ``ascii()`` in Python. Similar to using ``repr`` explained above
     but with the following differences:
 
-    - On Python 3 non-ASCII characters are escaped like ``\\xe4`` instead of
-      showing them as-is like ``\xe4``. This makes it easier to see differences
-      between Unicode characters that look the same but are not equal. This
-      is how ``repr()`` works in Python 2.
-    - On Python 2 just uses the standard ``repr()`` meaning that Unicode
-      strings get the ``u`` prefix and no ``b`` prefix is added to byte
-      strings.
+    - Non-ASCII characters are escaped like ``\xe4`` instead of
+      showing them as-is like ``ä``. This makes it easier to see differences
+      between Unicode characters that look the same but are not equal.
     - Containers are not pretty-printed.
     """
     ROBOT_LIBRARY_SCOPE = 'GLOBAL'

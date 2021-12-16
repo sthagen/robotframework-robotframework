@@ -15,7 +15,7 @@
 
 from robot.errors import DataError
 from robot.model import Message as BaseMessage
-from robot.utils import get_timestamp, is_unicode, unic
+from robot.utils import get_timestamp, is_string, safe_str
 
 
 LEVELS = {
@@ -30,7 +30,7 @@ LEVELS = {
 }
 
 
-class AbstractLogger(object):
+class AbstractLogger:
 
     def __init__(self, level='TRACE'):
         self._is_logged = IsLogged(level)
@@ -86,8 +86,8 @@ class Message(BaseMessage):
     def _normalize_message(self, msg):
         if callable(msg):
             return msg
-        if not is_unicode(msg):
-            msg = unic(msg)
+        if not is_string(msg):
+            msg = safe_str(msg)
         if '\r\n' in msg:
             msg = msg.replace('\r\n', '\n')
         return msg
@@ -114,7 +114,7 @@ class Message(BaseMessage):
             self._message = self._message()
 
 
-class IsLogged(object):
+class IsLogged:
 
     def __init__(self, level):
         self.level = level.upper()
@@ -135,7 +135,7 @@ class IsLogged(object):
             raise DataError("Invalid log level '%s'." % level)
 
 
-class AbstractLoggerProxy(object):
+class AbstractLoggerProxy:
     _methods = None
     _no_method = lambda *args: None
 

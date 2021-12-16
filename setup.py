@@ -6,7 +6,7 @@ from setuptools import find_packages, setup
 
 # Version number typically updated by running `invoke set-version <version>`.
 # Run `invoke --help set-version` or see tasks.py for details.
-VERSION = '4.1.3.dev1'
+VERSION = '5.0.dev1'
 with open(join(dirname(abspath(__file__)), 'README.rst')) as f:
     LONG_DESCRIPTION = f.read()
     base_url = 'https://github.com/robotframework/robotframework/blob/master'
@@ -20,18 +20,14 @@ CLASSIFIERS = """
 Development Status :: 5 - Production/Stable
 License :: OSI Approved :: Apache Software License
 Operating System :: OS Independent
-Programming Language :: Python :: 2
-Programming Language :: Python :: 2.7
 Programming Language :: Python :: 3
-Programming Language :: Python :: 3.5
+Programming Language :: Python :: 3 :: Only
 Programming Language :: Python :: 3.6
 Programming Language :: Python :: 3.7
 Programming Language :: Python :: 3.8
 Programming Language :: Python :: 3.9
 Programming Language :: Python :: 3.10
 Programming Language :: Python :: Implementation :: CPython
-Programming Language :: Python :: Implementation :: Jython
-Programming Language :: Python :: Implementation :: IronPython
 Programming Language :: Python :: Implementation :: PyPy
 Topic :: Software Development :: Testing
 Topic :: Software Development :: Testing :: Acceptance
@@ -50,16 +46,17 @@ PACKAGE_DATA = [join('htmldata', directory, pattern)
 setup(
     name         = 'robotframework',
     version      = VERSION,
-    author       = u'Pekka Kl\xe4rck',
+    author       = 'Pekka Kl\xe4rck',
     author_email = 'peke@eliga.fi',
-    url          = 'http://robotframework.org',
-    download_url = 'https://pypi.python.org/pypi/robotframework',
+    url          = 'https://robotframework.org/',
+    download_url = 'https://pypi.org/project/robotframework/',
     license      = 'Apache License 2.0',
     description  = DESCRIPTION,
     long_description = LONG_DESCRIPTION,
     long_description_content_type = 'text/x-rst',
     keywords     = KEYWORDS,
     platforms    = 'any',
+    python_requires='>=3.6',
     classifiers  = CLASSIFIERS,
     package_dir  = {'': 'src'},
     package_data = {'robot': PACKAGE_DATA},

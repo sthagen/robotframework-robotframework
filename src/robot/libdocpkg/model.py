@@ -18,8 +18,7 @@ import re
 from itertools import chain
 
 from robot.model import Tags
-from robot.utils import (IRONPYTHON, getshortdoc, get_timestamp,
-                         Sortable, setter, unicode)
+from robot.utils import getshortdoc, get_timestamp, Sortable, setter
 
 from .datatypes import DataTypeCatalog
 from .htmlutils import HtmlToText, DocFormatter
@@ -27,11 +26,10 @@ from .writer import LibdocWriter
 from .output import LibdocOutput
 
 
-class LibraryDoc(object):
+class LibraryDoc:
 
-    def __init__(self, name='', doc='', version='', type='LIBRARY',
-                 scope='TEST', doc_format='ROBOT',
-                 source=None, lineno=-1):
+    def __init__(self, name='', doc='', version='', type='LIBRARY', scope='TEST',
+                 doc_format='ROBOT', converters=None, source=None, lineno=-1):
         self.name = name
         self._doc = doc
         self.version = version
@@ -40,7 +38,7 @@ class LibraryDoc(object):
         self.doc_format = doc_format
         self.source = source
         self.lineno = lineno
-        self.data_types = DataTypeCatalog()
+        self.data_types = DataTypeCatalog(converters)
         self.inits = []
         self.keywords = []
 
@@ -79,14 +77,9 @@ class LibraryDoc(object):
 
     def _process_keywords(self, kws):
         for keyword in kws:
-            self._add_types_from_keyword(keyword)
             keyword.parent = self
             keyword.generate_shortdoc()
         return sorted(kws)
-
-    def _add_types_from_keyword(self, keyword):
-        for arg in keyword.args:
-            self.data_types.update(arg.types)
 
     @property
     def all_tags(self):
@@ -127,9 +120,6 @@ class LibraryDoc(object):
 
     def to_json(self, indent=None):
         data = self.to_dictionary()
-        if IRONPYTHON:
-            # Workaround for https://github.com/IronLanguages/ironpython2/issues/643
-            data = self._unicode_to_utf8(data)
         return json.dumps(data, indent=indent)
 
     def _unicode_to_utf8(self, data):
@@ -138,7 +128,7 @@ class LibraryDoc(object):
                     for key, value in data.items()}
         if isinstance(data, (list, tuple)):
             return [self._unicode_to_utf8(item) for item in data]
-        if isinstance(data, unicode):
+        if isinstance(data, str):
             return data.encode('UTF-8')
         return data
 
@@ -202,5 +192,5 @@ class KeywordDoc(Sortable):
             'defaultValue': arg.default_repr,
             'kind': arg.kind,
             'required': arg.required,
-            'repr': unicode(arg)
+            'repr': str(arg)
         }

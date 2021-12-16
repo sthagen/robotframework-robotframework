@@ -33,7 +33,6 @@ ${RUNNER DEFAULTS}
 ...               --ConsoleMarkers OFF
 ...               --PYTHONPATH "${CURDIR}${/}..${/}testresources${/}testlibs"
 ...               --PYTHONPATH "${CURDIR}${/}..${/}testresources${/}listeners"
-${u}              ${{'' if $INTERPRETER.is_py3 or $INTERPRETER.is_ironpython else 'u'}}
 
 *** Keywords ***
 Run Tests
@@ -70,9 +69,8 @@ Execute
     [Arguments]    ${executor}    ${options}    ${sources}    ${default options}=
     Set Execution Environment
     @{arguments} =    Get Execution Arguments    ${options}    ${sources}    ${default options}
-    ${encoding} =    Set Variable If    ${INTERPRETER.is_ironpython}    CONSOLE    SYSTEM
     ${result} =    Run Process    @{executor}    @{arguments}
-    ...    stdout=${STDOUTFILE}    stderr=${STDERRFILE}    output_encoding=${encoding}
+    ...    stdout=${STDOUTFILE}    stderr=${STDERRFILE}    output_encoding=SYSTEM
     ...    timeout=5min    on_timeout=terminate
     [Return]    ${result}
 
@@ -123,22 +121,25 @@ Check Keyword Data
     Should Be Equal    ${kw.type}                    ${type}
 
 Test And All Keywords Should Have Passed
-    [Arguments]    ${name}=${TESTNAME}
+    [Arguments]    ${name}=${TESTNAME}    ${allow not run}=False
     ${tc} =    Check Test Case    ${name}
-    All Keywords Should Have Passed    ${tc}
+    All Keywords Should Have Passed    ${tc}    ${allow not run}
 
 All Keywords Should Have Passed
-    [Arguments]    ${tc or kw}
-    FOR    ${kw}    IN    @{tc or kw.kws}
-        Should Be Equal    ${kw.status}    PASS
-        All Keywords Should Have Passed    ${kw}
+    [Arguments]    ${tc or kw}    ${allow not run}=False
+    FOR    ${index}    ${kw}    IN ENUMERATE    @{tc or kw.kws}
+        IF    ${allow not run} and ${index} > 0
+            Should Be True    $kw.status in ['PASS', 'NOT RUN']
+        ELSE
+            Should Be Equal    ${kw.status}    PASS
+        END
+        All Keywords Should Have Passed    ${kw}    ${allow not run}
     END
 
 Get Output File
     [Arguments]    ${path}
     [Documentation]    Output encoding avare helper
-    ${encoding} =    Set Variable If    ${INTERPRETER.is_ironpython}    CONSOLE    SYSTEM
-    ${encoding} =    Set Variable If    r'${path}' in [r'${STDERR FILE}',r'${STDOUT FILE}']    ${encoding}    UTF-8
+    ${encoding} =    Set Variable If    r'${path}' in [r'${STDERR FILE}',r'${STDOUT FILE}']    SYSTEM    UTF-8
     ${file} =    Get File    ${path}    ${encoding}
     [Return]    ${file}
 
@@ -339,13 +340,9 @@ Set PYTHONPATH
     [Arguments]    @{values}
     ${value} =    Catenate    SEPARATOR=${:}    @{values}
     Set Environment Variable    PYTHONPATH    ${value}
-    Set Environment Variable    JYTHONPATH    ${value}
-    Set Environment Variable    IRONPYTHONPATH    ${value}
 
 Reset PYTHONPATH
     Remove Environment Variable    PYTHONPATH
-    Remove Environment Variable    JYTHONPATH
-    Remove Environment Variable    IRONPYTHONPATH
 
 Error in file
     [Arguments]    ${index}    ${path}    ${lineno}    @{message}    ${traceback}=

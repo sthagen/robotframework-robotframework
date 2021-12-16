@@ -16,7 +16,7 @@
 from robot.errors import DataError
 from robot.output import LOGGER
 from robot.result import Keyword as KeywordResult
-from robot.utils import prepr, unic
+from robot.utils import prepr, safe_str
 from robot.variables import contains_variable, is_list_variable, VariableAssignment
 
 from .bodyrunner import BodyRunner
@@ -26,7 +26,7 @@ from .signalhandler import STOP_SIGNAL_MONITOR
 from .statusreporter import StatusReporter
 
 
-class LibraryKeywordRunner(object):
+class LibraryKeywordRunner:
 
     def __init__(self, handler, name=None):
         self._handler = handler
@@ -78,7 +78,7 @@ class LibraryKeywordRunner(object):
 
     def _trace_log_args(self, positional, named):
         args = [prepr(arg) for arg in positional]
-        args += ['%s=%s' % (unic(n), prepr(v)) for n, v in named]
+        args += ['%s=%s' % (safe_str(n), prepr(v)) for n, v in named]
         return 'Arguments: [ %s ]' % ' | '.join(args)
 
     def _runner_for(self, context, handler, positional, named):

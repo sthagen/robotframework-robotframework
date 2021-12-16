@@ -16,7 +16,7 @@
 from robot.errors import DataError
 
 
-class XmlElementHandler(object):
+class XmlElementHandler:
 
     def __init__(self, execution_result, root_handler=None):
         self._stack = [(root_handler or RootHandler(), execution_result)]
@@ -32,7 +32,7 @@ class XmlElementHandler(object):
         handler.end(elem, result)
 
 
-class ElementHandler(object):
+class ElementHandler:
     element_handlers = {}
     tag = None
     children = frozenset()
@@ -104,7 +104,7 @@ class TestHandler(ElementHandler):
     tag = 'test'
     # 'tags' is for RF < 4 compatibility.
     children = frozenset(('doc', 'tags', 'tag', 'timeout', 'status', 'kw', 'if', 'for',
-                          'msg'))
+                          'try', 'msg'))
 
     def start(self, elem, result):
         return result.tests.create(name=elem.get('name', ''))
@@ -115,7 +115,7 @@ class KeywordHandler(ElementHandler):
     tag = 'kw'
     # 'arguments', 'assign' and 'tags' are for RF < 4 compatibility.
     children = frozenset(('doc', 'arguments', 'arg', 'assign', 'var', 'tags', 'tag',
-                          'timeout', 'status', 'msg', 'kw', 'if', 'for'))
+                          'timeout', 'status', 'msg', 'kw', 'if', 'for', 'try', 'return'))
 
     def start(self, elem, result):
         elem_type = elem.get('type')
@@ -177,7 +177,7 @@ class ForHandler(ElementHandler):
 @ElementHandler.register
 class ForIterationHandler(ElementHandler):
     tag = 'iter'
-    children = frozenset(('var', 'doc', 'status', 'kw', 'if', 'for', 'msg'))
+    children = frozenset(('var', 'doc', 'status', 'kw', 'if', 'for', 'msg', 'try', 'return'))
 
     def start(self, elem, result):
         return result.body.create_iteration()
@@ -195,10 +195,73 @@ class IfHandler(ElementHandler):
 @ElementHandler.register
 class IfBranchHandler(ElementHandler):
     tag = 'branch'
-    children = frozenset(('status', 'kw', 'if', 'for', 'msg', 'doc'))
+    children = frozenset(('status', 'kw', 'if', 'for', 'try', 'msg', 'doc', 'return'))
 
     def start(self, elem, result):
         return result.body.create_branch(elem.get('type'), elem.get('condition'))
+
+
+@ElementHandler.register
+class TryHandler(ElementHandler):
+    tag = 'try'
+    children = frozenset(('status', 'tryblock', 'exceptblock', 'elseblock', 'finallyblock'))
+
+    def start(self, elem, result):
+        return result.body.create_try()
+
+
+@ElementHandler.register
+class TryBlockHandler(ElementHandler):
+    tag = 'tryblock'
+    children = frozenset(('status', 'msg', 'kw', 'for', 'if', 'try', 'return'))
+
+    def start(self, elem, result):
+        return result.try_block
+
+
+@ElementHandler.register
+class ExceptHandler(ElementHandler):
+    tag = 'exceptblock'
+    children = frozenset(('pattern', 'status', 'kw', 'for', 'if', 'try', 'return'))
+
+    def start(self, elem, result):
+        return result.except_blocks.create_except(variable=elem.get('variable'))
+
+
+@ElementHandler.register
+class ElseBlockHandler(ElementHandler):
+    tag = 'elseblock'
+    children = frozenset(('status', 'msg', 'kw', 'for', 'if', 'try', 'return'))
+
+    def start(self, elem, result):
+        return result.else_block
+
+
+@ElementHandler.register
+class FinallyBlockHandler(ElementHandler):
+    tag = 'finallyblock'
+    children = frozenset(('status', 'msg', 'kw', 'for', 'if', 'try'))
+
+    def start(self, elem, result):
+        return result.finally_block
+
+
+@ElementHandler.register
+class PatternHandler(ElementHandler):
+    tag = 'pattern'
+    children = frozenset()
+
+    def start(self, elem, result):
+        return result.patterns.append(elem.text or '')
+
+
+@ElementHandler.register
+class ReturnHandler(ElementHandler):
+    tag = 'return'
+    children = frozenset(('status', 'value'))
+
+    def start(self, elem, result):
+        return result.body.create_return()
 
 
 @ElementHandler.register

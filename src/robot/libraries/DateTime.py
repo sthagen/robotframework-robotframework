@@ -93,9 +93,6 @@ Examples:
 | ${date} =       | Convert Date | ${date}                 | result_format=%d.%m.%Y |
 | Should Be Equal | ${date}      | 28.05.2014              |
 
-Notice that locale aware directives like ``%b``  do not work correctly with
-Jython on non-English locales: http://bugs.jython.org/issue2285
-
 == Python datetime ==
 
 Python's standard
@@ -145,7 +142,7 @@ extent on the platform:
 
 - Timestamps support year 1900 and above.
 - Python datetime objects support year 1 and above.
-- Epoch time supports 1970 and above on Windows with Python and IronPython.
+- Epoch time supports 1970 and above on Windows.
 - On other platforms epoch time supports 1900 and above or even earlier.
 
 = Time formats =
@@ -292,16 +289,12 @@ Additionally helper classes ``Date`` and ``Time`` can be used directly:
 |     # ...
 """
 
-from __future__ import absolute_import
-
 from datetime import datetime, timedelta
 import time
-import re
 
 from robot.version import get_version
-from robot.utils import (elapsed_time_to_string, is_falsy, is_number,
-                         is_string, roundup, secs_to_timestr, timestr_to_secs,
-                         type_name, IRONPYTHON)
+from robot.utils import (elapsed_time_to_string, is_falsy, is_number, is_string,
+                         roundup, secs_to_timestr, timestr_to_secs, type_name)
 
 __version__ = get_version()
 __all__ = ['convert_time', 'convert_date', 'subtract_date_from_date',
@@ -511,7 +504,7 @@ def subtract_time_from_time(time1, time2, result_format='number',
     return time.convert(result_format, millis=is_falsy(exclude_millis))
 
 
-class Date(object):
+class Date:
 
     def __init__(self, date, input_format=None):
         self.datetime = self._convert_to_datetime(date, input_format)
@@ -533,7 +526,7 @@ class Date(object):
     def _seconds_to_datetime(self, secs):
         # Workaround microsecond rounding errors with IronPython:
         # https://github.com/IronLanguages/main/issues/1170
-        # Also Jython had similar problems, but they seem to be fixed in 2.7.
+        # TODO: can this be simplified now
         dt = datetime.fromtimestamp(secs)
         return dt.replace(microsecond=roundup(secs % 1 * 1e6))
 
@@ -541,8 +534,6 @@ class Date(object):
         if not input_format:
             ts = self._normalize_timestamp(ts)
             input_format = '%Y-%m-%d %H:%M:%S.%f'
-        if self._need_to_handle_f_directive(input_format):
-            return self._handle_un_supported_f_directive(ts, input_format)
         return datetime.strptime(ts, input_format)
 
     def _normalize_timestamp(self, date):
@@ -552,27 +543,6 @@ class Date(object):
         ts = ts.ljust(20, '0')
         return '%s-%s-%s %s:%s:%s.%s' % (ts[:4], ts[4:6], ts[6:8], ts[8:10],
                                          ts[10:12], ts[12:14], ts[14:])
-
-    def _need_to_handle_f_directive(self, format):
-        # https://github.com/IronLanguages/main/issues/1169
-        return IRONPYTHON and '%f' in format
-
-    def _handle_un_supported_f_directive(self, ts, input_format):
-        input_format = self._remove_f_from_format(input_format)
-        match = re.search(r'\d+$', ts)
-        if not match:
-            raise ValueError("time data '%s' does not match format '%s%%f'."
-                             % (ts, input_format))
-        end_digits = match.group(0)
-        micro = int(end_digits.ljust(6, '0'))
-        dt = datetime.strptime(ts[:-len(end_digits)], input_format)
-        return dt.replace(microsecond=micro)
-
-    def _remove_f_from_format(self, format):
-        if not format.endswith('%f'):
-            raise ValueError('%f directive is supported only at the end of '
-                             'the format string on this Python interpreter.')
-        return format[:-2]
 
     def convert(self, format, millis=True):
         dt = self.datetime
@@ -591,10 +561,7 @@ class Date(object):
         raise ValueError("Unknown format '%s'." % format)
 
     def _convert_to_custom_timestamp(self, dt, format):
-        if not self._need_to_handle_f_directive(format):
-            return dt.strftime(format)
-        format = self._remove_f_from_format(format)
-        return dt.strftime(format) + '%06d' % dt.microsecond
+        return dt.strftime(format)
 
     def _convert_to_timestamp(self, dt, millis=True):
         if not millis:
@@ -622,7 +589,7 @@ class Date(object):
                         % type_name(other))
 
 
-class Time(object):
+class Time:
 
     def __init__(self, time):
         self.seconds = float(self._convert_time_to_seconds(time))

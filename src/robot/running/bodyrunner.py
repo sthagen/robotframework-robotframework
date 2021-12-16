@@ -15,20 +15,23 @@
 
 from collections import OrderedDict
 from contextlib import contextmanager
+import re
 
 from robot.errors import (ExecutionFailed, ExecutionFailures, ExecutionPassed,
-                          ExecutionStatus, ExitForLoop, ContinueForLoop, DataError)
-from robot.result import For as ForResult, If as IfResult, IfBranch as IfBranchResult
+                          ExecutionStatus, ExitForLoop, ContinueForLoop, DataError,
+                          ReturnFromKeyword)
+from robot.result import (For as ForResult, If as IfResult, IfBranch as IfBranchResult,
+                          Try as TryResult, Except as TryHandlerResult, Block as BlockResult)
 from robot.output import librarylogger as logger
-from robot.utils import (cut_assign_value, frange, get_error_message,
-                         is_list_like, is_number, is_unicode, plural_or_not as s,
-                         split_from_equals, type_name)
+from robot.utils import (cut_assign_value, frange, get_error_message, is_string,
+                         is_list_like, is_number, plural_or_not as s,
+                         split_from_equals, type_name, Matcher)
 from robot.variables import is_dict_variable, evaluate_expression
 
 from .statusreporter import StatusReporter
 
 
-class BodyRunner(object):
+class BodyRunner:
 
     def __init__(self, context, run=True, templated=False):
         self._context = context
@@ -37,21 +40,24 @@ class BodyRunner(object):
 
     def run(self, body):
         errors = []
+        passed = None
         for step in body:
             try:
                 step.run(self._context, self._run, self._templated)
             except ExecutionPassed as exception:
                 exception.set_earlier_failures(errors)
-                raise exception
+                passed = exception
+                self._run = False
             except ExecutionFailed as exception:
                 errors.extend(exception.get_errors())
-                self._run = exception.can_continue(self._context,
-                                                   self._templated)
+                self._run = exception.can_continue(self._context, self._templated)
+        if passed:
+            raise passed
         if errors:
             raise ExecutionFailures(errors)
 
 
-class KeywordRunner(object):
+class KeywordRunner:
 
     def __init__(self, context, run=True):
         self._context = context
@@ -65,7 +71,7 @@ class KeywordRunner(object):
         return runner.run(step, context, self._run)
 
 
-class IfRunner(object):
+class IfRunner:
     _dry_run_stack = []
 
     def __init__(self, context, run=True, templated=False):
@@ -103,17 +109,20 @@ class IfRunner(object):
 
     def _run_if_branch(self, branch, recursive_dry_run=False, error=None):
         result = IfBranchResult(branch.type, branch.condition)
-        try:
-            run_branch = self._should_run_branch(branch.condition, recursive_dry_run)
-        except:
-            error = get_error_message()
+        if error:
             run_branch = False
+        else:
+            try:
+                run_branch = self._should_run_branch(branch.condition, recursive_dry_run)
+            except:
+                error = get_error_message()
+                run_branch = False
         with StatusReporter(branch, result, self._context, run_branch):
-            if error and self._run:
-                raise DataError(error)
             runner = BodyRunner(self._context, run_branch, self._templated)
             if not recursive_dry_run:
                 runner.run(branch.body)
+            if error and self._run:
+                raise DataError(error)
         return run_branch
 
     def _should_run_branch(self, condition, recursive_dry_run=False):
@@ -124,7 +133,7 @@ class IfRunner(object):
         if condition is None:
             return True
         condition = self._context.variables.replace_scalar(condition)
-        if is_unicode(condition):
+        if is_string(condition):
             return evaluate_expression(condition, self._context.variables.current.store)
         return bool(condition)
 
@@ -138,7 +147,7 @@ def ForRunner(context, flavor='IN', run=True, templated=False):
     return runner(context, run, templated)
 
 
-class ForInRunner(object):
+class ForInRunner:
     flavor = 'IN'
 
     def __init__(self, context, run=True, templated=False):
@@ -375,3 +384,94 @@ class ForInEnumerateRunner(ForInRunner):
             'its variables (excluding the index). Got %d variables but %d '
             'value%s.' % (variables, values, s(values))
         )
+
+
+class TryRunner:
+
+    def __init__(self, context, run=True, templated=False):
+        self._context = context
+        self._run = run
+        self._templated = templated
+
+    def run(self, data):
+        run = self._run
+        with StatusReporter(data, TryResult(), self._context, run):
+            failures = self._run_block(data.try_block, BlockResult(data.try_block.type),
+                                       run, data.error)
+            self._run_handlers(data, failures)
+        return run
+
+    def _run_block(self, block, result, run, error=None):
+        try:
+            with StatusReporter(block, result, self._context, run):
+                if run:
+                    if error:
+                        raise DataError(error)
+                runner = BodyRunner(self._context, run, self._templated)
+                runner.run(block.body)
+        except (ExecutionFailures, ExecutionFailed,
+                ReturnFromKeyword) as err:
+            return err
+        else:
+            return None
+
+    def _run_handlers(self, data, failures):
+        handler_matched = False
+        handler_error = None
+        else_error = None
+        for handler in data.except_blocks:
+            run = self._run and failures and not handler_matched \
+                and not handler_error and not data.error \
+                and self._error_is_expected(failures, handler.patterns)
+            if run:
+                handler_matched = True
+                if handler.variable:
+                    self._context.variables[handler.variable] = str(failures)
+            result = TryHandlerResult(handler.patterns, handler.variable)
+            handler_error = self._run_block(handler, result, run)
+
+        if data.else_block:
+            run = self._run and not failures and not handler_error
+            result = BlockResult(data.else_block.type)
+            else_error = self._run_block(data.else_block, result, run)
+
+        if data.finally_block:
+            run = self._run and not data.error
+            with StatusReporter(data.finally_block, BlockResult(data.finally_block.type),
+                                self._context, run):
+                runner = BodyRunner(self._context, run, self._templated)
+                runner.run(data.finally_block.body)
+        if handler_error:
+            raise handler_error
+        if else_error:
+            raise else_error
+        if not handler_matched and failures:
+            raise failures
+
+    def _error_is_expected(self, error, patterns):
+        if isinstance(error, ReturnFromKeyword):
+            return False
+        if any(e.skip for e in error.get_errors()):
+            return False
+        if not patterns:
+            # The default (empty) except matches everything
+            return True
+        matchers = {
+            'GLOB': lambda s, p: Matcher(p, spaceless=False).match(s),
+            'EQUALS': lambda s, p: s == p,
+            'STARTS': lambda s, p: s.startswith(p),
+            'REGEXP': lambda s, p: re.match(p, s) is not None
+        }
+        prefixes = tuple(prefix + ':' for prefix in matchers)
+        message = error.message
+        for pattern in patterns:
+            if not pattern.startswith(prefixes):
+                pattern = self._context.variables.replace_scalar(pattern)
+                if message == pattern:
+                    return True
+            else:
+                prefix, pat = pattern.split(':', 1)
+                pat = self._context.variables.replace_scalar(pat)
+                if matchers[prefix](message, pat.lstrip()):
+                    return True
+        return False

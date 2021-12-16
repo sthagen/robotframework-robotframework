@@ -13,7 +13,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from robot.utils import XmlWriter, NullMarkupWriter, get_timestamp, unic
+from robot.utils import get_timestamp, NullMarkupWriter, safe_str, XmlWriter
 from robot.version import get_full_version
 from robot.result.visitor import ResultVisitor
 
@@ -71,14 +71,14 @@ class XmlLogger(ResultVisitor):
             attrs['sourcename'] = kw.sourcename
         self._writer.start('kw', attrs)
         self._write_list('var', kw.assign)
-        self._write_list('arg', [unic(a) for a in kw.args])
+        self._write_list('arg', [safe_str(a) for a in kw.args])
         self._write_list('tag', kw.tags)
         # Must be after tags to allow adding message when using --flattenkeywords.
         self._writer.element('doc', kw.doc)
 
     def end_keyword(self, kw):
         if kw.timeout:
-            self._writer.element('timeout', attrs={'value': unic(kw.timeout)})
+            self._writer.element('timeout', attrs={'value': str(kw.timeout)})
         self._write_status(kw)
         self._writer.end('kw')
 
@@ -121,6 +121,51 @@ class XmlLogger(ResultVisitor):
         self._write_status(iteration)
         self._writer.end('iter')
 
+    def start_try(self, root):
+        self._writer.start('try')
+
+    def end_try(self, root):
+        self._write_status(root)
+        self._writer.end('try')
+
+    def start_try_block(self, block):
+        self._writer.start('tryblock')
+
+    def end_try_block(self, block):
+        self._write_status(block)
+        self._writer.end('tryblock')
+
+    def start_except_block(self, block):
+        self._writer.start('exceptblock', attrs={'variable': block.variable})
+        self._write_list('pattern', block.patterns)
+
+    def end_except_block(self, block):
+        self._write_status(block)
+        self._writer.end('exceptblock')
+
+    def start_else_block(self, block):
+        self._writer.start('elseblock')
+
+    def end_else_block(self, block):
+        self._write_status(block)
+        self._writer.end('elseblock')
+
+    def start_finally_block(self, block):
+        self._writer.start('finallyblock')
+
+    def end_finally_block(self, block):
+        self._write_status(block)
+        self._writer.end('finallyblock')
+
+    def start_return(self, return_):
+        self._writer.start('return')
+        for value in return_.values:
+            self._writer.element('value', value)
+
+    def end_return(self, return_):
+        self._write_status(return_)
+        self._writer.end('return')
+
     def start_test(self, test):
         self._writer.start('test', {'id': test.id, 'name': test.name})
 
@@ -128,7 +173,7 @@ class XmlLogger(ResultVisitor):
         self._writer.element('doc', test.doc)
         self._write_list('tag', test.tags)
         if test.timeout:
-            self._writer.element('timeout', attrs={'value': unic(test.timeout)})
+            self._writer.element('timeout', attrs={'value': str(test.timeout)})
         self._write_status(test)
         self._writer.end('test')
 

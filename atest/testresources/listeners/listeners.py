@@ -1,7 +1,6 @@
 import os
 
 from robot.libraries.BuiltIn import BuiltIn
-from robot.utils import PY3
 
 
 class ListenSome:
@@ -21,7 +20,7 @@ class ListenSome:
         self.outfile.close()
 
 
-class WithArgs(object):
+class WithArgs:
     ROBOT_LISTENER_API_VERSION = '2'
 
     def __init__(self, arg1, arg2='default'):
@@ -30,22 +29,15 @@ class WithArgs(object):
             outfile.write("I got arguments '%s' and '%s'\n" % (arg1, arg2))
 
 
-class WithArgConversion(object):
+class WithArgConversion:
     ROBOT_LISTENER_API_VERSION = '2'
 
-    def __init__(self, integer, boolean=False):
-        assert integer == '42'
+    def __init__(self, integer: int, boolean=False):
+        assert integer == 42
         assert boolean is True
 
-    if PY3:
-        exec('''
-def __init__(self, integer: int, boolean=False):
-    assert integer == 42
-    assert boolean is True
-''')
 
-
-class SuiteAndTestCounts(object):
+class SuiteAndTestCounts:
     ROBOT_LISTENER_API_VERSION = '2'
     exp_data = {
         'Subsuites & Subsuites2': ([], ['Subsuites', 'Subsuites2'], 5),
@@ -64,7 +56,7 @@ class SuiteAndTestCounts(object):
                                  % (name, self.exp_data[name], data))
 
 
-class KeywordType(object):
+class KeywordType:
     ROBOT_LISTENER_API_VERSION = '2'
 
     def start_keyword(self, name, attrs):
@@ -93,7 +85,7 @@ class KeywordType(object):
     end_keyword = start_keyword
 
 
-class KeywordStatus(object):
+class KeywordStatus:
     ROBOT_LISTENER_API_VERSION = '2'
 
     def start_keyword(self, name, attrs):
@@ -113,7 +105,7 @@ class KeywordStatus(object):
         return attrs['type'] in ('IF', 'ELSE') or attrs['args'] == ['not going here']
 
 
-class KeywordExecutingListener(object):
+class KeywordExecutingListener:
     ROBOT_LISTENER_API_VERSION = '2'
 
     def start_test(self, name, attrs):
@@ -126,7 +118,7 @@ class KeywordExecutingListener(object):
         BuiltIn().run_keyword('Log', arg)
 
 
-class SuiteSource(object):
+class SuiteSource:
     ROBOT_LISTENER_API_VERSION = '2'
 
     def __init__(self):
@@ -156,7 +148,7 @@ class SuiteSource(object):
                                  % (self._started, self._ended))
 
 
-class Messages(object):
+class Messages:
     ROBOT_LISTENER_API_VERSION = '2'
 
     def __init__(self, path):
