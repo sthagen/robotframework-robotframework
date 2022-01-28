@@ -35,10 +35,18 @@ Default except pattern
     FAIL    PASS
 
 Finally block executed when no failures
-    PASS    NOT RUN    PASS    PASS
+    [Template]    None
+    ${tc}=   Verify try except and block statuses    PASS    NOT RUN    PASS    PASS
+    Check Log Message    ${tc.body[0].body[0].body[0].msgs[0]}    all good
+    Check Log Message    ${tc.body[0].body[2].body[0].msgs[0]}    in the else
+    Check Log Message    ${tc.body[0].body[3].body[0].msgs[0]}    Hello from finally!
 
 Finally block executed after catch
-    FAIL    PASS    PASS
+    [Template]    None
+    ${tc}=   Verify try except and block statuses    FAIL    PASS    PASS
+    Check Log Message    ${tc.body[0].body[0].body[0].msgs[0]}    all not good    FAIL
+    Check Log Message    ${tc.body[0].body[1].body[0].msgs[0]}    we are safe now
+    Check Log Message    ${tc.body[0].body[2].body[0].msgs[0]}    Hello from finally!
 
 Finally block executed after failure in except
     FAIL    FAIL    NOT RUN   PASS

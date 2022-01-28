@@ -1,6 +1,6 @@
 *** Variables ***
-${expected}    failure
-${expected_with_pattern}    GLOB: *
+${expected}                 failure
+${expected_with_pattern}    GLOB: ?
 
 *** Test Cases ***
 Equals is the default matcher
@@ -10,10 +10,26 @@ Equals is the default matcher
         No operation
     END
 
+Equals with whitespace
+    TRY
+        Fail    ${SPACE}failure\n\n
+    EXCEPT    ${SPACE}failure\n\n
+        No operation
+    END
+
 Glob matcher
     TRY
         Fail    failure
+    EXCEPT    GLOB: FAI*
+        Fail   Should not be executed
     EXCEPT    GLOB: f*
+        No operation
+    END
+
+Glob with leading whitespace
+    TRY
+        Fail    ${SPACE}failure
+    EXCEPT    GLOB: ${SPACE}f*
         No operation
     END
 
@@ -27,6 +43,8 @@ Startswith matcher
 Regexp matcher
     TRY
         Fail    failure
+    EXCEPT    REGEXP: fai?lu
+        Fail   Should not be executed
     EXCEPT    REGEXP: fai?lu.*
         No operation
     END
@@ -38,6 +56,15 @@ Regexp escapes
         No operation
     END
 
+Regexp flags
+    TRY
+        Fail    MESSAGE\nIN\nMANY\nLINES
+    EXCEPT    REGEXP: message.*lines
+        Fail   Should not be executed
+    EXCEPT    REGEXP: (?is)message.*lines
+        No operation
+    END
+
 Variable in pattern
     TRY
         Fail    failure
@@ -45,12 +72,24 @@ Variable in pattern
         No operation
     END
 
+Invalid variable in pattern
+    [Documentation]    FAIL    Variable '${does not exist}' not found.
+    TRY
+        Fail   Oh no!
+    EXCEPT    ${does not exist}
+        Fail   Should not be executed
+    FINALLY
+        Log    finally here
+    END
+
 Matcher type cannot be defined with variable
     [Documentation]    FAIL failure
     TRY
-        Fail    GLOB: *
+        Fail    GLOB: ?
     EXCEPT    ${expected_with_pattern}
-       No operation
+        No operation
+    ELSE
+        Fail    Should not be executed
     END
     TRY
         Fail    failure
@@ -90,7 +129,7 @@ AS with many failures
     TRY
         Run keyword and continue on failure    Fail    oh no!
         Fail    fail again!
-    EXCEPT    GLOB: several*    AS   ${err}
+    EXCEPT    GLOB: Several*    AS   ${err}
         Should be equal    ${err}    Several failures occurred:\n\n1) oh no!\n\n2) fail again!
     END
 

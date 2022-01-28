@@ -65,8 +65,15 @@ class ModelObject(metaclass=SetterAwareType):
         return copied
 
     def __repr__(self):
-        args = ['%s=%r' % (n, getattr(self, n)) for n in self.repr_args]
-        module = type(self).__module__.split('.')
-        if len(module) > 1 and module[0] == 'robot':
-            module = module[:2]
-        return '%s.%s(%s)' % ('.'.join(module), type(self).__name__, ', '.join(args))
+        return self._repr(self.repr_args)
+
+    def _repr(self, repr_args):
+        args = ', '.join(f'{a}={getattr(self, a)!r}' for a in repr_args)
+        return f"{full_name(self)}({args})"
+
+
+def full_name(obj):
+    parts = type(obj).__module__.split('.') + [type(obj).__name__]
+    if len(parts) > 1 and parts[0] == 'robot':
+        parts[2:-1] = []
+    return '.'.join(parts)

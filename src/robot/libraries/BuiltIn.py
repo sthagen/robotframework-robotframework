@@ -20,9 +20,9 @@ import time
 
 from robot.api import logger, SkipExecution
 from robot.api.deco import keyword
-from robot.errors import (ContinueForLoop, DataError, ExecutionFailed,
-                          ExecutionFailures, ExecutionPassed, ExitForLoop,
-                          PassExecution, ReturnFromKeyword, VariableError)
+from robot.errors import (BreakLoop, ContinueLoop, DataError, ExecutionFailed,
+                          ExecutionFailures, ExecutionPassed, PassExecution,
+                          ReturnFromKeyword, VariableError)
 from robot.running import Keyword, RUN_KW_REGISTER
 from robot.running.context import EXECUTION_CONTEXTS
 from robot.running.usererrorhandler import UserErrorHandler
@@ -1483,22 +1483,21 @@ class _Variables(_BuiltInBase):
     @keyword(types=None)
     @run_keyword_variant(resolve=0)
     def get_variable_value(self, name, default=None):
-        """Returns variable value or ``default`` if the variable does not exist.
+        r"""Returns variable value or ``default`` if the variable does not exist.
 
         The name of the variable can be given either as a normal variable name
-        (e.g. ``${NAME}``) or in escaped format (e.g. ``\\${NAME}``). Notice
-        that the former has some limitations explained in `Set Suite Variable`.
+        like ``${name}`` or in escaped format like ``$name`` or ``\${name}``.
+        For the reasons explained in the `Using variables with keywords creating
+        or accessing variables` section, using the escaped format is recommended.
 
         Examples:
-        | ${x} = | Get Variable Value | ${a} | default |
-        | ${y} = | Get Variable Value | ${a} | ${b}    |
-        | ${z} = | Get Variable Value | ${z} |         |
+        | ${x} =    `Get Variable Value`    $a    default
+        | ${y} =    `Get Variable Value`    $a    ${b}
+        | ${z} =    `Get Variable Value`    $z
         =>
-        | ${x} gets value of ${a} if ${a} exists and string 'default' otherwise
-        | ${y} gets value of ${a} if ${a} exists and value of ${b} otherwise
-        | ${z} is set to Python None if it does not exist previously
-
-        See `Set Variable If` for another keyword to set variables dynamically.
+        - ``${x}`` gets value of ``${a}`` if ``${a}`` exists and string ``default`` otherwise
+        - ``${y}`` gets value of ``${a}`` if ``${a}`` exists and value of ``${b}`` otherwise
+        - ``${z}`` is set to Python ``None`` if it does not exist previously
         """
         name = self._get_var_name(name)
         try:
@@ -1529,11 +1528,12 @@ class _Variables(_BuiltInBase):
 
     @run_keyword_variant(resolve=0)
     def variable_should_exist(self, name, msg=None):
-        """Fails unless the given variable exists within the current scope.
+        r"""Fails unless the given variable exists within the current scope.
 
         The name of the variable can be given either as a normal variable name
-        (e.g. ``${NAME}``) or in escaped format (e.g. ``\\${NAME}``). Notice
-        that the former has some limitations explained in `Set Suite Variable`.
+        like ``${name}`` or in escaped format like ``$name`` or ``\${name}``.
+        For the reasons explained in the `Using variables with keywords creating
+        or accessing variables` section, using the escaped format is recommended.
 
         The default error message can be overridden with the ``msg`` argument.
 
@@ -1548,11 +1548,12 @@ class _Variables(_BuiltInBase):
 
     @run_keyword_variant(resolve=0)
     def variable_should_not_exist(self, name, msg=None):
-        """Fails if the given variable exists within the current scope.
+        r"""Fails if the given variable exists within the current scope.
 
         The name of the variable can be given either as a normal variable name
-        (e.g. ``${NAME}``) or in escaped format (e.g. ``\\${NAME}``). Notice
-        that the former has some limitations explained in `Set Suite Variable`.
+        like ``${name}`` or in escaped format like ``$name`` or ``\${name}``.
+        For the reasons explained in the `Using variables with keywords creating
+        or accessing variables` section, using the escaped format is recommended.
 
         The default error message can be overridden with the ``msg`` argument.
 
@@ -1615,7 +1616,7 @@ class _Variables(_BuiltInBase):
 
     @run_keyword_variant(resolve=0)
     def set_local_variable(self, name, *values):
-        """Makes a variable available everywhere within the local scope.
+        r"""Makes a variable available everywhere within the local scope.
 
         Variables set with this keyword are available within the
         local scope of the currently executed test case or in the local scope
@@ -1624,23 +1625,26 @@ class _Variables(_BuiltInBase):
         test cases or keywords will not see variables set with this keyword.
 
         This keyword is equivalent to a normal variable assignment based on a
-        keyword return value.
+        keyword return value. For example,
 
-        Example:
-        | @{list} =          | Create List | item1     | item2     | item3     |
+        | ${var} =    `Set Variable`    value
+        | @{list} =    `Create List`    item1    item2    item3
 
-        is equivalent with
+        are equivalent with
 
-        | Set Local Variable | @{list} | item1    | item2    | item3    |
+        | `Set Local Variable`    @var    value
+        | `Set Local Variable`    @list    item1    item2    item3
 
-        This keyword will provide the option of setting local variables inside keywords
-        like `Run Keyword If`, `Run Keyword And Return If`, `Run Keyword Unless`
-        which until now was not possible by using `Set Variable`.
+        The main use case for this keyword is creating local variables in
+        libraries.
 
-        It will also be possible to use this keyword from external libraries
-        that want to set local variables.
+        See `Set Suite Variable` for more information and usage examples. See
+        also the `Using variables with keywords creating or accessing variables`
+        section for information why it is recommended to give the variable name
+        in escaped format like ``$name`` or ``\${name}`` instead of the normal
+        ``${name}``.
 
-        New in Robot Framework 3.2.
+        See also `Set Global Variable` and `Set Test Variable`.
         """
         name = self._get_var_name(name)
         value = self._get_var_value(name, values)
@@ -1649,7 +1653,7 @@ class _Variables(_BuiltInBase):
 
     @run_keyword_variant(resolve=0)
     def set_test_variable(self, name, *values):
-        """Makes a variable available everywhere within the scope of the current test.
+        r"""Makes a variable available everywhere within the scope of the current test.
 
         Variables set with this keyword are available everywhere within the
         scope of the currently executed test case. For example, if you set a
@@ -1659,7 +1663,14 @@ class _Variables(_BuiltInBase):
         It is an error to call `Set Test Variable` outside the
         scope of a test (e.g. in a Suite Setup or Teardown).
 
-        See `Set Suite Variable` for more information and examples.
+        See `Set Suite Variable` for more information and usage examples. See
+        also the `Using variables with keywords creating or accessing variables`
+        section for information why it is recommended to give the variable name
+        in escaped format like ``$name`` or ``\${name}`` instead of the normal
+        ``${name}``.
+
+        When creating automated tasks, not tests, it is possible to use `Set
+        Task Variable`. See also `Set Global Variable` and `Set Local Variable`.
         """
         name = self._get_var_name(name)
         value = self._get_var_value(name, values)
@@ -1677,56 +1688,53 @@ class _Variables(_BuiltInBase):
 
     @run_keyword_variant(resolve=0)
     def set_suite_variable(self, name, *values):
-        """Makes a variable available everywhere within the scope of the current suite.
+        r"""Makes a variable available everywhere within the scope of the current suite.
 
         Variables set with this keyword are available everywhere within the
         scope of the currently executed test suite. Setting variables with this
-        keyword thus has the same effect as creating them using the Variable
-        table in the test data file or importing them from variable files.
+        keyword thus has the same effect as creating them using the Variables
+        section in the data file or importing them from variable files.
 
         Possible child test suites do not see variables set with this keyword
         by default, but that can be controlled by using ``children=<option>``
-        as the last argument. If the specified ``<option>`` given a true value
+        as the last argument. If the specified ``<option>`` is given a true value
         (see `Boolean arguments`), the variable is set also to the child
         suites. Parent and sibling suites will never see variables set with
         this keyword.
 
         The name of the variable can be given either as a normal variable name
-        (e.g. ``${NAME}``) or in escaped format as ``\\${NAME}`` or ``$NAME``.
-        Variable value can be given using the same syntax as when variables
-        are created in the Variable table.
+        like ``${NAME}`` or in escaped format as ``\${NAME}`` or ``$NAME``.
+        For the reasons explained in the `Using variables with keywords creating
+        or accessing variables` section, *using the escaped format is highly
+        recommended*.
+
+        Variable value can be specified using the same syntax as when variables
+        are created in the Variables section. Same way as in that section,
+        it is possible to create scalar values, lists and dictionaries.
+        The type is got from the variable name prefix ``$``, ``@`` and ``&``,
+        respectively.
 
         If a variable already exists within the new scope, its value will be
-        overwritten. Otherwise a new variable is created. If a variable already
-        exists within the current scope, the value can be left empty and the
-        variable within the new scope gets the value within the current scope.
+        overwritten. If a variable already exists within the current scope,
+        the value can be left empty and the variable within the new scope gets
+        the value within the current scope.
 
         Examples:
-        | Set Suite Variable | ${SCALAR} | Hello, world! |
-        | Set Suite Variable | ${SCALAR} | Hello, world! | children=true |
-        | Set Suite Variable | @{LIST}   | First item    | Second item   |
-        | Set Suite Variable | &{DICT}   | key=value     | foo=bar       |
-        | ${ID} =            | Get ID    |
-        | Set Suite Variable | ${ID}     |
+        | Set Suite Variable    $SCALAR    Hello, world!
+        | Set Suite Variable    $SCALAR    Hello, world!    children=True
+        | Set Suite Variable    @LIST      First item       Second item
+        | Set Suite Variable    &DICT      key=value        foo=bar
+        | ${ID} =    Get ID
+        | Set Suite Variable    $ID
 
         To override an existing value with an empty value, use built-in
         variables ``${EMPTY}``, ``@{EMPTY}`` or ``&{EMPTY}``:
 
-        | Set Suite Variable | ${SCALAR} | ${EMPTY} |
-        | Set Suite Variable | @{LIST}   | @{EMPTY} |
-        | Set Suite Variable | &{DICT}   | &{EMPTY} |
+        | Set Suite Variable    $SCALAR    ${EMPTY}
+        | Set Suite Variable    @LIST      @{EMPTY}
+        | Set Suite Variable    &DICT      &{EMPTY}
 
-        *NOTE:* If the variable has value which itself is a variable (escaped
-        or not), you must always use the escaped format to set the variable:
-
-        Example:
-        | ${NAME} =          | Set Variable | \\${var} |
-        | Set Suite Variable | ${NAME}      | value | # Sets variable ${var}  |
-        | Set Suite Variable | \\${NAME}    | value | # Sets variable ${NAME} |
-
-        This limitation applies also to `Set Test Variable`, `Set Global
-        Variable`, `Variable Should Exist`, `Variable Should Not Exist` and
-        `Get Variable Value` keywords.
+        See also `Set Global Variable`, `Set Test Variable` and `Set Local Variable`.
         """
         name = self._get_var_name(name)
         if values and is_string(values[-1]) and values[-1].startswith('children='):
@@ -1741,21 +1749,25 @@ class _Variables(_BuiltInBase):
 
     @run_keyword_variant(resolve=0)
     def set_global_variable(self, name, *values):
-        """Makes a variable available globally in all tests and suites.
+        r"""Makes a variable available globally in all tests and suites.
 
         Variables set with this keyword are globally available in all
         subsequent test suites, test cases and user keywords. Also variables
-        in variable tables are overridden. Variables assigned locally based
-        on keyword return values or by using `Set Test Variable` and
-        `Set Suite Variable` override these variables in that scope, but
-        the global value is not changed in those cases.
+        created Variables sections are overridden. Variables assigned locally
+        based on keyword return values or by using `Set Suite Variable`,
+        `Set Test Variable` or `Set Local Variable` override these variables
+        in that scope, but the global value is not changed in those cases.
 
         In practice setting variables with this keyword has the same effect
         as using command line options ``--variable`` and ``--variablefile``.
         Because this keyword can change variables everywhere, it should be
         used with care.
 
-        See `Set Suite Variable` for more information and examples.
+        See `Set Suite Variable` for more information and usage examples. See
+        also the `Using variables with keywords creating or accessing variables`
+        section for information why it is recommended to give the variable name
+        in escaped format like ``$name`` or ``\${name}`` instead of the normal
+        ``${name}``.
         """
         name = self._get_var_name(name)
         value = self._get_var_value(name, values)
@@ -1909,27 +1921,24 @@ class _RunKeyword(_BuiltInBase):
         *NOTE:* Robot Framework 4.0 introduced built-in IF/ELSE support and using
         that is generally recommended over using this keyword.
 
-        The given ``condition`` is evaluated in Python as explained in
-        `Evaluating expressions`, and ``name`` and ``*args`` have same
+        The given ``condition`` is evaluated in Python as explained in the
+        `Evaluating expressions` section, and ``name`` and ``*args`` have same
         semantics as with `Run Keyword`.
 
         Example, a simple if/else construct:
-        | ${status} | ${value} = | `Run Keyword And Ignore Error` | `My Keyword` |
-        | `Run Keyword If`     | '${status}' == 'PASS' | `Some Action`    | arg |
-        | `Run Keyword Unless` | '${status}' == 'PASS' | `Another Action` |
+        | `Run Keyword If` | '${status}' == 'OK' | Some Action    | arg |
+        | `Run Keyword If` | '${status}' != 'OK' | Another Action |
 
-        In this example, only either `Some Action` or `Another Action` is
-        executed, based on the status of `My Keyword`. Instead of `Run Keyword
-        And Ignore Error` you can also use `Run Keyword And Return Status`.
+        In this example, only either ``Some Action`` or ``Another Action`` is
+        executed, based on the value of the ``${status}`` variable.
 
         Variables used like ``${variable}``, as in the examples above, are
         replaced in the expression before evaluation. Variables are also
         available in the evaluation namespace and can be accessed using special
-        syntax ``$variable`` as explained in the `Evaluating expressions`
-        section.
+        ``$variable`` syntax as explained in the `Evaluating expressions` section.
 
         Example:
-        | `Run Keyword If` | $result is None or $result == 'FAIL' | `Keyword` |
+        | `Run Keyword If` | $result is None or $result == 'FAIL' | Keyword |
 
         This keyword supports also optional ELSE and ELSE IF branches. Both
         of them are defined in ``*args`` and must use exactly format ``ELSE``
@@ -1942,21 +1951,20 @@ class _RunKeyword(_BuiltInBase):
         supported when using ELSE and/or ELSE IF branches.
 
         Given previous example, if/else construct can also be created like this:
-        | ${status} | ${value} = | `Run Keyword And Ignore Error` | `My Keyword` |
-        | `Run Keyword If` | '${status}' == 'PASS' | `Some Action` | arg | ELSE | `Another Action` |
+        | `Run Keyword If` | '${status}' == 'PASS' | Some Action | arg | ELSE | Another Action |
 
         The return value of this keyword is the return value of the actually
         executed keyword or Python ``None`` if no keyword was executed (i.e.
         if ``condition`` was false). Hence, it is recommended to use ELSE
         and/or ELSE IF branches to conditionally assign return values from
-        keyword to variables (see `Set Variable If` if you need to set fixed
+        keyword to variables (see `Set Variable If` you need to set fixed
         values conditionally). This is illustrated by the example below:
 
-        | ${var1} =   | `Run Keyword If` | ${rc} == 0     | `Some keyword returning a value` |
-        | ...         | ELSE IF          | 0 < ${rc} < 42 | `Another keyword` |
-        | ...         | ELSE IF          | ${rc} < 0      | `Another keyword with args` | ${rc} | arg2 |
-        | ...         | ELSE             | `Final keyword to handle abnormal cases` | ${rc} |
-        | ${var2} =   | `Run Keyword If` | ${condition}  | `Some keyword` |
+        | ${var1} =   | `Run Keyword If` | ${rc} == 0     | Some keyword returning a value |
+        | ...         | ELSE IF          | 0 < ${rc} < 42 | Another keyword |
+        | ...         | ELSE IF          | ${rc} < 0      | Another keyword with args | ${rc} | arg2 |
+        | ...         | ELSE             | Final keyword to handle abnormal cases | ${rc} |
+        | ${var2} =   | `Run Keyword If` | ${condition}  | Some keyword |
 
         In this example, ${var2} will be set to ``None`` if ${condition} is
         false.
@@ -1990,11 +1998,12 @@ class _RunKeyword(_BuiltInBase):
 
     @run_keyword_variant(resolve=2)
     def run_keyword_unless(self, condition, name, *args):
-        """Runs the given keyword with the given arguments if ``condition`` is false.
+        """*DEPRECATED since RF 5.0. Use Native IF/ELSE or `Run Keyword If` instead.*
 
-        See `Run Keyword If` for more information and an example. Notice that
-        this keyword does not support ``ELSE`` or ``ELSE IF`` branches like
-        `Run Keyword If` does, though.
+        Runs the given keyword with the given arguments if ``condition`` is false.
+
+        See `Run Keyword If` for more information and an example. Notice that this
+        keyword does not support ELSE or ELSE IF branches like `Run Keyword If` does.
         """
         if not self._is_true(condition):
             return self.run_keyword(name, *args)
@@ -2014,6 +2023,9 @@ class _RunKeyword(_BuiltInBase):
 
         Errors caused by invalid syntax, timeouts, or fatal exceptions are not
         caught by this keyword. Otherwise this keyword itself never fails.
+
+        *NOTE:* Robot Framework 5.0 introduced native TRY/EXCEPT functionality
+        that is generally recommended for error handling.
         """
         try:
             return 'PASS', self.run_keyword(name, *args)
@@ -2121,6 +2133,16 @@ class _RunKeyword(_BuiltInBase):
 
         Errors caused by invalid syntax, timeouts, or fatal exceptions are not
         caught by this keyword.
+
+        *NOTE:* Regular expression matching used to require only the beginning
+        of the error to match the given pattern. That was changed in Robot
+        Framework 5.0 and nowadays the pattern must match the error fully.
+        To match only the beginning, add ``.*`` at the end of the pattern like
+        ``REGEXP: Start.*``.
+
+        *NOTE:* Robot Framework 5.0 introduced native TRY/EXCEPT functionality
+        that is generally recommended for error handling. It supports same
+        pattern matching syntax as this keyword.
         """
         try:
             self.run_keyword(name, *args)
@@ -2141,7 +2163,7 @@ class _RunKeyword(_BuiltInBase):
         matchers = {'GLOB': glob,
                     'EQUALS': lambda s, p: s == p,
                     'STARTS': lambda s, p: s.startswith(p),
-                    'REGEXP': lambda s, p: re.match(p, s) is not None}
+                    'REGEXP': lambda s, p: re.match(p + r'\Z', s) is not None}
         prefixes = tuple(prefix + ':' for prefix in matchers)
         if not expected_error.startswith(prefixes):
             return glob(error, expected_error)
@@ -2484,11 +2506,26 @@ class _Control(_BuiltInBase):
             raise SkipExecution(msg or condition)
 
     def continue_for_loop(self):
-        """Skips the current for loop iteration and continues from the next.
+        """Skips the current FOR loop iteration and continues from the next.
 
-        Skips the remaining keywords in the current for loop iteration and
-        continues from the next one. Can be used directly in a for loop or
-        in a keyword that the loop uses.
+        ---
+
+        *NOTE:* Robot Framework 5.0 added support for native ``CONTINUE`` statement that
+        is recommended over this keyword. In the examples below, ``Continue For Loop``
+        can simply be replaced with ``CONTINUE``. In addition to that, native ``IF``
+        syntax (new in RF 4.0) or inline ``IF`` syntax (new in RF 5.0) can be used
+        instead of ``Run Keyword If``. For example, the first example below could be
+        written like this instead:
+
+        | IF    '${var}' == 'CONTINUE'    CONTINUE
+
+        This keyword will eventually be deprecated and removed.
+
+        ---
+
+        Skips the remaining keywords in the current FOR loop iteration and
+        continues from the next one. Starting from Robot Framework 5.0, this
+        keyword can only be used inside a loop, not in a keyword used in a loop.
 
         Example:
         | FOR | ${var}         | IN                     | @{VALUES}         |
@@ -2496,16 +2533,31 @@ class _Control(_BuiltInBase):
         |     | Do Something   | ${var}                 |
         | END |
 
-        See `Continue For Loop If` to conditionally continue a for loop without
+        See `Continue For Loop If` to conditionally continue a FOR loop without
         using `Run Keyword If` or other wrapper keywords.
         """
+        if not self._context.allow_loop_control:
+            raise DataError("'Continue For Loop' can only be used inside a loop.")
         self.log("Continuing for loop from the next iteration.")
-        raise ContinueForLoop()
+        raise ContinueLoop()
 
     def continue_for_loop_if(self, condition):
-        """Skips the current for loop iteration if the ``condition`` is true.
+        """Skips the current FOR loop iteration if the ``condition`` is true.
 
-        A wrapper for `Continue For Loop` to continue a for loop based on
+        ---
+
+        *NOTE:* Robot Framework 5.0 added support for native ``CONTINUE`` statement
+        and for inline ``IF``, and that combination should be used instead of this
+        keyword. For example, ``Continue For Loop If`` usage in the example below
+        could be replaced with
+
+        | IF    '${var}' == 'CONTINUE'    CONTINUE
+
+        This keyword will eventually be deprecated and removed.
+
+        ---
+
+        A wrapper for `Continue For Loop` to continue a FOR loop based on
         the given condition. The condition is evaluated using the same
         semantics as with `Should Be True` keyword.
 
@@ -2515,14 +2567,32 @@ class _Control(_BuiltInBase):
         |     | Do Something         | ${var}                 |
         | END |
         """
+        if not self._context.allow_loop_control:
+            raise DataError("'Continue For Loop If' can only be used inside a loop.")
         if self._is_true(condition):
             self.continue_for_loop()
 
     def exit_for_loop(self):
-        """Stops executing the enclosing for loop.
+        """Stops executing the enclosing FOR loop.
 
-        Exits the enclosing for loop and continues execution after it.
-        Can be used directly in a for loop or in a keyword that the loop uses.
+        ---
+
+        *NOTE:* Robot Framework 5.0 added support for native ``BREAK`` statement that
+        is recommended over this keyword. In the examples below, ``Exit For Loop``
+        can simply be replaced with ``BREAK``. In addition to that, native ``IF``
+        syntax (new in RF 4.0) or inline ``IF`` syntax (new in RF 5.0) can be used
+        instead of ``Run Keyword If``. For example, the first example below could be
+        written like this instead:
+
+        | IF    '${var}' == 'EXIT'    BREAK
+
+        This keyword will eventually be deprecated and removed.
+
+        ---
+
+        Exits the enclosing FOR loop and continues execution after it. Starting
+        from Robot Framework 5.0, this keyword can only be used inside a loop,
+        not in a keyword used in a loop.
 
         Example:
         | FOR | ${var}         | IN                 | @{VALUES}     |
@@ -2530,16 +2600,31 @@ class _Control(_BuiltInBase):
         |     | Do Something   | ${var} |
         | END |
 
-        See `Exit For Loop If` to conditionally exit a for loop without
+        See `Exit For Loop If` to conditionally exit a FOR loop without
         using `Run Keyword If` or other wrapper keywords.
         """
+        if not self._context.allow_loop_control:
+            raise DataError("'Exit For Loop' can only be used inside a loop.")
         self.log("Exiting for loop altogether.")
-        raise ExitForLoop()
+        raise BreakLoop()
 
     def exit_for_loop_if(self, condition):
-        """Stops executing the enclosing for loop if the ``condition`` is true.
+        """Stops executing the enclosing FOR loop if the ``condition`` is true.
 
-        A wrapper for `Exit For Loop` to exit a for loop based on
+        ---
+
+        *NOTE:* Robot Framework 5.0 added support for native ``BREAK`` statement
+        and for inline ``IF``, and that combination should be used instead of this
+        keyword. For example, ``Exit For Loop If`` usage in the example below
+        could be replaced with
+
+        | IF    '${var}' == 'EXIT'    BREAK
+
+        This keyword will eventually be deprecated and removed.
+
+        ---
+
+        A wrapper for `Exit For Loop` to exit a FOR loop based on
         the given condition. The condition is evaluated using the same
         semantics as with `Should Be True` keyword.
 
@@ -2549,6 +2634,8 @@ class _Control(_BuiltInBase):
         |     | Do Something     | ${var}             |
         | END |
         """
+        if not self._context.allow_loop_control:
+            raise DataError("'Exit For Loop If' can only be used inside a loop.")
         if self._is_true(condition):
             self.exit_for_loop()
 
@@ -2624,7 +2711,7 @@ class _Control(_BuiltInBase):
         ---
 
         *NOTE:* Robot Framework 5.0 added support for native ``RETURN`` statement
-        and inline ``IF`` and that combination should be used instead of this
+        and for inline ``IF``, and that combination should be used instead of this
         keyword. For example, ``Return From Keyword`` usage in the example below
         could be replaced with
 
@@ -2944,26 +3031,37 @@ class _Misc(_BuiltInBase):
             else:
                 yield value
 
-    def log_to_console(self, message, stream='STDOUT', no_newline=False):
+    def log_to_console(self, message, stream='STDOUT', no_newline=False, format=''):
         """Logs the given message to the console.
 
         By default uses the standard output stream. Using the standard error
-        stream is possibly by giving the ``stream`` argument value ``STDERR``
+        stream is possible by giving the ``stream`` argument value ``STDERR``
         (case-insensitive).
 
         By default appends a newline to the logged message. This can be
         disabled by giving the ``no_newline`` argument a true value (see
         `Boolean arguments`).
 
+        By default adds no alignment formatting. The ``format`` argument allows,
+        for example, alignment and customized padding of the log message. Please see the
+        [https://docs.python.org/3/library/string.html#formatspec|format specification] for
+        detailed alignment possibilities. This argument is new in Robot
+        Framework 5.0.
+
         Examples:
         | Log To Console | Hello, console!             |                 |
         | Log To Console | Hello, stderr!              | STDERR          |
         | Log To Console | Message starts here and is  | no_newline=true |
         | Log To Console | continued without newline.  |                 |
+        | Log To Console | center message with * pad   | format=*^60     |
+        | Log To Console | 30 spaces before msg starts | format=>30      |
 
         This keyword does not log the message to the normal log file. Use
         `Log` keyword, possibly with argument ``console``, if that is desired.
         """
+        if format:
+            format = "{:" + format + "}"
+            message = format.format(message)
         logger.console(message, newline=is_falsy(no_newline), stream=stream)
 
     @run_keyword_variant(resolve=0)
@@ -3566,6 +3664,40 @@ class BuiltIn(_Verify, _Converter, _Variables, _RunKeyword, _Control, _Misc):
     HTML in messages is not limited to BuiltIn library but works with any
     error message.
 
+    = Using variables with keywords creating or accessing variables =
+
+    This library has special keywords `Set Global Variable`, `Set Suite Variable`,
+    `Set Test Variable` and `Set Local Variable` for creating variables in
+    different scopes. These keywords take the variable name and its value as
+    arguments. The name can be given using the normal ``${variable}`` syntax or
+    in escaped format either like ``$variable`` or ``\${variable}``. For example,
+    these are typically equivalent and create new suite level variable
+    ``${name}`` with value ``value``:
+
+    | Set Suite Variable    ${name}     value
+    | Set Suite Variable    $name       value
+    | Set Suite Variable    \${name}    value
+
+    A problem with using the normal ``${variable}`` syntax is that these
+    keywords cannot easily know is the idea to create a variable with exactly
+    that name or does that variable actually contain the name of the variable
+    to create. If the variable does not initially exist, it will always be
+    created. If it exists and its value is a variable name either in the normal
+    or in the escaped syntax, variable with _that_ name is created instead.
+    For example, if ``${name}`` variable would exist and contain value
+    ``$example``, these examples would create different variables:
+
+    | Set Suite Variable    ${name}     value    # Creates ${example}.
+    | Set Suite Variable    $name       value    # Creates ${name}.
+    | Set Suite Variable    \${name}    value    # Creates ${name}.
+
+    Because the behavior when using the normal ``${variable}`` syntax depends
+    on the possible existing value of the variable, it is *highly recommended
+    to use the escaped ``$variable`` or ``\${variable}`` format instead*.
+
+    This same problem occurs also with special keywords for accessing variables
+    `Get Variable Value`, `Variable Should Exist` and `Variable Should Not Exist`.
+
     = Evaluating expressions =
 
     Many keywords, such as `Evaluate`, `Run Keyword If` and `Should Be True`,
@@ -3582,9 +3714,9 @@ class BuiltIn(_Verify, _Converter, _Variables, _RunKeyword, _Control, _Misc):
     third party modules.
 
     Examples:
-    | `Should Be True`   | len('${result}') > 3 |
-    | `Run Keyword If`   | os.sep == '/'        | Non-Windows Keyword  |
-    | ${robot version} = | `Evaluate`           | robot.__version__    |
+    | `Should Be True`    len('${result}') > 3
+    | `Run Keyword If`    os.sep == '/'    Non-Windows Keyword
+    | ${version} =    `Evaluate`    robot.__version__
 
     `Evaluate` also allows configuring the execution namespace with a custom
     namespace and with custom modules to be imported. The latter functionality
@@ -3593,12 +3725,7 @@ class BuiltIn(_Verify, _Converter, _Variables, _RunKeyword, _Control, _Misc):
     comprehensions. See the documentation of the `Evaluate` keyword for mode
     details.
 
-    *NOTE:* Automatic module import is a new feature in Robot Framework 3.2.
-    Earlier modules needed to be explicitly taken into use when using the
-    `Evaluate` keyword and other keywords only had access to ``sys`` and
-    ``os`` modules.
-
-    == Using variables ==
+    == Variables in expressions ==
 
     When a variable is used in the expressing using the normal ``${variable}``
     syntax, its value is replaced before the expression is evaluated. This
@@ -3611,20 +3738,20 @@ class BuiltIn(_Verify, _Converter, _Variables, _RunKeyword, _Control, _Misc):
     be triple quoted.
 
     Examples:
-    | `Should Be True` | ${rc} < 10                | Return code greater than 10 |
-    | `Run Keyword If` | '${status}' == 'PASS'     | Log | Passed                |
-    | `Run Keyword If` | 'FAIL' in '''${output}''' | Log | Output contains FAIL  |
+    | `Should Be True`    ${rc} < 10                   Return code greater than 10
+    | `Run Keyword If`    '${status}' == 'PASS'        Log    Passed
+    | `Run Keyword If`    'FAIL' in '''${output}'''    Log    Output contains FAIL
 
     Actual variables values are also available in the evaluation namespace.
     They can be accessed using special variable syntax without the curly
     braces like ``$variable``. These variables should never be quoted.
 
     Examples:
-    | `Should Be True` | $rc < 10          | Return code greater than 10  |
-    | `Run Keyword If` | $status == 'PASS' | `Log` | Passed               |
-    | `Run Keyword If` | 'FAIL' in $output | `Log` | Output contains FAIL |
-    | `Should Be True` | len($result) > 1 and $result[1] == 'OK' |
-    | `Should Be True` | $result is not None                     |
+    | `Should Be True`    $rc < 10             Return code greater than 10
+    | `Run Keyword If`    $status == 'PASS'    `Log`    Passed
+    | `Run Keyword If`    'FAIL' in $output    `Log`    Output contains FAIL
+    | `Should Be True`    len($result) > 1 and $result[1] == 'OK'
+    | `Should Be True`    $result is not None
 
     Using the ``$variable`` syntax slows down expression evaluation a little.
     This should not typically matter, but should be taken into account if
@@ -3648,22 +3775,21 @@ class BuiltIn(_Verify, _Converter, _Variables, _RunKeyword, _Control, _Misc):
     [http://docs.python.org/library/stdtypes.html#truth|rules as in Python].
 
     True examples:
-    | `Should Be Equal` | ${x} | ${y}  | Custom error | values=True    | # Strings are generally true.    |
-    | `Should Be Equal` | ${x} | ${y}  | Custom error | values=yes     | # Same as the above.             |
-    | `Should Be Equal` | ${x} | ${y}  | Custom error | values=${TRUE} | # Python ``True`` is true.       |
-    | `Should Be Equal` | ${x} | ${y}  | Custom error | values=${42}   | # Numbers other than 0 are true. |
+    | `Should Be Equal`    ${x}    ${y}    Custom error    values=True         # Strings are generally true.
+    | `Should Be Equal`    ${x}    ${y}    Custom error    values=yes          # Same as the above.
+    | `Should Be Equal`    ${x}    ${y}    Custom error    values=${TRUE}      # Python ``True`` is true.
+    | `Should Be Equal`    ${x}    ${y}    Custom error    values=${42}        # Numbers other than 0 are true.
 
     False examples:
-    | `Should Be Equal` | ${x} | ${y}  | Custom error | values=False     | # String ``false`` is false.   |
-    | `Should Be Equal` | ${x} | ${y}  | Custom error | values=no        | # Also string ``no`` is false. |
-    | `Should Be Equal` | ${x} | ${y}  | Custom error | values=${EMPTY}  | # Empty string is false.       |
-    | `Should Be Equal` | ${x} | ${y}  | Custom error | values=${FALSE}  | # Python ``False`` is false.   |
-    | `Should Be Equal` | ${x} | ${y}  | Custom error | values=no values | # ``no values`` works with ``values`` argument |
+    | `Should Be Equal`    ${x}    ${y}    Custom error    values=False        # String ``false`` is false.
+    | `Should Be Equal`    ${x}    ${y}    Custom error    values=no           # Also string ``no`` is false.
+    | `Should Be Equal`    ${x}    ${y}    Custom error    values=${EMPTY}     # Empty string is false.
+    | `Should Be Equal`    ${x}    ${y}    Custom error    values=${FALSE}     # Python ``False`` is false.
+    | `Should Be Equal`    ${x}    ${y}    Custom error    values=no values    # ``no values`` works with ``values`` argument
 
     = Pattern matching =
 
-    Many keywords accepts arguments as either glob or regular expression
-    patterns.
+    Many keywords accept arguments as either glob or regular expression patterns.
 
     == Glob patterns ==
 
@@ -3703,9 +3829,9 @@ class BuiltIn(_Verify, _Converter, _Variables, _RunKeyword, _Control, _Misc):
     format] if both strings have more than two lines.
 
     Example:
-    | ${first} =  | `Catenate` | SEPARATOR=\n | Not in second | Same | Differs | Same |
-    | ${second} = | `Catenate` | SEPARATOR=\n | Same | Differs2 | Same | Not in first |
-    | `Should Be Equal` | ${first} | ${second} |
+    | ${first} =     `Catenate`    SEPARATOR=\n    Not in second    Same    Differs    Same
+    | ${second} =    `Catenate`    SEPARATOR=\n    Same    Differs2    Same    Not in first
+    | `Should Be Equal`    ${first}    ${second}
 
     Results in the following error message:
 
@@ -3723,13 +3849,13 @@ class BuiltIn(_Verify, _Converter, _Variables, _RunKeyword, _Control, _Misc):
     = String representations =
 
     Several keywords log values explicitly (e.g. `Log`) or implicitly (e.g.
-    `Should Be Equal` when there are failures). By default keywords log values
-    using "human readable" string representation, which means that strings
+    `Should Be Equal` when there are failures). By default, keywords log values
+    using human-readable string representation, which means that strings
     like ``Hello`` and numbers like ``42`` are logged as-is. Most of the time
     this is the desired behavior, but there are some problems as well:
 
     - It is not possible to see difference between different objects that
-      have same string representation like string ``42`` and integer ``42``.
+      have the same string representation like string ``42`` and integer ``42``.
       `Should Be Equal` and some other keywords add the type information to
       the error message in these cases, though.
 
@@ -3747,8 +3873,8 @@ class BuiltIn(_Verify, _Converter, _Variables, _RunKeyword, _Control, _Misc):
     - Some Unicode characters can be represented using
       [https://en.wikipedia.org/wiki/Unicode_equivalence|different forms].
       For example, ``ä`` can be represented either as a single code point
-      ``\u00e4`` or using two code points ``\u0061`` and ``\u0308`` combined
-      together. Such forms are considered canonically equivalent, but strings
+      ``\u00e4`` or using two combined code points ``\u0061`` and ``\u0308``.
+      Such forms are considered canonically equivalent, but strings
       containing them are not considered equal when compared in Python. Error
       messages like ``ä != ä`` are not that helpful either.
 
@@ -3764,15 +3890,15 @@ class BuiltIn(_Verify, _Converter, _Variables, _RunKeyword, _Control, _Misc):
 
     == str ==
 
-    Use the "human readable" string representation. Equivalent to using ``str()``
+    Use the human-readable string representation. Equivalent to using ``str()``
     in Python. This is the default.
 
     == repr ==
 
-    Use the "machine readable" string representation. Similar to using
-    ``repr()`` in Python, which means that strings like ``Hello`` are logged
-    like ``'Hello'``, newlines and non-printable characters are escaped like
-    ``\n`` and ``\x00``, and so on. Non-ASCII characters are shown as-is like ``ä``.
+    Use the machine-readable string representation. Similar to using ``repr()``
+    in Python, which means that strings like ``Hello`` are logged like
+    ``'Hello'``, newlines and non-printable characters are escaped like ``\n``
+    and ``\x00``, and so on. Non-ASCII characters are shown as-is like ``ä``.
 
     In this mode bigger lists, dictionaries and other containers are
     pretty-printed so that there is one item per row.
