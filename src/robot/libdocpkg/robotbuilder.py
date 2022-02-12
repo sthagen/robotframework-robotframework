@@ -20,9 +20,10 @@ import re
 from robot.errors import DataError
 from robot.running import (TestLibrary, UserLibrary, UserErrorHandler,
                            ResourceFileBuilder)
-from robot.utils import split_tags_from_doc, unescape, is_string
-from robot.variables import VariableIterator, search_variable
+from robot.utils import is_string, split_tags_from_doc, type_repr, unescape
+from robot.variables import search_variable
 
+from .datatypes import TypeDoc
 from .model import LibraryDoc, KeywordDoc
 
 
@@ -37,14 +38,12 @@ class LibraryDocBuilder:
                             version=lib.version,
                             scope=str(lib.scope),
                             doc_format=lib.doc_format,
-                            converters=lib.converters,
                             source=lib.source,
                             lineno=lib.lineno)
         libdoc.inits = self._get_initializers(lib)
         libdoc.keywords = KeywordDocBuilder().build_keywords(lib)
-        for kw in libdoc.inits + libdoc.keywords:
-            for arg in kw.args:
-                libdoc.data_types.update(arg.types)
+        libdoc.type_docs = self._get_type_docs(libdoc.inits + libdoc.keywords,
+                                               lib.converters)
         return libdoc
 
     def _split_library_name_and_args(self, library):
@@ -59,12 +58,26 @@ class LibraryDocBuilder:
         return library
 
     def _get_doc(self, lib):
-        return lib.doc or "Documentation for library ``%s``." % lib.name
+        return lib.doc or f"Documentation for library ``{lib.name}``."
 
     def _get_initializers(self, lib):
         if lib.init.arguments.maxargs:
             return [KeywordDocBuilder().build_keyword(lib.init)]
         return []
+
+    def _get_type_docs(self, keywords, custom_converters):
+        type_docs = {}
+        for kw in keywords:
+            for arg in kw.args:
+                kw.type_docs[arg.name] = {}
+                for typ in arg.types:
+                    type_doc = TypeDoc.for_type(typ, custom_converters)
+                    if type_doc:
+                        kw.type_docs[arg.name][type_repr(typ)] = type_doc.name
+                        type_docs.setdefault(type_doc, set()).add(kw.name)
+        for type_doc, usages in type_docs.items():
+            type_doc.usages = sorted(usages, key=str.lower)
+        return set(type_docs)
 
 
 class ResourceDocBuilder:
@@ -92,12 +105,12 @@ class ResourceDocBuilder:
             candidate = os.path.normpath(os.path.join(dire, path))
             if os.path.isfile(candidate):
                 return candidate
-        raise DataError("Resource file '%s' does not exist." % path)
+        raise DataError(f"Resource file '{path}' does not exist.")
 
     def _get_doc(self, res):
         if res.doc:
             return unescape(res.doc)
-        return "Documentation for resource file ``%s``." % res.name
+        return f"Documentation for resource file ``{res.name}``."
 
 
 class KeywordDocBuilder:

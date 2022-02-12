@@ -95,7 +95,7 @@ class DataTypesLibrary:
 
         It links to `Set Location` keyword and to `GeoLocation` data type.
         """
-        print(type(credentials))
+        pass
 
     def set_location(self, location: GeoLocation):
         pass
@@ -121,8 +121,8 @@ class DataTypesLibrary:
                              None]] = AssertionOperator.equal):
         pass
 
-    def typing_types(self, list_of_str: List[str], dict_str_int: Dict[str, int], Whatever: Any, *args: List[Any]):
+    def typing_types(self, list_of_str: List[str], dict_str_int: Dict[str, int], whatever: Any, *args: List[Any]):
         pass
 
-    def custom(self, arg: CustomType, arg2: 'CustomType2'):
+    def custom(self, arg: CustomType, arg2: 'CustomType2', arg3: CustomType):
         pass

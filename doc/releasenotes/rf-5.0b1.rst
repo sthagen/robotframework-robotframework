@@ -1,6 +1,6 @@
-===========================
-Robot Framework 5.0 alpha 1
-===========================
+==========================
+Robot Framework 5.0 beta 1
+==========================
 
 .. default-role:: code
 
@@ -13,8 +13,8 @@ Python 3.6 or newer.
 
 __ https://github.com/pekkaklarck/rf5survey
 
-Robot Framework 5.0 alpha 1 is the first preview release
-and already contains all planned new syntax.
+Robot Framework 5.0 beta 1 is the second preview release and contains
+majority of the planned new features.
 All issues targeted for Robot Framework 5.0 can be found
 from the `issue tracker milestone`_.
 
@@ -32,13 +32,13 @@ to install the latest available release or use
 
 ::
 
-   pip install robotframework==5.0a1
+   pip install robotframework==5.0b1
 
-to install exactly this version. Alternatively you can download the source
+to install exactly this version. Alternatively, you can download the source
 distribution from PyPI_ and install it manually. For more details and other
 installation approaches, see the `installation instructions`_.
 
-Robot Framework 5.0 alpha 1 was released on Thursday January 27, 2022.
+Robot Framework 5.0 beta 1 was released on Friday February 11, 2022.
 
 .. _Robot Framework: http://robotframework.org
 .. _Robot Framework Foundation: http://robotframework.org/foundation
@@ -464,7 +464,7 @@ remove them in the future.
 Custom argument conversion
 --------------------------
 
-Robot Framework has supported `automatic argument conversion`__ for long time,
+Robot Framework has supported `automatic argument conversion`_ for long time,
 and now it is possible for libraries to register custom converters as well
 (`#4088`_). This functionality has two main use cases:
 
@@ -483,7 +483,7 @@ it must be a class attribute. With libraries implemented as classes, it is
 also possible to use the `converters` argument with the `@library` decorator.
 Both of these approaches are illustrated by examples
 
-__ https://github.com/robotframework/robotframework/blob/master/doc/releasenotes/rf-3.1.rst#automatic-argument-conversion
+.. _automatic argument conversion: https://github.com/robotframework/robotframework/blob/master/doc/releasenotes/rf-3.1.rst#automatic-argument-conversion
 
 Overriding default converters
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -710,11 +710,6 @@ automatically. This information includes the name of the type, accepted values
 (if specified using type hints) and documentation. Type information is
 automatically linked to all keywords using these types.
 
-.. note:: What information is included and how it is stored is likely to change
-          before Robot Framework 5.0 final. See issue `#4160`__ for more information.
-
-__ https://github.com/robotframework/robotframework/issues/4160
-
 Used documentation is got from the converter function by default. If it does
 not have any documentation, documentation is got from the type. Both of these
 approaches to add documentation to converters in the previous example thus
@@ -745,6 +740,27 @@ documentation is likely not very useful in this context.
 .. _date: https://docs.python.org/3/library/datetime.html#date-objects
 .. _union: https://docs.python.org/3/library/typing.html#typing.Union
 
+Automatic type conversion info added to Libdoc outputs
+------------------------------------------------------
+
+As already mentioned above when discussing about the new `custom argument conversion`_
+functionality, Robot Framework has supported `automatic argument conversion`_ for
+long time. So far library documentation generated using the Libdoc tool has
+contained no information about what types are converted and how, but this
+changes in Robot Framework 5.0. (`#4160`_)
+
+Automatically converted types that are used by a library are included both in
+the machine readable spec files and in the HTML output targeted for humans.
+They are shown the same way as `Enums` and `TypedDicts` have been shown since
+`Robot Framework 4.0`__. This is also how types supporting custom conversions
+discussed above are shown.
+
+To ease mapping types to their usages, type documentation in spec files
+contains a list of keywords using them. In addition to that, arguments used by keywords
+contain references to types they use. (`#4218`_)
+
+__ https://github.com/robotframework/robotframework/blob/master/doc/releasenotes/rf-4.0.rst#libdoc-enhancements
+
 Enhancements to xUnit compatible outputs
 ----------------------------------------
 
@@ -755,22 +771,21 @@ and `pytest`. These outputs have been enhanced in different ways in Robot Framew
 
 - Each test suite gets its own `<testsuite>` element (`#2982`_). Earlier all
   tests in all suites were added under the root suite.
-- `<testsuite>` elementa gets `timestamp` attribute denoting the suite
-  start time (`#4074`_).
+- `<testsuite>` elements gets `timestamp` attribute denoting the suite start time (`#4074`_).
 - Suite documentation and metadata are added under each `<testsuite>` as
   properties (`#4199`_).
-
 
 Backwards incompatible changes
 ==============================
 
-Python 2 is not anymore supported
+Python 2 is not supported anymore
 ---------------------------------
 
 Robot Framework 5.0 requires Python 3.6 or newer (`#3457`_). Unfortunately this
-also means that Jython and IronPython are not supported anymore because they do
-not have Python 3 compatible releases available. If you are using Python 2,
-Jython, or IronPython, you can continue using Robot Framework 4 series.
+also means that `Jython <http://jython.org>`_ and `IronPython <http://ironpython.net>`_
+are not supported anymore because they do not have Python 3 compatible releases
+available. If you are using Python 2, Jython, or IronPython, you can continue
+using Robot Framework 4 series.
 
 Loop control keywords cannot be used inside keywords
 ----------------------------------------------------
@@ -791,7 +806,7 @@ this is not anymore supported:
         Exit For Loop
 
 Notice also that if there is no need to support older Robot Framework versions,
-it is recommended to use new `BREAK and CONTINUE`_ statements instead of these
+it is recommended to use the new `BREAK and CONTINUE`_ statements instead of these
 keywords.
 
 Other backwards incompatible changes
@@ -805,7 +820,7 @@ Other backwards incompatible changes
   to match only the beginning.
 
 - The built-in Tidy tool has been removed in favor of the external
-  `Robotidy <https://robotidy.readthedocs.io>`_ (`#4020`_).
+  `RoboTidy <https://robotidy.readthedocs.io>`_ (`#4020`_).
 
 - `FOR` loop iteration type passed to listeners has been changed from
   `FOR ITERATION` to `ITERATION` (`#4182`_).
@@ -813,12 +828,32 @@ Other backwards incompatible changes
 - `Process.Start Process` keywords returns the created process object
   instead of a generic handle (`#4104`_).
 
+- Unrecognized options passed to the `robot.run` and `robot.rebot` APIs are
+  are not anymore ignored but instead cause an error (`#4212`_).
+
 - Deprecated `--critical` and `--noncritical` options have been removed (`#4189`_).
 
 - Deprecated `--xunitskipnoncritical` option has been removed (`#4192`_).
 
 Deprecated features
 ===================
+
+`dataTypes` section in Libdoc spec files has been deprecated
+------------------------------------------------------------
+
+The `dataTypes` section was added to spec files in `Robot Framework 4.0`__
+to store information about `Enums` and `TypedDicts`. In Robot Framework 5.0,
+also information about automatically converted types (`#4160`_) and custom
+converters (`#4088`_) were added to spec files, and the structure of the
+`dataTypes` section was not considered convenient.
+
+Instead of changing the `dataTypes` section, a new `types` section was added
+to contain information about all converted types. The old `dataTypes` section
+is still created and it contains same information as earlier. It is, however,
+deprecated and will be removed in the future.
+
+Other deprecated features
+-------------------------
 
 - Old Python 2/3 compatibility layer has been deprecated (`#4150`_). It was not
   removed to avoid breaking libraries and tools using it, but it will be more
@@ -830,6 +865,8 @@ Deprecated features
 - `BuiltIn.Run Keyword Unless` has been deprecated (`#4174`_). It can be replaced
   with `Run Keyword If`, but the native `IF/ELSE` syntax is generally recommended
   instead.
+
+__ https://github.com/robotframework/robotframework/blob/master/doc/releasenotes/rf-4.0.rst#libdoc-enhancements
 
 Acknowledgements
 ================
@@ -870,6 +907,10 @@ great contributions:
 - `Aleksi Simell <https://github.com/asimell>`__ enhanced `String.Generate Random String`
   to support generating random strings in different lengths (`#4133`_).
 
+- `Daniel Biehl <https://github.com/d-biehl>`__ fixed a crash that occurred if
+  user keyword argument specification contained a line with only the `...` line
+  continuation marker (`#4181`_).
+
 Huge thanks to all sponsors, contributors and to everyone else who has reported
 problems, participated in discussions on various forums, or otherwise helped to make
 Robot Framework and its community and ecosystem better.
@@ -903,6 +944,11 @@ Full list of fixes and enhancements
       - critical
       - Ability to register custom converters for keyword arguments
       - alpha 1
+    * - `#4181`_
+      - high
+      - medium
+      - Parsing crashes if user keyword argument specification contains a line with only `...`
+      - beta 1
     * - `#4195`_
       - bug
       - high
@@ -921,7 +967,7 @@ Full list of fixes and enhancements
     * - `#4079`_
       - enhancement
       - high
-      - New `BREAK` and `CONTINUE` statemens for controlling `FOR` and `WHILE` loop execution
+      - New `BREAK` and `CONTINUE` statements for controlling `FOR` and `WHILE` loop execution
       - alpha 1
     * - `#4084`_
       - enhancement
@@ -933,6 +979,11 @@ Full list of fixes and enhancements
       - high
       - Inline `IF` support
       - alpha 1
+    * - `#4160`_
+      - enhancement
+      - high
+      - Libdoc: Include automatic argument conversion info
+      - beta 1
     * - `#3208`_
       - bug
       - medium
@@ -948,6 +999,16 @@ Full list of fixes and enhancements
       - medium
       - `Run Keyword And Expect Error` passes if regular expression matches only the beginning
       - alpha 1
+    * - `#4212`_
+      - bug
+      - medium
+      - Options passed to `robot.run` and `robot.rebot` are not verified
+      - beta 1
+    * - `#4221`_
+      - bug
+      - medium
+      - Argument validation fails in dry-run if arguments contain `&{dict}` variables
+      - beta 1
     * - `#4020`_
       - enhancement
       - medium
@@ -1023,6 +1084,26 @@ Full list of fixes and enhancements
       - medium
       - Add suite documentation and metadata to xUnit outputs
       - alpha 1
+    * - `#4202`_
+      - enhancement
+      - medium
+      - Add line number information for tests in output.xml
+      - beta 1
+    * - `#4214`_
+      - enhancement
+      - medium
+      - Do not expland `NOT RUN` keywords even if they match `--expandkeywords`
+      - beta 1
+    * - `#4218`_
+      - enhancement
+      - medium
+      - Libdoc: Include usage information to data types in spec files
+      - beta 1
+    * - `#4225`_
+      - enhancement
+      - medium
+      - Better error reporting if whitespace between keywords and arguments is missing
+      - beta 1
     * - `#4134`_
       - bug
       - low
@@ -1048,10 +1129,25 @@ Full list of fixes and enhancements
       - low
       - Error message related to creating user keywords do not have line number information
       - alpha 1
+    * - `#4213`_
+      - bug
+      - low
+      - `stdout` and `stderr` passed to `robot.run` and `robot.rebot` are ignored if parsing options fails
+      - beta 1
+    * - `#4222`_
+      - bug
+      - low
+      - Incorrect documentation for automatic Boolean conversion
+      - beta 1
+    * - `#4224`_
+      - bug
+      - low
+      - Automatic list, tuple, dict and set conversion do not work correctly with all containers
+      - beta 1
     * - `#4142`_
       - enhancement
       - low
-      - BuiltIn.Log: Deprecate `repr` argument in favor or more generic `formatter`
+      - BuiltIn.Log: Deprecate `repr` argument in favor of more generic `formatter`
       - alpha 1
     * - `#4174`_
       - enhancement
@@ -1079,20 +1175,24 @@ Full list of fixes and enhancements
       - Remove deprecated `--xunitskipnoncritical` option
       - alpha 1
 
-Altogether 38 issues. View on the `issue tracker <https://github.com/robotframework/robotframework/issues?q=milestone%3Av5.0>`__.
+Altogether 49 issues. View on the `issue tracker <https://github.com/robotframework/robotframework/issues?q=milestone%3Av5.0>`__.
 
 .. _#3075: https://github.com/robotframework/robotframework/issues/3075
 .. _#3457: https://github.com/robotframework/robotframework/issues/3457
 .. _#4088: https://github.com/robotframework/robotframework/issues/4088
+.. _#4181: https://github.com/robotframework/robotframework/issues/4181
 .. _#4195: https://github.com/robotframework/robotframework/issues/4195
 .. _#2982: https://github.com/robotframework/robotframework/issues/2982
 .. _#4078: https://github.com/robotframework/robotframework/issues/4078
 .. _#4079: https://github.com/robotframework/robotframework/issues/4079
 .. _#4084: https://github.com/robotframework/robotframework/issues/4084
 .. _#4093: https://github.com/robotframework/robotframework/issues/4093
+.. _#4160: https://github.com/robotframework/robotframework/issues/4160
 .. _#3208: https://github.com/robotframework/robotframework/issues/3208
 .. _#4143: https://github.com/robotframework/robotframework/issues/4143
 .. _#4178: https://github.com/robotframework/robotframework/issues/4178
+.. _#4212: https://github.com/robotframework/robotframework/issues/4212
+.. _#4221: https://github.com/robotframework/robotframework/issues/4221
 .. _#4020: https://github.com/robotframework/robotframework/issues/4020
 .. _#4039: https://github.com/robotframework/robotframework/issues/4039
 .. _#4074: https://github.com/robotframework/robotframework/issues/4074
@@ -1108,11 +1208,18 @@ Altogether 38 issues. View on the `issue tracker <https://github.com/robotframew
 .. _#4185: https://github.com/robotframework/robotframework/issues/4185
 .. _#4191: https://github.com/robotframework/robotframework/issues/4191
 .. _#4199: https://github.com/robotframework/robotframework/issues/4199
+.. _#4202: https://github.com/robotframework/robotframework/issues/4202
+.. _#4214: https://github.com/robotframework/robotframework/issues/4214
+.. _#4218: https://github.com/robotframework/robotframework/issues/4218
+.. _#4225: https://github.com/robotframework/robotframework/issues/4225
 .. _#4134: https://github.com/robotframework/robotframework/issues/4134
 .. _#4159: https://github.com/robotframework/robotframework/issues/4159
 .. _#4168: https://github.com/robotframework/robotframework/issues/4168
 .. _#4171: https://github.com/robotframework/robotframework/issues/4171
 .. _#4201: https://github.com/robotframework/robotframework/issues/4201
+.. _#4213: https://github.com/robotframework/robotframework/issues/4213
+.. _#4222: https://github.com/robotframework/robotframework/issues/4222
+.. _#4224: https://github.com/robotframework/robotframework/issues/4224
 .. _#4142: https://github.com/robotframework/robotframework/issues/4142
 .. _#4174: https://github.com/robotframework/robotframework/issues/4174
 .. _#4182: https://github.com/robotframework/robotframework/issues/4182

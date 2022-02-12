@@ -11,7 +11,7 @@ ${FLATTEN}      --FlattenKeywords NAME:Keyword3
 ...             --log log.html
 ${FLAT TEXT}    _*Keyword content flattened.*_
 ${FLAT HTML}    <p><i><b>Keyword content flattened.\\x3c/b>\\x3c/i>\\x3c/p>
-${ERROR}        [ ERROR ] Invalid value for option '--flattenkeywords'. Expected 'FOR', 'WHILE', 'ITERATION', 'TAG:<pattern>', or 'NAME:<pattern>' but got 'invalid'.${USAGE TIP}\n
+${ERROR}        [ ERROR ] Invalid value for option '--flattenkeywords': Expected 'FOR', 'WHILE', 'ITERATION', 'TAG:<pattern>' or 'NAME:<pattern>', got 'invalid'.${USAGE TIP}\n
 
 *** Test Cases ***
 Non-matching keyword is not flattened
@@ -117,7 +117,7 @@ Flatten while loops
     Run Rebot    --flatten WHile    ${OUTFILE COPY}
     ${tc} =    Check Test Case    WHILE loop
     Should Be Equal    ${tc.body[1].type}    WHILE
-    # Should Be Equal    ${tc.body[1].doc}    ${FLAT TEXT}
+    Should Be Equal    ${tc.body[1].doc}    ${FLAT TEXT}
     Length Should Be    ${tc.body[1].kws}    0
     Length Should Be    ${tc.body[1].msgs}    70
     FOR    ${index}    IN RANGE    10

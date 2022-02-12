@@ -35,11 +35,7 @@ def verify_shortdoc_output(doc_input, expected):
 def verify_keyword_shortdoc(doc_format, doc_input, expected):
     libdoc = LibraryDoc(doc_format=doc_format)
     libdoc.keywords = [KeywordDoc(doc=doc_input)]
-    formatter = DocToHtml(doc_format)
-    keyword = libdoc.keywords[0]
-    keyword.doc = formatter(keyword.doc)
-    libdoc.doc_format = 'HTML'
-    assert_equal(keyword.shortdoc, expected)
+    assert_equal(libdoc.keywords[0].shortdoc, expected)
 
 
 def run_libdoc_and_validate_json(filename):
@@ -95,9 +91,7 @@ class TestKeywordShortDoc(unittest.TestCase):
         verify_keyword_shortdoc('TEXT', doc, exp)
 
     def test_shortdoc_with_empty_plain_text(self):
-        doc = ""
-        exp = ""
-        verify_keyword_shortdoc('TEXT', doc, exp)
+        verify_keyword_shortdoc('TEXT', '', '')
 
     def test_shortdoc_with_multiline_robot_format(self):
         doc = """Writes the
@@ -114,9 +108,7 @@ argument value ``'stderr'``."""
         verify_keyword_shortdoc('ROBOT', doc, exp)
 
     def test_shortdoc_with_empty_robot_format(self):
-        doc = ""
-        exp = ""
-        verify_keyword_shortdoc('ROBOT', doc, exp)
+        verify_keyword_shortdoc('ROBOT', '', '')
 
     def test_shortdoc_with_multiline_HTML_format(self):
         doc = """<p><strong>Writes</strong><br><em>the</em> <b>message</b>
@@ -141,15 +133,10 @@ argument value ``'stderr'``."""
         verify_keyword_shortdoc('HTML', doc, exp)
 
     def test_shortdoc_with_empty_HTML_format(self):
-        doc = ""
-        exp = ""
-        verify_keyword_shortdoc('HTML', doc, exp)
+        verify_keyword_shortdoc('HTML', '', '')
 
-    try:
-        from docutils.core import publish_parts
-        def test_shortdoc_with_multiline_reST_format(self):
-
-            doc = """Writes the **message**
+    def test_shortdoc_with_multiline_reST_format(self):
+        doc = """Writes the **message**
 to *the* console.
 
 If the ``newline`` argument is ``True``, a newline character is
@@ -158,15 +145,11 @@ automatically added to the message.
 By default the message is written to the standard output stream.
 Using the standard error stream is possibly by giving the ``stream``
 argument value ``'stderr'``."""
-            exp = "Writes the **message** to *the* console."
-            verify_keyword_shortdoc('REST', doc, exp)
+        exp = "Writes the **message** to *the* console."
+        verify_keyword_shortdoc('REST', doc, exp)
 
-        def test_shortdoc_with_empty_reST_format(self):
-            doc = ""
-            exp = ""
-            verify_keyword_shortdoc('REST', doc, exp)
-    except ImportError:
-        pass
+    def test_shortdoc_with_empty_reST_format(self):
+        verify_keyword_shortdoc('REST', '', '')
 
 
 class TestLibdocJsonWriter(unittest.TestCase):
@@ -276,7 +259,6 @@ class TestXmlSpec(unittest.TestCase):
         orig_data = orig_lib.to_dictionary()
         spec_data = spec_lib.to_dictionary()
         orig_data['generated'] = spec_data['generated'] = None
-        orig_data['source'] = spec_data['source'] = None
         self.maxDiff = None
         self.assertDictEqual(orig_data, spec_data)
 

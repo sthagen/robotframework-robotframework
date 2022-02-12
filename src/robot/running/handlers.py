@@ -61,6 +61,8 @@ class _RunnableHandler:
                          tuple(tags or ()))
 
     def _get_name(self, handler_name, handler_method):
+        if handler_name == '__init__':
+            return handler_name
         robot_name = getattr(handler_method, 'robot_name', None)
         name = robot_name or printable_name(handler_name, code_style=True)
         if not name:
@@ -199,19 +201,16 @@ class _DynamicHandler(_RunnableHandler):
             source = get_keyword_source(self._handler_name)
         except DataError as err:
             self.library.report_error(
-                "Getting source information for keyword '%s' failed: %s"
-                % (self.name, err.message), err.details
+                f"Getting source information for keyword '{self.name}' failed: {err}",
+                err.details
             )
-            return None, -1
-        if not source:
-            return self.library.source, -1
-        if ':' not in source:
-            return source, -1
-        path, lineno = source.rsplit(':', 1)
-        try:
-            return path or self.library.source, int(lineno)
-        except ValueError:
-            return source, -1
+            source = None
+        if source and ':' in source and source.rsplit(':', 1)[1].isdigit():
+            source, lineno = source.rsplit(':', 1)
+            lineno = int(lineno)
+        else:
+            lineno = -1
+        return normpath(source) if source else self.library.source, lineno
 
     @property
     def lineno(self):

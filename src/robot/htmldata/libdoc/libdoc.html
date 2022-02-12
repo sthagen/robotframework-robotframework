@@ -42,44 +42,16 @@
 
 <script type="text/javascript">
 
-    function linkArgs(container, dataTypes, usageName) {
-      container.forEach(function(keyword) {
-        let user = usageName || keyword.name
-          keyword.args.forEach(function (arg) {
-            arg.linked = arg.types.filter(function(value) {
-              return dataTypes.filter(function (dataType) {
-                 if (dataType.name === value) {
-                   if (dataType.usage.indexOf(user) === -1) {
-                    dataType.usage.push(user);
-                   }
-                   return true;
-                 }
-                 return false;
-              })[0];
-            });
-          })
-        }
-      );
-    }
-
     $(document).ready(function() {
         parseTemplates();
         document.title = libdoc.name;
         storage.init('libdoc');
-        libdoc.dataTypes = [].concat(
-            libdoc.dataTypes.customs,
-            libdoc.dataTypes.enums,
-            libdoc.dataTypes.typedDicts,
-        );
-        libdoc.dataTypes = libdoc.dataTypes.map(function(dt) {
-          dt.usage = [];
-          return dt;
-        })
-        libdoc.dataTypes.sort(compare)
-        linkArgs(libdoc.inits, libdoc.dataTypes, "Importing");
-        linkArgs(libdoc.keywords, libdoc.dataTypes);
         renderTemplate('base', libdoc, $('body'));
         if (libdoc.inits.length) {
+            libdoc.typedocs.map(function(type) {
+                var index = type.usages.indexOf('__init__');
+                if (index != -1) type.usages[index] = 'Importing';
+            });
             renderTemplate('importing', libdoc);
         }
         renderTemplate('shortcuts', libdoc);
@@ -104,17 +76,8 @@
             openKeywordWall();
           }
       }, 0);
+        workaroundFirefoxWidthBug();
     });
-
-     function compare( a, b ) {
-      if ( a.name < b.name ){
-        return -1;
-      }
-      if ( a.name > b.name ){
-        return 1;
-      }
-      return 0;
-    }
 
     function parseTemplates() {
         $('script[type="text/x-jquery-tmpl"]').map(function (idx, elem) {
@@ -290,8 +253,8 @@
             renderTemplate('tags', libdoc);
         }
         document.getElementById("keyword-statistics-header").innerText = ''+libdoc.keywords.length;
-        if (libdoc.dataTypes.length) {
-          document.getElementById("type-statistics-header").innerText = '' + libdoc.dataTypes.length;
+        if (libdoc.typedocs.length) {
+            document.getElementById("type-statistics-header").innerText = '' + libdoc.typedocs.length;
         }
         history.replaceState && history.replaceState(null, '', location.pathname);
     }
@@ -305,6 +268,11 @@
         };
     })();
 
+    function workaroundFirefoxWidthBug() {
+        // https://github.com/robotframework/robotframework/issues/3456
+        // https://bugzilla.mozilla.org/show_bug.cgi?id=1613163
+        $('.dt-usages a').width('max-content');
+    }
 </script>
 
 <script type="text/x-jquery-tmpl" id="base-template">
@@ -519,10 +487,9 @@ ${name}
 
 {{if types.length}}
   <span class="arg-type">
-    ${( $data.linked = linked ),''}
     {{each types}}
-      {{if $data.linked.indexOf($value) > -1}}
-          &lt;<a class="type" href="#${$value}" title="Click to show accepted values">${$value}</a>&gt;
+      {{if $value in $data.typedocs}}
+          &lt;<a class="type" href="#${$data.typedocs[$value]}" title="Click to show type information">${$value}</a>&gt;
       {{else}}
           &lt;<span class="type">${$value}</span>&gt;
       {{/if}}
@@ -534,14 +501,14 @@ ${name}
 
 
 <script type="text/x-jquery-tmpl" id="data-types-template">
-    {{if dataTypes.length}}
+  {{if typedocs.length}}
     <h2 id="Data types">Data types</h2>
     <div class="data-types">
-        {{each dataTypes}}
+      {{each typedocs}}
         {{tmpl($value) 'data-type-template'}}
-        {{/each}}
+      {{/each}}
     </div>
-    {{/if}}
+  {{/if}}
 </script>
 
 <script type="text/x-jquery-tmpl" id="data-type-template">
@@ -549,11 +516,17 @@ ${name}
        <div class="data-type-name">
             <h2>
             <a class="dt-name" href="#${encodeURIComponent(name)}"
-               title="Link to this data type">${name}</a>
+               title="Link to this type">${name}</a>
             (${type})
             </h2>
        </div>
        <div class="data-type-content">
+          {{if doc}}
+            <div class="dt-docs">
+              <h4>Documentation</h4>
+              <div class="dtdoc doc">{{html doc}}</div>
+            </div>
+          {{/if}}
           {{if members}}
             <div class="dt-members">
               <h4>Allowed Values</h4>
@@ -561,6 +534,9 @@ ${name}
                 {{each members}}
                 <li>
                   <span class="enum-member">${$value.name}</span>
+                  {{if accepts.indexOf("integer") != -1}}
+                    &nbsp; (<span class="enum-member">${$value.value}</span>)
+                  {{/if}}
                 </li>
                 {{/each}}
               </ul>
@@ -582,22 +558,22 @@ ${name}
                 </div>
             </div>
           {{/if}}
-          {{if doc}}
+          {{if accepts.length}}
             <div class="dt-docs">
-              <h4>Documentation</h4>
-              <div class="dtdoc doc">{{html doc}}</div>
+              <h4>Converted Types</h4>
+              {{each accepts}}
+                <span class="enum-member">${$value}</span>{{if $index < accepts.length - 1}}, {{/if}}
+              {{/each}}
             </div>
           {{/if}}
-          {{if usage}}
-            <div class="dt-usage">
-              <h4>Used in</h4>
-              <ul class="dt-usage-list">
-                {{each usage}}
-                <li>
-                <a href="#${encodeURIComponent($value)}">${$value}</a>
-                </li>
+          {{if usages.length}}
+            <div class="dt-usages">
+              <h4>Usages</h4>
+              <div>
+                {{each usages}}
+                  <a href="#${encodeURIComponent($value)}">${$value}</a>{{if $index < usages.length - 1}}, {{/if}}
                 {{/each}}
-              </ul>
+              </div>
             </div>
           {{/if}}
        </div>
