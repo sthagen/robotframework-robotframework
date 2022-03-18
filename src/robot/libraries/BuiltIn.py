@@ -30,8 +30,8 @@ from robot.utils import (DotDict, escape, format_assign_message, get_error_messa
                          get_time, html_escape, is_falsy, is_integer, is_list_like,
                          is_string, is_truthy, Matcher, normalize,
                          normalize_whitespace, parse_time, prepr, plural_or_not as s,
-                         RERAISED_EXCEPTIONS, roundup, safe_str, secs_to_timestr,
-                         seq2str, split_from_equals, timestr_to_secs, type_name)
+                         RERAISED_EXCEPTIONS, safe_str, secs_to_timestr, seq2str,
+                         split_from_equals, timestr_to_secs, type_name)
 from robot.utils.asserts import assert_equal, assert_not_equal
 from robot.variables import (evaluate_expression, is_dict_variable,
                              is_list_variable, search_variable,
@@ -265,8 +265,7 @@ class _Converter(_BuiltInBase):
     def _convert_to_number(self, item, precision=None):
         number = self._convert_to_number_without_precision(item)
         if precision is not None:
-            number = roundup(number, self._convert_to_integer(precision),
-                             return_type=float)
+            number = float(round(number, self._convert_to_integer(precision)))
         return number
 
     def _convert_to_number_without_precision(self, item):
@@ -2435,18 +2434,7 @@ class _RunKeyword(_BuiltInBase):
         ctx = self._context
         if ctx.test and ctx.in_test_teardown:
             return ctx.test
-        raise RuntimeError("Keyword '%s' can only be used in test teardown."
-                           % kwname)
-
-    @run_keyword_variant(resolve=1)
-    def run_keyword_if_all_critical_tests_passed(self, name, *args):
-        """*DEPRECATED.* Use `BuiltIn.Run Keyword If All Tests Passed` instead."""
-        self.run_keyword_if_all_tests_passed(name, args)
-
-    @run_keyword_variant(resolve=1)
-    def run_keyword_if_any_critical_tests_failed(self, name, *args):
-        """*DEPRECATED.* Use `BuiltIn.Run Keyword If Any Tests Failed` instead."""
-        self.run_keyword_if_any_tests_failed(name, args)
+        raise RuntimeError(f"Keyword '{kwname}' can only be used in test teardown.")
 
     @run_keyword_variant(resolve=1)
     def run_keyword_if_all_tests_passed(self, name, *args):
@@ -2672,7 +2660,7 @@ class _Control(_BuiltInBase):
         a for loop. That, as well as returning values, is demonstrated by the
         `Find Index` keyword in the following somewhat advanced example.
         Notice that it is often a good idea to move this kind of complicated
-        logic into a test library.
+        logic into a library.
 
         | ***** Variables *****
         | @{LIST} =    foo    baz
@@ -3608,10 +3596,10 @@ class _Misc(_BuiltInBase):
         self.log('Removed tag%s %s.' % (s(tags), seq2str(tags)))
 
     def get_library_instance(self, name=None, all=False):
-        """Returns the currently active instance of the specified test library.
+        """Returns the currently active instance of the specified library.
 
-        This keyword makes it easy for test libraries to interact with
-        other test libraries that have state. This is illustrated by
+        This keyword makes it easy for libraries to interact with
+        other libraries that have state. This is illustrated by
         the Python example below:
 
         | from robot.libraries.BuiltIn import BuiltIn
@@ -3759,7 +3747,7 @@ class BuiltIn(_Verify, _Converter, _Variables, _RunKeyword, _Control, _Misc):
     constrains.
 
     Notice that instead of creating complicated expressions, it is often better
-    to move the logic into a test library. That eases maintenance and can also
+    to move the logic into a library. That eases maintenance and can also
     enhance execution speed.
 
     = Boolean arguments =

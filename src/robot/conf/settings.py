@@ -13,10 +13,13 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import glob
 import os
 import random
+import string
 import sys
 import time
+import warnings
 
 from robot.errors import DataError, FrameworkError
 from robot.output import LOGGER, loggerhelper
@@ -64,6 +67,7 @@ class _BaseSettings:
                  'PreRebotModifiers': ('prerebotmodifier', []),
                  'StatusRC'         : ('statusrc', True),
                  'ConsoleColors'    : ('consolecolors', 'AUTO'),
+                 'PythonPath'       : ('pythonpath', []),
                  'StdOut'           : ('stdout', None),
                  'StdErr'           : ('stderr', None)}
     _output_opts = ['Output', 'Log', 'Report', 'XUnit', 'DebugFile']
@@ -127,6 +131,10 @@ class _BaseSettings:
             return self._process_randomize_value(value)
         if name == 'MaxErrorLines':
             return self._process_max_error_lines(value)
+        if name == 'MaxAssignLength':
+            return self._process_max_assign_length(value)
+        if name == 'PythonPath':
+            return self._process_pythonpath(value)
         if name == 'RemoveKeywords':
             self._validate_remove_keywords(value)
         if name == 'FlattenKeywords':
@@ -176,6 +184,10 @@ class _BaseSettings:
             self._raise_invalid('MaxErrorLines',
                                 f"Expected integer greater than 10, got {value}.")
         return value
+
+    def _process_max_assign_length(self, value):
+        value = self._convert_to_integer('MaxAssignLength', value)
+        return max(value, 0)
 
     def _process_randomize_value(self, original):
         value = original.upper()
@@ -296,6 +308,35 @@ class _BaseSettings:
     def _get_default_value(self, name):
         return self._cli_opts[name][1]
 
+    def _process_pythonpath(self, paths):
+        return [os.path.abspath(globbed)
+                for path in paths
+                for split in self._split_pythonpath(path)
+                for globbed in glob.glob(split) or [split]]
+
+    def _split_pythonpath(self, path):
+        path = path.replace('/', os.sep)
+        if ';' in path:
+            yield from path.split(';')
+        elif os.sep == '/':
+            yield from path.split(':')
+        else:
+            drive = ''
+            for item in path.split(':'):
+                if drive:
+                    if item.startswith('\\'):
+                        yield f'{drive}:{item}'
+                        drive = ''
+                        continue
+                    yield drive
+                    drive = ''
+                if len(item) == 1 and item in string.ascii_letters:
+                    drive = item
+                else:
+                    yield item
+            if drive:
+                yield drive
+
     def _validate_remove_keywords(self, values):
         for value in values:
             try:
@@ -319,7 +360,7 @@ class _BaseSettings:
         raise DataError(f"Invalid value for option '--{option.lower()}': {error}")
 
     def __contains__(self, setting):
-        return setting in self._cli_opts
+        return setting in self._opts
 
     def __str__(self):
         return '\n'.join(f'{name}: {self._opts[name]}' for name in sorted(self._opts))
@@ -351,6 +392,22 @@ class _BaseSettings:
     @property
     def split_log(self):
         return self['SplitLog']
+
+    @property
+    def suite_names(self):
+        return self['SuiteNames']
+
+    @property
+    def include(self):
+        return self['Include']
+
+    @property
+    def exclude(self):
+        return self['Exclude']
+
+    @property
+    def pythonpath(self):
+        return self['PythonPath']
 
     @property
     def status_rc(self):
@@ -397,6 +454,7 @@ class RobotSettings(_BaseSettings):
                        'Output'             : ('output', 'output.xml'),
                        'LogLevel'           : ('loglevel', 'INFO'),
                        'MaxErrorLines'      : ('maxerrorlines', 40),
+                       'MaxAssignLength'    : ('maxassignlength', 200),
                        'DryRun'             : ('dryrun', False),
                        'ExitOnFailure'      : ('exitonfailure', False),
                        'ExitOnError'        : ('exitonerror', False),
@@ -419,17 +477,12 @@ class RobotSettings(_BaseSettings):
     def get_rebot_settings(self):
         settings = RebotSettings()
         settings.start_timestamp = self.start_timestamp
-        settings._opts.update(self._opts)
-        for name in ['Variables', 'VariableFiles', 'Listeners']:
-            del(settings._opts[name])
-        for name in ['Include', 'Exclude', 'TestNames', 'SuiteNames', 'Metadata']:
-            settings._opts[name] = []
-        for name in ['Name', 'Doc']:
-            settings._opts[name] = None
-        settings._opts['Output'] = None
-        settings._opts['LogLevel'] = 'TRACE'
+        not_copied = {'Include', 'Exclude', 'TestNames', 'SuiteNames', 'Name', 'Doc',
+                      'Metadata', 'SetTag', 'Output', 'LogLevel', 'TimestampOutputs'}
+        for opt in settings._opts:
+            if opt in self and opt not in not_copied:
+                settings._opts[opt] = self[opt]
         settings._opts['ProcessEmptySuite'] = self['RunEmptySuite']
-        settings._opts['ExpandKeywords'] = self['ExpandKeywords']
         return settings
 
     def _output_disabled(self):
@@ -453,8 +506,8 @@ class RobotSettings(_BaseSettings):
             'doc': self['Doc'],
             'metadata': dict(self['Metadata']),
             'set_tags': self['SetTag'],
-            'include_tags': self['Include'],
-            'exclude_tags': self['Exclude'],
+            'include_tags': self.include,
+            'exclude_tags': self.exclude,
             'include_suites': self['SuiteNames'],
             'include_tests': self['TestNames'],
             'empty_suite_ok': self.run_empty_suite,
@@ -488,8 +541,13 @@ class RobotSettings(_BaseSettings):
         return self['ExitOnError']
 
     @property
-    def skipped_tags(self):
+    def skip(self):
         return self['Skip']
+
+    @property
+    def skipped_tags(self):
+        warnings.warn("'RobotSettings.skipped_tags' is deprecated. Use 'skip' instead.")
+        return self.skip
 
     @property
     def skip_on_failure(self):
@@ -531,6 +589,10 @@ class RobotSettings(_BaseSettings):
         return self['MaxErrorLines']
 
     @property
+    def max_assign_length(self):
+        return self['MaxAssignLength']
+
+    @property
     def pre_run_modifiers(self):
         return self['PreRunModifiers']
 
@@ -569,8 +631,8 @@ class RebotSettings(_BaseSettings):
             'doc': self['Doc'],
             'metadata': dict(self['Metadata']),
             'set_tags': self['SetTag'],
-            'include_tags': self['Include'],
-            'exclude_tags': self['Exclude'],
+            'include_tags': self.include,
+            'exclude_tags': self.exclude,
             'include_suites': self['SuiteNames'],
             'include_tests': self['TestNames'],
             'empty_suite_ok': self.process_empty_suite,

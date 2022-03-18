@@ -15,9 +15,8 @@
 
 import sys
 from enum import Enum
-from typing import Union
 
-from robot.utils import safe_str, setter, type_repr
+from robot.utils import is_union, safe_str, setter, type_repr
 
 from .argumentconverter import ArgumentConverter
 from .argumentmapper import ArgumentMapper
@@ -70,8 +69,11 @@ class ArgumentSpec:
         resolver = ArgumentResolver(self, resolve_named,
                                     resolve_variables_until, dict_to_kwargs)
         positional, named = resolver.resolve(arguments, variables)
+        return self.convert(positional, named, converters, dry_run=not variables)
+
+    def convert(self, positional, named, converters=None, dry_run=False):
         if self.types or self.defaults:
-            converter = ArgumentConverter(self, converters, dry_run=not variables)
+            converter = ArgumentConverter(self, converters, dry_run)
             positional, named = converter.convert(positional, named)
         return positional, named
 
@@ -133,7 +135,7 @@ class ArgInfo:
             return tuple()
         if isinstance(typ, tuple):
             return typ
-        if getattr(typ, '__origin__', None) is Union:
+        if is_union(typ):
             return typ.__args__
         return (typ,)
 

@@ -222,8 +222,8 @@ class While(model.While, StatusMixin, DeprecatedAttributesMixin):
     iteration_class = WhileIteration
     __slots__ = ['status', 'starttime', 'endtime', 'doc']
 
-    def __init__(self, condition=None, parent=None, status='FAIL', starttime=None, endtime=None, doc=''):
-        super().__init__(condition, parent)
+    def __init__(self, condition=None, limit=None, parent=None, status='FAIL', starttime=None, endtime=None, doc=''):
+        super().__init__(condition, limit, parent)
         self.status = status
         self.starttime = starttime
         self.endtime = endtime
@@ -236,7 +236,7 @@ class While(model.While, StatusMixin, DeprecatedAttributesMixin):
     @property
     @deprecated
     def name(self):
-        return self.condition
+        return self.condition + (f' | limit={self.limit}' if self.limit else '')
 
 
 class IfBranch(model.IfBranch, StatusMixin, DeprecatedAttributesMixin):
@@ -275,9 +275,9 @@ class TryBranch(model.TryBranch, StatusMixin, DeprecatedAttributesMixin):
     body_class = Body
     __slots__ = ['status', 'starttime', 'endtime', 'doc']
 
-    def __init__(self, type=BodyItem.TRY, patterns=(), variable=None, status='FAIL',
-                 starttime=None, endtime=None, doc='', parent=None):
-        super().__init__(type, patterns, variable, parent)
+    def __init__(self, type=BodyItem.TRY, patterns=(), pattern_type=None, variable=None,
+                 status='FAIL', starttime=None, endtime=None, doc='', parent=None):
+        super().__init__(type, patterns, pattern_type, variable, parent)
         self.status = status
         self.starttime = starttime
         self.endtime = endtime
@@ -286,10 +286,15 @@ class TryBranch(model.TryBranch, StatusMixin, DeprecatedAttributesMixin):
     @property
     @deprecated
     def name(self):
-        patterns = ' | '.join(self.patterns)
-        as_var = f'AS {self.variable}' if self.variable else ''
-        sep = ' ' if patterns and as_var else ''
-        return f'{patterns}{sep}{as_var}'
+        patterns = list(self.patterns)
+        if self.pattern_type:
+            patterns.append(f'type={self.pattern_type}')
+        parts = []
+        if patterns:
+            parts.append(' | '.join(patterns))
+        if self.variable:
+            parts.append(f'AS {self.variable}')
+        return ' '.join(parts)
 
 
 @Body.register

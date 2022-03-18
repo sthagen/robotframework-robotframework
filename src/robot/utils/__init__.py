@@ -49,8 +49,7 @@ from .markuputils import html_format, html_escape, xml_escape, attribute_escape
 from .markupwriters import HtmlWriter, XmlWriter, NullMarkupWriter
 from .importer import Importer
 from .match import eq, Matcher, MultiMatcher
-from .misc import (isatty, plural_or_not, printable_name, roundup, seq2str, seq2str2,
-                   test_or_task)
+from .misc import isatty, plural_or_not, printable_name,seq2str, seq2str2, test_or_task
 from .normalizing import normalize, normalize_whitespace, NormalizedDict
 from .platform import PY_VERSION, PYPY, UNIXY, WINDOWS, RERAISED_EXCEPTIONS
 from .recommendations import RecommendationFinder
@@ -79,8 +78,9 @@ def read_rest_data(rstfile):
 
 
 # Deprecated Python 2/3 compatibility layer. Not needed by Robot Framework itself
-# since Python 2 support was dropped in RF 5. Preserved at least until RF 5.2
-# to avoid breaking external libraries and tools that use it.
+# anymore because Python 2 support was dropped in RF 5. Preserved at least until
+# RF 5.2 to avoid breaking external libraries and tools that use it. There's also
+# `PY2` in the `platform` submodule.
 # https://github.com/robotframework/robotframework/issues/4150
 
 from io import StringIO
@@ -91,6 +91,7 @@ PY2 = JYTHON = IRONPYTHON = False
 is_unicode = is_string
 unicode = str
 unic = safe_str
+roundup = round
 
 
 def py2to3(cls):

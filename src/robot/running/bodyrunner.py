@@ -16,6 +16,7 @@
 from collections import OrderedDict
 from contextlib import contextmanager
 import re
+import time
 
 from robot.errors import (BreakLoop, ContinueLoop, DataError, ExecutionFailed,
                           ExecutionFailures, ExecutionPassed, ExecutionStatus)
@@ -24,11 +25,14 @@ from robot.result import (For as ForResult, While as WhileResult, If as IfResult
                           TryBranch as TryBranchResult)
 from robot.output import librarylogger as logger
 from robot.utils import (cut_assign_value, frange, get_error_message, is_string,
-                         is_list_like, is_number, plural_or_not as s,
-                         split_from_equals, type_name, Matcher)
+                         is_list_like, is_number, plural_or_not as s, seq2str,
+                         split_from_equals, type_name, Matcher, timestr_to_secs)
 from robot.variables import is_dict_variable, evaluate_expression
 
 from .statusreporter import StatusReporter
+
+
+DEFAULT_WHILE_LIMIT = 10_000
 
 
 class BodyRunner:
@@ -334,17 +338,23 @@ class WhileRunner:
     def run(self, data):
         run = self._run
         executed_once = False
-        result = WhileResult(data.condition)
+        result = WhileResult(data.condition, data.limit)
         with StatusReporter(data, result, self._context, run) as status:
             if self._context.dry_run or not run:
-                self._run_iteration(data, result, run)
+                try:
+                    self._run_iteration(data, result, run)
+                except (BreakLoop, ContinueLoop):
+                    pass
                 return
             if data.error:
                 raise DataError(data.error)
-            while self._should_run(data.condition, self._context.variables):
+            limit = WhileLimit.create(data.limit, self._context.variables)
+            while self._should_run(data.condition, self._context.variables) \
+                    and limit.is_valid:
                 executed_once = True
                 try:
-                    self._run_iteration(data, result, run)
+                    with limit:
+                        self._run_iteration(data, result, run)
                 except BreakLoop:
                     break
                 except ContinueLoop:
@@ -352,6 +362,8 @@ class WhileRunner:
             if not executed_once:
                 status.pass_status = result.NOT_RUN
                 self._run_iteration(data, result, run=False)
+            if not limit.is_valid:
+                raise DataError(limit.reason)
 
     def _run_iteration(self, data, result, run):
         runner = BodyRunner(self._context, run, self._templated)
@@ -489,9 +501,11 @@ class TryRunner:
             return True
         return not (error.skip or isinstance(error, ExecutionPassed))
 
-    def _run_branch(self, branch, result, run):
+    def _run_branch(self, branch, result, run=True, error=None):
         try:
             with StatusReporter(branch, result, self._context, run):
+                if error:
+                    raise error
                 runner = BodyRunner(self._context, run, self._templated)
                 runner.run(branch.body)
         except ExecutionStatus as err:
@@ -506,13 +520,16 @@ class TryRunner:
             try:
                 run_branch = run and self._should_run_except(branch, error)
             except DataError as err:
-                run_branch = run = False
-                error = ExecutionFailed(str(err))
-            result = TryBranchResult(branch.type, branch.patterns, branch.variable)
+                run_branch = True
+                pattern_error = err
+            else:
+                pattern_error = None
+            result = TryBranchResult(branch.type, branch.patterns,
+                                     branch.pattern_type, branch.variable)
             if run_branch:
                 if branch.variable:
                     self._context.variables[branch.variable] = str(error)
-                error = self._run_branch(branch, result, run=True)
+                error = self._run_branch(branch, result, error=pattern_error)
                 run = False
             else:
                 self._run_branch(branch, result, run=False)
@@ -522,22 +539,22 @@ class TryRunner:
         if not branch.patterns:
             return True
         matchers = {
-            'GLOB:': lambda s, p: Matcher(p, spaceless=False, caseless=False).match(s),
-            'EQUALS:': lambda s, p: s == p,
-            'STARTS:': lambda s, p: s.startswith(p),
-            'REGEXP:': lambda s, p: re.match(rf'{p}\Z', s) is not None
+            'GLOB': lambda m, p: Matcher(p, spaceless=False, caseless=False).match(m),
+            'LITERAL': lambda m, p: m == p,
+            'REGEXP': lambda m, p: re.match(rf'{p}\Z', m) is not None,
+            'START': lambda m, p: m.startswith(p)
         }
-        message = error.message
+        if branch.pattern_type:
+            pattern_type = self._context.variables.replace_string(branch.pattern_type)
+        else:
+            pattern_type = 'LITERAL'
+        matcher = matchers.get(pattern_type.upper())
+        if not matcher:
+            raise DataError(f"Invalid EXCEPT pattern type '{pattern_type}', "
+                            f"expected {seq2str(matchers, lastsep=' or ')}.")
         for pattern in branch.patterns:
-            if not pattern.startswith(tuple(matchers)):
-                pattern = self._context.variables.replace_scalar(pattern)
-                if message == pattern:
-                    return True
-            else:
-                prefix, pat = pattern.split(':', 1)
-                pat = self._context.variables.replace_scalar(pat.lstrip())
-                if matchers[f'{prefix}:'](message, pat):
-                    return True
+            if matcher(error.message, self._context.variables.replace_string(pattern)):
+                return True
         return False
 
     def _run_else(self, data, run):
@@ -556,3 +573,84 @@ class TryRunner:
                 return err
             else:
                 return None
+
+
+class WhileLimit:
+    is_valid = True
+
+    @classmethod
+    def create(cls, limit, variables):
+        try:
+            if not limit:
+                return IterationCountLimit(DEFAULT_WHILE_LIMIT)
+            if limit.upper() == 'NONE':
+                return NoLimit()
+            value = variables.replace_string(limit)
+            try:
+                count = int(value.replace(' ', ''))
+                if count <= 0:
+                    return InvalidLimit(f"Iteration limit must be a positive integer, "
+                                        f"got: '{count}'.")
+                return IterationCountLimit(count)
+            except ValueError:
+                return DurationLimit(timestr_to_secs(value))
+        except Exception as error:
+            return InvalidLimit(error)
+
+    def limit_exceeded(self):
+        raise ExecutionFailed(f"WHILE loop was aborted because it did not finish within the "
+                              f"limit of {self}. Use the 'limit' argument to increase or "
+                              f"remove the limit if needed.")
+
+    def __enter__(self):
+        raise NotImplementedError
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return None
+
+
+class DurationLimit(WhileLimit):
+
+    def __init__(self, max_time):
+        self.max_time = max_time
+        self.start_time = None
+
+    def __enter__(self):
+        if not self.start_time:
+            self.start_time = time.time()
+        if time.time() - self.start_time > self.max_time:
+            self.limit_exceeded()
+
+    def __str__(self):
+        return f'{self.max_time} seconds'
+
+
+class IterationCountLimit(WhileLimit):
+
+    def __init__(self, max_iterations):
+        self.max_iterations = max_iterations
+        self.current_iterations = 0
+
+    def __enter__(self):
+        if self.current_iterations >= self.max_iterations:
+            self.limit_exceeded()
+        self.current_iterations += 1
+
+    def __str__(self):
+        return f'{self.max_iterations} iterations'
+
+
+class NoLimit(WhileLimit):
+
+    def __enter__(self):
+        pass
+
+
+class InvalidLimit(WhileLimit):
+    is_valid = False
+
+    def __init__(self, reason):
+        self.reason = f'Invalid WHILE loop limit: {reason}'
+
+    def __enter__(self):
+        raise DataError(self.reason)

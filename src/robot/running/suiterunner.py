@@ -36,14 +36,19 @@ class SuiteRunner(SuiteVisitor):
         self._variables = VariableScopes(settings)
         self._suite = None
         self._suite_status = None
-        self._executed_tests = None
-        self._skipped_tags = TagPatterns(settings.skipped_tags)
+        self._executed = [NormalizedDict(ignore='_')]
+        self._skipped_tags = TagPatterns(settings.skip)
 
     @property
     def _context(self):
         return EXECUTION_CONTEXTS.current
 
     def start_suite(self, suite):
+        if suite.name in self._executed[-1] and suite.parent.source:
+            self._output.warn(f"Multiple suites with name '{suite.name}' executed in "
+                              f"suite '{suite.parent.longname}'.")
+        self._executed[-1][suite.name] = True
+        self._executed.append(NormalizedDict(ignore='_'))
         self._output.library_listeners.new_suite_scope()
         result = TestSuite(source=suite.source,
                            name=suite.name,
@@ -81,7 +86,6 @@ class SuiteRunner(SuiteVisitor):
                                                test_count=suite.test_count))
         self._output.register_error_listener(self._suite_status.error_occurred)
         self._run_setup(suite.setup, self._suite_status)
-        self._executed_tests = NormalizedDict(ignore='_')
 
     def _resolve_setting(self, value):
         if is_list_like(value):
@@ -102,17 +106,20 @@ class SuiteRunner(SuiteVisitor):
         self._suite.endtime = get_timestamp()
         self._suite.message = self._suite_status.message
         self._context.end_suite(ModelCombiner(suite, self._suite))
+        self._executed.pop()
         self._suite = self._suite.parent
         self._suite_status = self._suite_status.parent
         self._output.library_listeners.discard_suite_scope()
 
     def visit_test(self, test):
+        settings = self._settings
         if TagPatterns("robot:exclude").match(test.tags):
             return
-        if test.name in self._executed_tests:
-            self._output.warn("Multiple test cases with name '%s' executed in "
-                              "test suite '%s'." % (test.name, self._suite.longname))
-        self._executed_tests[test.name] = True
+        if test.name in self._executed[-1]:
+            self._output.warn(
+                test_or_task(f"Multiple {{test}}s with name '{test.name}' executed in "
+                             f"suite '{test.parent.longname}'.", settings.rpa))
+        self._executed[-1][test.name] = True
         result = self._suite.tests.create(self._resolve_setting(test.name),
                                           self._resolve_setting(test.doc),
                                           self._resolve_setting(test.tags),
@@ -121,27 +128,26 @@ class SuiteRunner(SuiteVisitor):
                                           starttime=get_timestamp())
         self._context.start_test(result)
         self._output.start_test(ModelCombiner(test, result))
-        status = TestStatus(self._suite_status, result,
-                            self._settings.skip_on_failure,
-                            self._settings.rpa)
+        status = TestStatus(self._suite_status, result, settings.skip_on_failure,
+                            settings.rpa)
         if status.exit:
             self._add_exit_combine()
             result.tags.add('robot:exit')
         if status.passed:
             if not test.name:
                 status.test_failed(
-                    test_or_task('{Test} name cannot be empty.', self._settings.rpa))
+                    test_or_task('{Test} name cannot be empty.', settings.rpa))
             elif not test.body:
                 status.test_failed(
-                    test_or_task('{Test} contains no keywords.', self._settings.rpa))
+                    test_or_task('{Test} contains no keywords.', settings.rpa))
             elif TagPatterns('robot:skip').match(test.tags):
                 status.test_skipped(
                     test_or_task("{Test} skipped using 'robot:skip' tag.",
-                                 self._settings.rpa))
+                                 settings.rpa))
             elif self._skipped_tags.match(test.tags):
                 status.test_skipped(
                     test_or_task("{Test} skipped using '--skip' command line option.",
-                                 self._settings.rpa))
+                                 settings.rpa))
         self._run_setup(test.setup, status, result)
         if status.passed:
             try:

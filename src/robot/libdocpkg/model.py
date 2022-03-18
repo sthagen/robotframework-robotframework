@@ -59,8 +59,6 @@ class LibraryDoc:
             entries.append('Importing')
         if self.keywords:
             entries.append('Keywords')
-        if self.type_docs:
-            entries.append('Data types')
         return '\n'.join('- `%s`' % entry for entry in entries)
 
     @setter
@@ -196,7 +194,7 @@ class KeywordDoc(Sortable):
             'name': arg.name,
             'types': arg.types_reprs,
             'typedocs': self.type_docs.get(arg.name, {}),
-            'defaultValue': arg.default_repr,    # FIXME: 'defaultValue' -> 'default'?
+            'defaultValue': arg.default_repr,
             'kind': arg.kind,
             'required': arg.required,
             'repr': str(arg)

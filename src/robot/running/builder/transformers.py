@@ -442,7 +442,8 @@ class TryBuilder(NodeVisitor):
         errors = self._get_errors(node)
         while node:
             self.model = root.body.create_branch(node.type, node.patterns,
-                                                 node.variable, lineno=node.lineno)
+                                                 node.pattern_type, node.variable,
+                                                 lineno=node.lineno)
             for step in node.body:
                 self.visit(step)
             node = node.next
@@ -501,7 +502,7 @@ class WhileBuilder(NodeVisitor):
     def build(self, node):
         error = format_error(self._get_errors(node))
         self.model = self.parent.body.create_while(
-            node.condition, lineno=node.lineno, error=error
+            node.condition, node.limit, lineno=node.lineno, error=error
         )
         for step in node.body:
             self.visit(step)

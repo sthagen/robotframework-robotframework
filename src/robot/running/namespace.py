@@ -35,7 +35,8 @@ IMPORTER = Importer()
 
 class Namespace:
     _default_libraries = ('BuiltIn', 'Reserved', 'Easter')
-    _library_import_by_path_endings = ('.py', '/', os.sep)
+    _library_import_by_path_ends = ('.py', '/', os.sep)
+    _variables_import_by_path_ends = _library_import_by_path_ends + ('.yaml', '.yml')
 
     def __init__(self, variables, suite, resource):
         LOGGER.info(f"Initializing namespace for suite '{suite.longname}'.")
@@ -126,8 +127,8 @@ class Namespace:
         lib = IMPORTER.import_library(name, import_setting.args,
                                       import_setting.alias, self.variables)
         if lib.name in self._kw_store.libraries:
-            LOGGER.info(f"Test library '{lib.name}' already imported by "
-                        f"suite '{self._suite_name}'.")
+            LOGGER.info(f"Library '{lib.name}' already imported by suite "
+                        f"'{self._suite_name}'.")
             return
         if notify:
             LOGGER.imported("Library", lib.name,
@@ -146,19 +147,20 @@ class Namespace:
             name = self.variables.replace_string(name)
         except DataError as err:
             self._raise_replacing_vars_failed(setting, err)
-        return self._get_name(name, setting)
+        if self._is_import_by_path(setting.type, name):
+            return find_file(name, setting.directory, file_type=setting.type)
+        return name
 
     def _raise_replacing_vars_failed(self, setting, error):
         raise DataError(f"Replacing variables from setting '{setting.type}' "
                         f"failed: {error}")
 
-    def _get_name(self, name, setting):
-        if setting.type == 'Library' and not self._is_library_by_path(name):
-            return name
-        return find_file(name, setting.directory, file_type=setting.type)
-
-    def _is_library_by_path(self, path):
-        return path.lower().endswith(self._library_import_by_path_endings)
+    def _is_import_by_path(self, import_type, path):
+        if import_type == 'Library':
+            return path.lower().endswith(self._library_import_by_path_ends)
+        if import_type == 'Variables':
+            return path.lower().endswith(self._variables_import_by_path_ends)
+        return True
 
     def _resolve_args(self, import_setting):
         try:
@@ -221,8 +223,7 @@ class Namespace:
 class KeywordStore:
 
     def __init__(self, resource):
-        self.user_keywords = UserLibrary(resource,
-                                         UserLibrary.TEST_CASE_FILE_TYPE)
+        self.user_keywords = UserLibrary(resource, UserLibrary.TEST_CASE_FILE_TYPE)
         self.libraries = OrderedDict()
         self.resources = ImportCache()
         self.search_order = ()
@@ -363,7 +364,7 @@ class KeywordStore:
         if standard.library.name != standard.library.orig_name:
             standard_with_name = f" imported as '{standard.library.name}'"
         warning = Message(
-            f"Keyword '{standard.name}' found both from a custom test library "
+            f"Keyword '{standard.name}' found both from a custom library "
             f"'{custom.library.orig_name}'{custom_with_name} and a standard library "
             f"'{standard.library.orig_name}'{standard_with_name}. The custom keyword "
             f"is used. To select explicitly, and to get rid of this warning, use "

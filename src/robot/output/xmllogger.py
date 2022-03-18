@@ -130,8 +130,10 @@ class XmlLogger(ResultVisitor):
 
     def start_try_branch(self, branch):
         if branch.type == branch.EXCEPT:
-            self._writer.start('branch', attrs={'type': 'EXCEPT',
-                                               'variable': branch.variable})
+            self._writer.start('branch', attrs={
+                'type': 'EXCEPT', 'variable': branch.variable,
+                'pattern_type': branch.pattern_type
+            })
             self._write_list('pattern', branch.patterns)
         else:
             self._writer.start('branch', attrs={'type': branch.type})
@@ -141,7 +143,10 @@ class XmlLogger(ResultVisitor):
         self._writer.end('branch')
 
     def start_while(self, while_):
-        self._writer.start('while', attrs={'condition': while_.condition})
+        self._writer.start('while', attrs={
+            'condition': while_.condition,
+            'limit': while_.limit
+        })
         self._writer.element('doc', while_.doc)
 
     def end_while(self, while_):

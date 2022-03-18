@@ -549,9 +549,46 @@ strings and string themselves containing quotes cause additional problems. See t
 `Evaluating expressions`_ appendix for more information and examples related to
 the evaluation syntax
 
-There is currently no way to limit the number of loops in the `WHILE` loop. This means that
-if in the above example the keyword never returns zero, the loop continues executing
-ad infinitum.
+Limiting `WHILE` loop iterations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+With `WHILE` loops, there is always a possibility to achieve an infinite loop,
+either by intention or by mistake. This happens when the loop condition never
+becomes false. While infinite loops have some utility in application programming,
+in automation an infinite loop is rarely a desired outcome. If such a loop occurs
+with Robot Framework, the execution must be forcefully stopped and no log or report
+can be created. For this reason, `WHILE` loops in Robot Framework have a default
+limit of 10 000 iterations. If the limit is exceeded, the loop fails.
+
+The limit can be changed with the `limit` configuration parameter. Valid values
+are positive integers denoting iteration count and `time strings`__ like `10s` or
+`1 hour 10 minutes` denoting maximum iteration time. The limit can also be disabled
+altogether by using `NONE` (case-insensitive). All these options are illustrated
+by the examples below.
+
+.. sourcecode:: robotframework
+
+    *** Test Cases ***
+    Limit as iteration count
+        WHILE    True    limit=100
+            Log    This is run 100 times.
+        END
+
+    Limit as time
+        WHILE    True    limit=10 seconds
+            Log    This is run 10 seconds.
+        END
+
+    No limit
+        WHILE    True    limit=NONE
+            Log    This must be forcefully stopped.
+        END
+
+Keywords in a loop are not forcefully stopped if the limit is exceeded. Instead
+the loop is exited similarly as if the loop condition would have become false.
+A major difference is that the loop status will be `FAIL` in this case.
+
+__ `Time format`_
 
 Nesting `WHILE` loops
 ~~~~~~~~~~~~~~~~~~~~~
@@ -981,48 +1018,51 @@ Matching errors using patterns
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 By default matching an error using `EXCEPT` requires an exact match. That can be
-changed by prefixing the message with `GLOB:`, `REGEXP:` or `STARTS:` (case-sensitive)
+changed using a configuration option `type=` as an argument to the except clause.
+Valid values for the option are `GLOB`, `REGEXP` or `START` (case-insensitive)
 to make the match a `glob pattern match`__, a `regular expression match`__, or
-to match only the beginning of the error, respectively. Prefixing the message with
-`EQUALS:` has the same effect as the default behavior. If an `EXCEPT` has multiple
-messages, possible prefixes apply only to messages they are attached to, not to
-other messages. The prefix must always be specified explicitly and cannot come
-from a variable.
+to match only the beginning of the error, respectively. Using value
+`LITERAL` has the same effect as the default behavior. If an `EXCEPT` has multiple
+messages, this option applies to all of them. The value of the option
+can be defined with a variable as well.
 
 .. sourcecode:: robotframework
+
+    *** Settings ***
+    ${regexp}     regexp
 
     *** Test Cases ***
     Glob pattern
         TRY
             Some Keyword
-        EXCEPT    GLOB: ValueError: *
+        EXCEPT    ValueError: *    type=GLOB
             Error Handler 1
-        EXCEPT    GLOB: [Ee]rror ?? occurred    GLOB: ${pattern}
+        EXCEPT    [Ee]rror ?? occurred    ${pattern}    type=glob
             Error Handler 2
         END
 
     Regular expression
         TRY
             Some Keyword
-        EXCEPT    REGEXP: ValueError: .*
+        EXCEPT    ValueError: .*    type=${regexp}
             Error Handler 1
-        EXCEPT    REGEXP: [Ee]rror \\d+ occurred    # Backslash needs to be escaped.
+        EXCEPT    [Ee]rror \\d+ occurred    type=Regexp    # Backslash needs to be escaped.
             Error Handler 2
         END
 
     Match start
         TRY
             Some Keyword
-        EXCEPT    STARTS: ValueError:    STARTS: ${beginning}
+        EXCEPT    ValueError:    ${beginning}    type=start
             Error Handler
         END
 
     Explicit exact match
         TRY
             Some Keyword
-        EXCEPT    EQUALS: ValueError: invalid literal for int() with base 10: 'ooops'
+        EXCEPT    ValueError: invalid literal for int() with base 10: 'ooops'    type=LITERAL
             Error Handler
-        EXCEPT    EQUALS: Error 13 occurred
+        EXCEPT    Error 13 occurred    type=LITERAL
             Error Handler 2
         END
 

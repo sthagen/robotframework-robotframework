@@ -199,6 +199,10 @@ Options
     --maxerrorlines lines  Maximum number of error message lines to show in
                           report when tests fail. Default is 40, minimum is 10
                           and `NONE` can be used to show the full message.
+    --maxassignlength characters  Maximum number of characters to show in log
+                          when variables are assigned. Zero or negative values
+                          can be used to avoid showing assigned values at all.
+                          Default is 200.
  -L --loglevel level      Threshold level for logging. Available levels: TRACE,
                           DEBUG, INFO (default), WARN, NONE (no logging). Use
                           syntax `LOGLEVEL:DEFAULT` to define the default
@@ -306,7 +310,7 @@ Options
                           The seed must be an integer.
                           Examples: --randomize all
                                     --randomize tests:1234
-    --prerunmodifier class *  Class to programmatically modify the test suite
+    --prerunmodifier class *  Class to programmatically modify the suite
                           structure before execution.
     --prerebotmodifier class *  Class to programmatically modify the result
                           model before creating reports and logs.
@@ -327,15 +331,14 @@ Options
  -K --consolemarkers auto|on|off  Show markers on the console when top level
                           keywords in a test case end. Values have same
                           semantics as with --consolecolors.
- -P --pythonpath path *   Additional locations (directories, ZIPs) where
-                          to search test libraries and other extensions when
-                          they are imported. Multiple paths can be given by
-                          separating them with a colon (`:`) or by using this
-                          option several times. Given path can also be a glob
-                          pattern matching multiple paths.
-                          Examples:
-                          --pythonpath libs/
-                          --pythonpath /opt/testlibs:mylibs.zip:yourlibs
+ -P --pythonpath path *   Additional locations (directories, ZIPs) where to
+                          search libraries and other extensions when they are
+                          imported. Multiple paths can be given by separating
+                          them with a colon (`:`) or by using this option
+                          several times. Given path can also be a glob pattern
+                          matching multiple paths.
+                          Examples: --pythonpath libs/
+                                    --pythonpath /opt/libs:libraries.zip
  -A --argumentfile path *  Text file to read more arguments from. Use special
                           path `STDIN` to read contents from the standard input
                           stream. File can have both options and input files
@@ -347,7 +350,7 @@ Options
                           |  --include regression
                           |  --name Regression Tests
                           |  # This is a comment line
-                          |  my_tests.robot
+                          |  tests.robot
                           |  path/to/test/directory/
                           Examples:
                           --argumentfile argfile.txt --argumentfile STDIN
@@ -411,8 +414,8 @@ $ robot tests.robot
 class RobotFramework(Application):
 
     def __init__(self):
-        Application.__init__(self, USAGE, arg_limits=(1,),
-                             env_options='ROBOT_OPTIONS', logger=LOGGER)
+        Application.__init__(self, USAGE, arg_limits=(1,), env_options='ROBOT_OPTIONS',
+                             logger=LOGGER)
 
     def main(self, datasources, **options):
         try:
@@ -423,7 +426,9 @@ class RobotFramework(Application):
             raise
         LOGGER.register_console_logger(**settings.console_output_config)
         LOGGER.info(f'Settings:\n{settings}')
-        builder = TestSuiteBuilder(settings['SuiteNames'],
+        if settings.pythonpath:
+            sys.path = settings.pythonpath + sys.path
+        builder = TestSuiteBuilder(settings.suite_names,
                                    included_extensions=settings.extension,
                                    rpa=settings.rpa,
                                    allow_empty_suite=settings.run_empty_suite)
@@ -435,11 +440,14 @@ class RobotFramework(Application):
         suite.configure(**settings.suite_config)
         with pyloggingconf.robot_handler_enabled(settings.log_level):
             old_max_error_lines = text.MAX_ERROR_LINES
+            old_max_assign_length = text.MAX_ASSIGN_LENGTH
             text.MAX_ERROR_LINES = settings.max_error_lines
+            text.MAX_ASSIGN_LENGTH = settings.max_assign_length
             try:
                 result = suite.run(settings)
             finally:
                 text.MAX_ERROR_LINES = old_max_error_lines
+                text.MAX_ASSIGN_LENGTH = old_max_assign_length
             LOGGER.info("Tests execution ended. Statistics:\n%s"
                         % result.suite.stat_message)
             if settings.log or settings.report or settings.xunit:

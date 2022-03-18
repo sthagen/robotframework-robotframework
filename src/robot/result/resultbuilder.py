@@ -154,35 +154,34 @@ class ExecutionResultBuilder:
             tag = elem.tag
             start = event == 'start'
             end = not start
-            if start and tag in containers:
-                inside_kw += 1
-                if started >= 0:
-                    started += 1
-                elif by_name and name_match(elem.get('name', ''), elem.get('library')):
-                    started = 0
-                    seen_doc = False
-                elif by_type and type_match(tag):
-                    started = 0
-                    seen_doc = False
-            elif started < 0 and by_tags and inside_kw:
-                if end and tag == 'tag':
-                    tags.append(elem.text or '')
-                elif end and tags:
-                    if tags_match(tags):
+            if start:
+                if tag in containers:
+                    inside_kw += 1
+                    if started >= 0:
+                        started += 1
+                    elif by_name and name_match(elem.get('name', ''), elem.get('library')):
+                        started = 0
+                        seen_doc = False
+                    elif by_type and type_match(tag):
                         started = 0
                         seen_doc = False
                     tags = []
-            if end and tag in containers:
-                inside_kw -= 1
-                if started == 0 and not seen_doc:
-                    doc = ET.Element('doc')
-                    doc.text = '_*Keyword content flattened.*_'
-                    yield 'start', doc
-                    yield 'end', doc
-            if started == 0 and end and tag == 'doc':
-                seen_doc = True
-                elem.text = ('%s\n\n_*Keyword content flattened.*_'
-                             % (elem.text or '')).strip()
+            else:
+                if tag in containers:
+                    inside_kw -= 1
+                    if started == 0 and not seen_doc:
+                        doc = ET.Element('doc')
+                        doc.text = '_*Content flattened.*_'
+                        yield 'start', doc
+                        yield 'end', doc
+                elif by_tags and inside_kw and started < 0 and tag == 'tag':
+                    tags.append(elem.text or '')
+                    if tags_match(tags):
+                        started = 0
+                        seen_doc = False
+                elif started == 0 and tag == 'doc':
+                    seen_doc = True
+                    elem.text = f"{elem.text or ''}\n\n_*Content flattened.*_".strip()
             if started <= 0 or tag == 'msg':
                 yield event, elem
             else:

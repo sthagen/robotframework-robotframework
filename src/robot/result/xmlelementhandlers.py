@@ -187,7 +187,10 @@ class WhileHandler(ElementHandler):
     children = frozenset(('iter', 'status', 'doc', 'msg', 'kw'))
 
     def start(self, elem, result):
-        return result.body.create_while(condition=elem.get('condition'))
+        return result.body.create_while(
+            condition=elem.get('condition'),
+            limit=elem.get('limit')
+        )
 
 
 @ElementHandler.register
@@ -212,8 +215,8 @@ class IfHandler(ElementHandler):
 @ElementHandler.register
 class BranchHandler(ElementHandler):
     tag = 'branch'
-    children = frozenset(('status', 'kw', 'if', 'for', 'try', 'while', 'msg',
-                          'doc', 'return', 'pattern', 'break', 'continue'))
+    children = frozenset(('status', 'kw', 'if', 'for', 'try', 'while', 'msg', 'doc',
+                          'return', 'pattern', 'break', 'continue'))
 
     def start(self, elem, result):
         return result.body.create_branch(**elem.attrib)

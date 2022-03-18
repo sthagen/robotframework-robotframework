@@ -100,8 +100,8 @@ class While(model.While):
     __slots__ = ['lineno', 'error']
     body_class = Body
 
-    def __init__(self, parent=None, lineno=None, error=None):
-        super().__init__(parent)
+    def __init__(self, condition=None, limit=None, parent=None, lineno=None, error=None):
+        super().__init__(condition, limit, parent)
         self.lineno = lineno
         self.error = error
 
@@ -148,9 +148,9 @@ class TryBranch(model.TryBranch):
     __slots__ = ['lineno']
     body_class = Body
 
-    def __init__(self, type=BodyItem.TRY, patterns=(), variable=None, parent=None,
-                 lineno=None):
-        super().__init__(type, patterns, variable, parent)
+    def __init__(self, type=BodyItem.TRY, patterns=(), pattern_type=None,
+                 variable=None, parent=None, lineno=None):
+        super().__init__(type, patterns, pattern_type, variable, parent)
         self.lineno = lineno
 
     @property

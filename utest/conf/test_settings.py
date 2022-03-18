@@ -1,8 +1,10 @@
+from os.path import abspath, dirname, join, normpath
 import unittest
 
 from robot.conf.settings import _BaseSettings, RobotSettings, RebotSettings
 from robot.errors import DataError
-from robot.utils.asserts import assert_equal
+from robot.utils import WINDOWS
+from robot.utils.asserts import assert_equal, assert_true
 
 
 class SettingWrapper(_BaseSettings):
@@ -68,6 +70,37 @@ class TestRobotAndRebotSettings(unittest.TestCase):
     def test_default_log_level(self):
         self._verify_log_levels(RobotSettings(), 'INFO')
         self._verify_log_levels(RebotSettings(), 'TRACE')
+
+    def test_pythonpath(self):
+        curdir = normpath(dirname(abspath(__file__)))
+        for inp, exp in [('foo', [abspath('foo')]),
+                         (['a:b:c', 'zap'], [abspath(p) for p in ('a', 'b', 'c', 'zap')]),
+                         (['foo;bar', 'zap'], [abspath(p) for p in ('foo', 'bar', 'zap')]),
+                         (join(curdir, 't*_set*.??'), [join(curdir, 'test_settings.py')])]:
+            assert_equal(RobotSettings(pythonpath=inp).pythonpath, exp)
+        if WINDOWS:
+            assert_equal(RobotSettings(pythonpath=r'c:\temp:d:\e\f:g').pythonpath,
+                         [r'c:\temp', r'd:\e\f', abspath('g')])
+            assert_equal(RobotSettings(pythonpath=r'c:\temp;d:\e\f;g').pythonpath,
+                         [r'c:\temp', r'd:\e\f', abspath('g')])
+
+    def test_get_rebot_settings_returns_only_rebot_settings(self):
+        expected = RebotSettings()
+        for opt in RobotSettings().get_rebot_settings()._opts:
+            assert_true(opt in expected, opt)
+
+    def test_get_rebot_settings_excludes_settings_handled_already_in_execution(self):
+        settings = RobotSettings(
+            name='N', doc=':doc:', metadata='m:d', settag='s',
+            include='i', exclude='e', test='t', suite='s',
+            output='out.xml', loglevel='DEBUG:INFO', timestampoutputs=True
+        ).get_rebot_settings()
+        for name in 'Name', 'Doc', 'Output':
+            assert_equal(settings[name], None)
+        for name in 'Metadata', 'SetTag', 'Include', 'Exclude', 'TestNames', 'SuiteNames':
+            assert_equal(settings[name], [])
+        assert_equal(settings['LogLevel'], 'TRACE')
+        assert_equal(settings['TimestampOutputs'], False)
 
     def _verify_log_level(self, input, level=None, default=None):
         level = level or input

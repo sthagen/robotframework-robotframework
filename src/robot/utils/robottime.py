@@ -13,12 +13,11 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import datetime
-import time
 import re
+import time
 
 from .normalizing import normalize
-from .misc import plural_or_not, roundup
+from .misc import plural_or_not
 from .robottypes import is_number, is_string
 
 
@@ -35,17 +34,21 @@ def _get_timetuple(epoch_secs=None):
 
 def _float_secs_to_secs_and_millis(secs):
     isecs = int(secs)
-    millis = roundup((secs - isecs) * 1000)
+    millis = round((secs - isecs) * 1000)
     return (isecs, millis) if millis < 1000 else (isecs+1, 0)
 
 
-def timestr_to_secs(timestr, round_to=3):
+def timestr_to_secs(timestr, round_to=3, accept_plain_values=True):
     """Parses time like '1h 10s', '01:00:10' or '42' and returns seconds."""
     if is_string(timestr) or is_number(timestr):
-        for converter in _number_to_secs, _timer_to_secs, _time_string_to_secs:
+        if accept_plain_values:
+            converters = [_number_to_secs, _timer_to_secs, _time_string_to_secs]
+        else:
+            converters = [_timer_to_secs, _time_string_to_secs]
+        for converter in converters:
             secs = converter(timestr)
             if secs is not None:
-                return secs if round_to is None else roundup(secs, round_to)
+                return secs if round_to is None else round(secs, round_to)
     raise ValueError("Invalid time string '%s'." % timestr)
 
 
@@ -319,7 +322,7 @@ def timestamp_to_secs(timestamp, seps=None):
     except (ValueError, OverflowError):
         raise ValueError("Invalid timestamp '%s'." % timestamp)
     else:
-        return roundup(secs, 3)
+        return round(secs, 3)
 
 
 def secs_to_timestamp(secs, seps=None, millis=False):
@@ -328,7 +331,7 @@ def secs_to_timestamp(secs, seps=None, millis=False):
     ttuple = time.localtime(secs)[:6]
     if millis:
         millis = (secs - int(secs)) * 1000
-        ttuple = ttuple + (roundup(millis),)
+        ttuple = ttuple + (round(millis),)
     return format_time(ttuple, *seps)
 
 
@@ -359,14 +362,14 @@ def elapsed_time_to_string(elapsed, include_millis=True):
 
 
 def _elapsed_time_to_string(elapsed):
-    secs, millis = divmod(roundup(elapsed), 1000)
+    secs, millis = divmod(round(elapsed), 1000)
     mins, secs = divmod(secs, 60)
     hours, mins = divmod(mins, 60)
     return '%02d:%02d:%02d.%03d' % (hours, mins, secs, millis)
 
 
 def _elapsed_time_to_string_without_millis(elapsed):
-    secs = roundup(elapsed, ndigits=-3) // 1000
+    secs = round(elapsed, ndigits=-3) // 1000
     mins, secs = divmod(secs, 60)
     hours, mins = divmod(mins, 60)
     return '%02d:%02d:%02d' % (hours, mins, secs)
@@ -376,8 +379,8 @@ def _timestamp_to_millis(timestamp, seps=None):
     if seps:
         timestamp = _normalize_timestamp(timestamp, seps)
     Y, M, D, h, m, s, millis = _split_timestamp(timestamp)
-    secs = time.mktime(datetime.datetime(Y, M, D, h, m, s).timetuple())
-    return roundup(1000*secs + millis)
+    secs = time.mktime((Y, M, D, h, m, s, 0, 0, -1))
+    return round(1000*secs + millis)
 
 
 def _normalize_timestamp(ts, seps):
@@ -385,8 +388,7 @@ def _normalize_timestamp(ts, seps):
         if sep in ts:
             ts = ts.replace(sep, '')
     ts = ts.ljust(17, '0')
-    return '%s%s%s %s:%s:%s.%s' % (ts[:4], ts[4:6], ts[6:8], ts[8:10],
-                                   ts[10:12], ts[12:14], ts[14:17])
+    return f'{ts[:8]} {ts[8:10]}:{ts[10:12]}:{ts[12:14]}.{ts[14:17]}'
 
 
 def _split_timestamp(timestamp):

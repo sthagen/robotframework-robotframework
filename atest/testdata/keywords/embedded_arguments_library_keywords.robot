@@ -36,7 +36,13 @@ Embedded Arguments as Variables
     Should Be Equal    ${name}-${item}    42-${SPACE*10}
     ${name}    ${item} =    User ${name} Selects ${TEST TAGS} From Webshop
     Should Be Equal    ${name}    ${42}
-    Should Be True    ${item} == []
+    Should Be Equal    ${item}    ${{[]}}
+
+Embedded Arguments as List And Dict Variables
+    ${i1}    ${i2} =    Evaluate    [1, 2, 3, 'neljä'], {'a': 1, 'b': 2}
+    ${o1}    ${o2} =    User @{i1} Selects &{i2} From Webshop
+    Should Be Equal    ${o1}    ${i1}
+    Should Be Equal    ${o2}    ${i2}
 
 Non-Existing Variable in Embedded Arguments
     [Documentation]    FAIL Variable '${non existing}' not found.
@@ -98,7 +104,7 @@ Embedded Arguments Syntax is Underscore Sensitive
     User Janne Selects x from_webshop
 
 Keyword Matching Multiple Keywords In Library File
-    [Documentation]    FAIL Test library 'embedded_args_in_lk_1' contains multiple keywords matching name 'foo+lib+bar-lib-zap':
+    [Documentation]    FAIL Library 'embedded_args_in_lk_1' contains multiple keywords matching name 'foo+lib+bar-lib-zap':
     ...    ${INDENT}\${a}+lib+\${b}
     ...    ${INDENT}\${a}-lib-\${b}
     foo+lib+bar
@@ -141,14 +147,14 @@ Same name with different regexp works
 
 Same name with different regexp matching multiple fails
     [Documentation]    FAIL
-    ...    Test library 'embedded_args_in_lk_1' contains multiple keywords matching name 'It is a cat':
+    ...    Library 'embedded_args_in_lk_1' contains multiple keywords matching name 'It is a cat':
     ...    ${INDENT}It is ${animal:a (cat|cow)}
     ...    ${INDENT}It is ${animal:a (dog|cat)}
     It is a cat
 
 Same name with same regexp fails
     [Documentation]    FAIL
-    ...    Test library 'embedded_args_in_lk_1' contains multiple keywords matching name 'It is totally same':
+    ...    Library 'embedded_args_in_lk_1' contains multiple keywords matching name 'It is totally same':
     ...    ${INDENT}It is totally ${same}
     ...    ${INDENT}It is totally ${same}
     It is totally same
