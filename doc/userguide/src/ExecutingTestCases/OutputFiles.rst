@@ -107,7 +107,6 @@ The command line option :option:`--report (-r)` determines where
 report files are created. Similarly as log files, reports are always
 created unless `NONE` is used as a value, and their default
 name is :file:`report.html`.
-FIXME: new screenshots of report / log.
 
 .. figure:: src/ExecutingTestCases/report_passed.png
    :target: src/ExecutingTestCases/report_passed.html
@@ -419,7 +418,7 @@ figure below shows a snippet of the resulting :name:`Statistics by
 Tag` table when example test data is executed with these options::
 
     --tagstatlink mytag:http://www.google.com:Google
-    --tagstatlink jython-bug-*:http://bugs.jython.org/issue_%1:Jython-bugs
+    --tagstatlink example-bug-*:http://example.com
     --tagstatlink owner-*:mailto:%1@domain.com?subject=Acceptance_Tests:Send_Mail
 
 .. figure:: src/ExecutingTestCases/tagstatlink.png

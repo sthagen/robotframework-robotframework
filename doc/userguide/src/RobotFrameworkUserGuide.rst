@@ -15,7 +15,7 @@
 | Licensed under the `Creative Commons Attribution 3.0 Unported`_ license
 
 .. contents:: Table of Contents
-   :depth: 2
+   :depth: 3
 
 .. sectnum::
    :depth: 3
@@ -79,7 +79,6 @@
 .. include:: ExtendingRobotFramework/CreatingTestLibraries.rst
 .. include:: ExtendingRobotFramework/RemoteLibrary.rst
 .. include:: ExtendingRobotFramework/ListenerInterface.rst
-.. include:: ExtendingRobotFramework/ExtendingRobotFrameworkJar.rst
 
 ~~~~~~~~~~~~~~~~~~~~
   Supporting Tools
@@ -233,7 +232,6 @@
 .. _docutils: https://pypi.python.org/pypi/docutils
 .. _Sphinx: http://sphinx-doc.org/
 .. _Pygments: http://pygments.org/
-.. _pip: http://pip-installer.org
 .. _Read the Docs: http://readthedocs.org
 .. _AutoIT: http://www.autoitscript.com/autoit3
 .. _XML-RPC: http://www.xmlrpc.com/
