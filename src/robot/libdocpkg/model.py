@@ -110,6 +110,7 @@ class LibraryDoc:
 
     def to_dictionary(self):
         return {
+            'specversion': 1,
             'name': self.name,
             'doc': self.doc,
             'version': self.version,
@@ -122,7 +123,7 @@ class LibraryDoc:
             'tags': list(self.all_tags),
             'inits': [init.to_dictionary() for init in self.inits],
             'keywords': [kw.to_dictionary() for kw in self.keywords],
-            # 'dataTypes' was deprecated in RF 5, 'types' should be used instead.
+            # 'dataTypes' was deprecated in RF 5, 'typedoc' should be used instead.
             'dataTypes': self._get_data_types(self.type_docs),
             'typedocs': [t.to_dictionary() for t in sorted(self.type_docs)]
         }
