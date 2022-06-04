@@ -53,8 +53,8 @@ class BlockLexer(Lexer):
 
     def lexer_for(self, statement):
         for cls in self.lexer_classes():
-            lexer = cls(self.ctx)
-            if lexer.handles(statement):
+            if cls.handles(statement, self.ctx):
+                lexer = cls(self.ctx)
                 return lexer
         raise TypeError("%s did not find lexer for statement %s."
                         % (type(self).__name__, statement))
@@ -95,8 +95,9 @@ class SectionLexer(BlockLexer):
 
 class SettingSectionLexer(SectionLexer):
 
-    def handles(self, statement):
-        return self.ctx.setting_section(statement)
+    @classmethod
+    def handles(cls, statement, ctx):
+        return ctx.setting_section(statement)
 
     def lexer_classes(self):
         return (SettingSectionHeaderLexer, SettingLexer)
@@ -104,8 +105,9 @@ class SettingSectionLexer(SectionLexer):
 
 class VariableSectionLexer(SectionLexer):
 
-    def handles(self, statement):
-        return self.ctx.variable_section(statement)
+    @classmethod
+    def handles(cls, statement, ctx):
+        return ctx.variable_section(statement)
 
     def lexer_classes(self):
         return (VariableSectionHeaderLexer, VariableLexer)
@@ -113,8 +115,9 @@ class VariableSectionLexer(SectionLexer):
 
 class TestCaseSectionLexer(SectionLexer):
 
-    def handles(self, statement):
-        return self.ctx.test_case_section(statement)
+    @classmethod
+    def handles(cls, statement, ctx):
+        return ctx.test_case_section(statement)
 
     def lexer_classes(self):
         return (TestCaseSectionHeaderLexer, TestCaseLexer)
@@ -122,8 +125,9 @@ class TestCaseSectionLexer(SectionLexer):
 
 class KeywordSectionLexer(SettingSectionLexer):
 
-    def handles(self, statement):
-        return self.ctx.keyword_section(statement)
+    @classmethod
+    def handles(cls, statement, ctx):
+        return ctx.keyword_section(statement)
 
     def lexer_classes(self):
         return (KeywordSectionHeaderLexer, KeywordLexer)
@@ -131,8 +135,9 @@ class KeywordSectionLexer(SettingSectionLexer):
 
 class CommentSectionLexer(SectionLexer):
 
-    def handles(self, statement):
-        return self.ctx.comment_section(statement)
+    @classmethod
+    def handles(cls, statement, ctx):
+        return ctx.comment_section(statement)
 
     def lexer_classes(self):
         return (CommentSectionHeaderLexer, CommentLexer)
@@ -140,7 +145,8 @@ class CommentSectionLexer(SectionLexer):
 
 class ImplicitCommentSectionLexer(SectionLexer):
 
-    def handles(self, statement):
+    @classmethod
+    def handles(cls, statement, ctx):
         return True
 
     def lexer_classes(self):
@@ -149,7 +155,8 @@ class ImplicitCommentSectionLexer(SectionLexer):
 
 class ErrorSectionLexer(SectionLexer):
 
-    def handles(self, statement):
+    @classmethod
+    def handles(cls, statement, ctx):
         return statement and statement[0].value.startswith('*')
 
     def lexer_classes(self):
@@ -177,7 +184,7 @@ class TestOrKeywordLexer(BlockLexer):
             self._name_seen = True
         else:
             while statement and not statement[0].value:
-                statement.pop(0).type = None    # These tokens will be ignored
+                statement.pop(0).type = None  # These tokens will be ignored
 
     def lexer_classes(self):
         return (TestOrKeywordSettingLexer, BreakLexer, ContinueLexer,
@@ -223,8 +230,9 @@ class NestedBlockLexer(BlockLexer):
 
 class ForLexer(NestedBlockLexer):
 
-    def handles(self, statement):
-        return ForHeaderLexer(self.ctx).handles(statement)
+    @classmethod
+    def handles(cls, statement, ctx):
+        return ForHeaderLexer.handles(statement, ctx)
 
     def lexer_classes(self):
         return (ForHeaderLexer, InlineIfLexer, IfLexer, TryLexer, WhileLexer, EndLexer,
@@ -233,8 +241,9 @@ class ForLexer(NestedBlockLexer):
 
 class WhileLexer(NestedBlockLexer):
 
-    def handles(self, statement):
-        return WhileHeaderLexer(self.ctx).handles(statement)
+    @classmethod
+    def handles(cls, statement, ctx):
+        return WhileHeaderLexer.handles(statement, ctx)
 
     def lexer_classes(self):
         return (WhileHeaderLexer, ForLexer, InlineIfLexer, IfLexer, TryLexer, EndLexer,
@@ -243,8 +252,9 @@ class WhileLexer(NestedBlockLexer):
 
 class IfLexer(NestedBlockLexer):
 
-    def handles(self, statement):
-        return IfHeaderLexer(self.ctx).handles(statement)
+    @classmethod
+    def handles(cls, statement, ctx):
+        return IfHeaderLexer.handles(statement, ctx)
 
     def lexer_classes(self):
         return (InlineIfLexer, IfHeaderLexer, ElseIfHeaderLexer, ElseHeaderLexer,
@@ -254,10 +264,11 @@ class IfLexer(NestedBlockLexer):
 
 class InlineIfLexer(BlockLexer):
 
-    def handles(self, statement):
+    @classmethod
+    def handles(cls, statement, ctx):
         if len(statement) <= 2:
             return False
-        return InlineIfHeaderLexer(self.ctx).handles(statement)
+        return InlineIfHeaderLexer.handles(statement, ctx)
 
     def accepts_more(self, statement):
         return False
@@ -305,8 +316,9 @@ class InlineIfLexer(BlockLexer):
 
 class TryLexer(NestedBlockLexer):
 
-    def handles(self, statement):
-        return TryHeaderLexer(self.ctx).handles(statement)
+    @classmethod
+    def handles(cls, statement, ctx):
+        return TryHeaderLexer(ctx).handles(statement, ctx)
 
     def lexer_classes(self):
         return (TryHeaderLexer, ExceptHeaderLexer, ElseHeaderLexer, FinallyHeaderLexer,
