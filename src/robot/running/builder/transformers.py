@@ -15,6 +15,7 @@
 
 from ast import NodeVisitor
 
+from robot.output import LOGGER
 from robot.variables import VariableIterator
 
 from .testsettings import TestSettings
@@ -218,6 +219,7 @@ class TestCaseBuilder(NodeVisitor):
         self.settings.timeout = node.value
 
     def visit_Tags(self, node):
+        deprecate_tags_starting_with_hyphen(node, self.suite.source)
         self.settings.tags = node.values
 
     def visit_Template(self, node):
@@ -245,14 +247,11 @@ class KeywordBuilder(NodeVisitor):
     def __init__(self, resource):
         self.resource = resource
         self.kw = None
-        self.teardown = None
 
     def visit_Keyword(self, node):
-        self.kw = self.resource.keywords.create(name=node.name,
-                                                lineno=node.lineno)
+        self.kw = self.resource.keywords.create(name=node.name, lineno=node.lineno)
         self.generic_visit(node)
-        if self.teardown is not None:
-            self.kw.teardown.config(**self.teardown)
+
 
     def visit_Documentation(self, node):
         self.kw.doc = node.value
@@ -260,10 +259,11 @@ class KeywordBuilder(NodeVisitor):
     def visit_Arguments(self, node):
         self.kw.args = node.values
         if node.errors:
-            self.kw.error = ('Invalid argument specification: %s'
-                             % format_error(node.errors))
+            error = format_error(node.errors)
+            self.kw.error = f'Invalid argument specification: {error}'
 
     def visit_Tags(self, node):
+        deprecate_tags_starting_with_hyphen(node, self.resource.source)
         self.kw.tags = node.values
 
     def visit_Return(self, node):
@@ -273,9 +273,8 @@ class KeywordBuilder(NodeVisitor):
         self.kw.timeout = node.value
 
     def visit_Teardown(self, node):
-        self.teardown = {
-            'name': node.name, 'args': node.args, 'lineno': node.lineno
-        }
+        self.kw.teardown.config(name=node.name, args=node.args,
+                                lineno=node.lineno)
 
     def visit_KeywordCall(self, node):
         self.kw.body.create_keyword(name=node.keyword, args=node.args,
@@ -550,3 +549,15 @@ def format_error(errors):
     if len(errors) == 1:
         return errors[0]
     return '\n- '.join(('Multiple errors:',) + errors)
+
+
+def deprecate_tags_starting_with_hyphen(node, source):
+    for tag in node.values:
+        if tag.startswith('-'):
+            LOGGER.warn(
+                f"Error in file '{source}' on line {node.lineno}: "
+                f"Settings tags starting with a hyphen using the '[Tags]' setting "
+                f"is deprecated. In Robot Framework 5.2 this syntax will be used "
+                f"for removing tags. Escape '{tag}' like '\\{tag}' to use the "
+                f"literal value and to avoid this warning."
+            )
