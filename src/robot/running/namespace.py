@@ -24,6 +24,7 @@ from robot.output import LOGGER, Message
 from robot.utils import (RecommendationFinder, eq, find_file, is_string, normalize,
                          plural_or_not as s, printable_name, seq2str, seq2str2)
 
+from .context import EXECUTION_CONTEXTS
 from .importer import ImportCache, Importer
 from .model import Import
 from .runkwregister import RUN_KW_REGISTER
@@ -327,7 +328,9 @@ class KeywordStore:
         if len(found) > 1:
             found = self._get_runner_based_on_search_order(found)
         if len(found) > 1:
-            found = self._handle_private_user_keywords(found, name)
+            found = self._get_runner_from_same_resource_file(found)
+        if len(found) > 1:
+            found = self._handle_private_user_keywords(found)
         if len(found) == 1:
             return found[0]
         self._raise_multiple_keywords_found(found, name)
@@ -345,26 +348,19 @@ class KeywordStore:
             return found[0]
         self._raise_multiple_keywords_found(found, name)
 
-    def _handle_private_user_keywords(self, runners, used_as):
-        public = [r for r in runners if not r.private]
-        if len(public) != 1:
-            return runners
-        private = [r for r in runners if r.private]
-        self._public_and_private_keyword_warning(public[0], private, used_as)
-        return public
+    def _get_runner_from_same_resource_file(self, found):
+        user_keywords = EXECUTION_CONTEXTS.current.user_keywords
+        if not user_keywords:
+            return found
+        parent_source = user_keywords[-1].source
+        for runner in found:
+            if runner.source == parent_source:
+                return [runner]
+        return found
 
-    def _public_and_private_keyword_warning(self, public, private, used_as):
-        warning = Message(
-            f"Both public and private keywords with name '{used_as}' found. The public "
-            f"keyword '{public.longname}' is used and private keyword{s(private)} "
-            f"{seq2str(p.longname for p in private)} ignored. To select explicitly, "
-            f"and to get rid of this warning, use the long name of the keyword.",
-            level='WARN'
-        )
-        if public.pre_run_messages:
-            public.pre_run_messages.append(warning)
-        else:
-            public.pre_run_messages = [warning]
+    def _handle_private_user_keywords(self, runners):
+        public = [r for r in runners if not r.private]
+        return public if len(public) == 1 else runners
 
     def _get_runner_based_on_search_order(self, runners):
         for libname in self.search_order:
