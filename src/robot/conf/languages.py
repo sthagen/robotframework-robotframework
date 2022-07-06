@@ -23,6 +23,23 @@ class Languages:
 
     def __init__(self, languages):
         self.languages = self._get_languages(languages)
+        self.setting_headers = set()
+        self.variable_headers = set()
+        self.test_case_headers = set()
+        self.task_headers = set()
+        self.keyword_headers = set()
+        self.comment_headers = set()
+        self.settings = {}
+        self.bdd_prefixes = set()
+        for lang in self.languages:
+            self.setting_headers |= lang.setting_headers
+            self.variable_headers |= lang.variable_headers
+            self.test_case_headers |= lang.test_case_headers
+            self.task_headers |= lang.task_headers
+            self.keyword_headers |= lang.keyword_headers
+            self.comment_headers |= lang.comment_headers
+            self.settings.update(lang.settings)
+            self.bdd_prefixes |= lang.bdd_prefixes
 
     def _get_languages(self, languages):
         languages = self._resolve_languages(languages)
@@ -45,15 +62,17 @@ class Languages:
         return languages
 
     def _import_languages(self, lang):
-        def find_subclass(member):
+        def is_language(member):
             return (inspect.isclass(member)
                     and issubclass(member, Language)
                     and member is not Language)
-        # FIXME: error handling
         if os.path.exists(lang):
             lang = os.path.abspath(lang)
-        module = Importer().import_module(lang)
-        return [value for _, value in inspect.getmembers(module, find_subclass)]
+        module = Importer('language file').import_module(lang)
+        return [value for _, value in inspect.getmembers(module, is_language)]
+
+    def translate_setting(self, name):
+        return self.settings.get(name, name)
 
     def __iter__(self):
         return iter(self.languages)
@@ -77,16 +96,15 @@ class Language:
     test_teardown = None
     test_template = None
     test_timeout = None
-    force_tags = None
-    default_tags = None
+    test_tags = None
+    keyword_tags = None
     tags = None
     setup = None
     teardown = None
     template = None
     timeout = None
     arguments = None
-    return_ = None
-    bdd_prefixes = set()  # These are not used yet
+    bdd_prefixes = set()
 
     @property
     def settings(self):
@@ -102,15 +120,14 @@ class Language:
             self.test_teardown: En.test_teardown,
             self.test_template: En.test_template,
             self.test_timeout: En.test_timeout,
-            self.force_tags: En.force_tags,
-            self.default_tags: En.default_tags,
+            self.test_tags: En.test_tags,
+            self.keyword_tags: En.keyword_tags,
             self.tags: En.tags,
             self.setup: En.setup,
             self.teardown: En.teardown,
             self.template: En.template,
             self.timeout: En.timeout,
             self.arguments: En.arguments,
-            self.return_: En.return_
         }
         settings.pop(None, None)
         return settings
@@ -133,16 +150,15 @@ class En(Language):
     test_setup = 'Test Setup'
     test_teardown = 'Test Teardown'
     test_template = 'Test Template'
-    force_tags = 'Force Tags'
-    default_tags = 'Default Tags'
     test_timeout = 'Test Timeout'
+    test_tags = 'Test Tags'
+    keyword_tags = 'Keyword Tags'
     setup = 'Setup'
     teardown = 'Teardown'
     template = 'Template'
     tags = 'Tags'
     timeout = 'Timeout'
     arguments = 'Arguments'
-    return_ = 'Return'
     bdd_prefixes = {'Given', 'When', 'Then', 'And', 'But'}
 
 
@@ -165,14 +181,13 @@ class Fi(Language):
     test_setup = 'Testin Alustus'
     test_teardown = 'Testin Purku'
     test_template = 'Testin Malli'
-    force_tags = 'Testin Tagit'
-    default_tags = 'Oletus Tagit'
     test_timeout = 'Testin Aikaraja'
+    test_tags = 'Testin Tagit'
+    keyword_tags = 'Avainsanan Tagit'
     setup = 'Alustus'
     teardown = 'Purku'
     template = 'Malli'
     tags = 'Tagit'
     timeout = 'Aikaraja'
     arguments = 'Argumentit'
-    return_ = 'Paluuarvo'
     bdd_prefixes = {'Oletetaan', 'Kun', 'Niin', 'Ja', 'Mutta'}
