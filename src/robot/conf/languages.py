@@ -16,7 +16,7 @@
 import inspect
 import os.path
 
-from robot.utils import getdoc, is_string, Importer
+from robot.utils import getdoc, is_string, Importer, normalize
 
 
 class Languages:
@@ -48,7 +48,7 @@ class Languages:
         available = self._get_available_languages()
         returned = []
         for lang in languages:
-            normalized = lang.lower().replace('-', '')
+            normalized = normalize(lang, ignore='-')
             if normalized in available:
                 returned.append(available[normalized])
             else:
@@ -67,9 +67,9 @@ class Languages:
     def _get_available_languages(self):
         available = {}
         for lang in Language.__subclasses__():
-            available[lang.__name__.lower()] = lang
+            available[normalize(lang.__name__)] = lang
             if lang.__doc__:
-                available[lang.__doc__.lower()] = lang
+                available[normalize(lang.__doc__)] = lang
         return available
 
     def _import_languages(self, lang):
@@ -90,6 +90,14 @@ class Languages:
 
 
 class Language:
+    """Base class for language definitions.
+
+    New translations can be added by extending this class and setting class
+    attributes listed below.
+
+    Language :attr:`code` is got based on the class name and :attr:`name`
+    based on the docstring.
+    """
     setting_headers = set()
     variable_headers = set()
     test_case_headers = set()
@@ -126,17 +134,39 @@ class Language:
     def from_name(cls, name):
         """Return langauge class based on given `name`.
 
-        Name is matched both against the class name (language short name)
-        and possible docstring (full language name). Matching is case-insensitive
-        and hyphen (`-`) is ignored to support, for example, `PT-BR`.
+        Name can either be a language name (e.g. 'Finnish' or 'Brazilian Portuguese')
+        or a language code (e.g. 'fi' or 'pt-BR'). Matching is case and space
+        insensitive and the hyphen is ignored when matching language codes.
 
         Raises `ValueError` if no matching langauge is found.
         """
-        normalized = name.lower().replace('-', '')
+        normalized = normalize(name, ignore='-')
         for subcls in cls.__subclasses__():
-            if normalized in (subcls.__name__.lower(), getdoc(subcls).lower()):
+            if normalized in (normalize(subcls.__name__),
+                              normalize(getdoc(subcls))):
                 return subcls()
         raise ValueError(f"No language with name '{name}' found.")
+
+    @property
+    def code(self):
+        """Language code like 'fi' or 'pt-BR'.
+
+        Got based on the class name. If the class name is two characters (or less),
+        the code is just the name in lower case. If it is longer, a hyphen is added
+        remainder of the class name is upper-cased.
+        """
+        code = type(self).__name__.lower()
+        if len(code) < 3:
+            return code
+        return f'{code[:2]}-{code[2:].upper()}'
+
+    @property
+    def name(self):
+        """Language name like 'Finnish' or 'Brazilian Portuguese'.
+
+        Got from the first line of the class docstring.
+        """
+        return getdoc(self).splitlines()[0]
 
     @property
     def settings(self):
@@ -378,7 +408,7 @@ class De(Language):
 
 
 class PtBr(Language):
-    """Portuguese, Brazilian"""
+    """Brazilian Portuguese"""
     setting_headers = {'Configuração', 'Configurações'}
     variable_headers = {'Variável', 'Variáveis'}
     test_case_headers = {'Caso de Teste', 'Casos de Teste'}
@@ -515,6 +545,41 @@ class Pl(Language):
     timeout = 'Limit czasowy'
     arguments = 'Argumenty'
     bdd_prefixes = {'Zakładając', 'Zakładając, że', 'Mając', 'Jeżeli', 'Jeśli', 'Gdy', 'Kiedy', 'Wtedy', 'Oraz', 'I', 'Ale'}
+
+
+class Uk(Language):
+    """Ukrainian"""
+    setting_headers = {'Налаштування', 'Налаштування', 'Налаштування', 'Налаштування'}
+    variable_headers = {'Змінна', 'Змінні', 'Змінних', 'Змінних'}
+    test_case_headers = {'Тест-кейс', 'Тест-кейси', 'Тест-кейсів', 'Тест-кейси'}
+    task_headers = {'Завдання', 'Завадання', 'Завдань', 'Завдань'}
+    keyword_headers = {'Ключове слово', 'Ключових слова', 'Ключових слів', 'Ключових слова'}
+    comment_headers = {'Коментувати', 'Коментувати', 'Коментувати', 'Коментарів'}
+    library = 'Бібліотека'
+    resource = 'Ресурс'
+    variables = 'Змінна'
+    documentation = 'Документація'
+    metadata = 'Метадані'
+    suite_setup = 'Налаштування Suite'
+    suite_teardown = 'Розбірка Suite'
+    test_setup = 'Налаштування тесту'
+    test_teardown = 'Розбирання тестy'
+    test_template = 'Тестовий шаблон'
+    test_timeout = 'Час тестування'
+    test_tags = 'Тестові теги'
+    task_setup = 'Налаштування завдання'
+    task_teardown = 'Розбір завдання'
+    task_template = 'Шаблон завдання'
+    task_timeout = 'Час очікування завдання'
+    task_tags = 'Теги завдань'
+    keyword_tags = 'Теги ключових слів'
+    tags = 'Теги'
+    setup = 'Встановлення'
+    teardown = 'Cпростовувати пункт за пунктом'
+    template = 'Шаблон'
+    timeout = 'Час вийшов'
+    arguments = 'Аргументи'
+    bdd_prefixes = {'Дано', 'Коли', 'Тоді', 'Та', 'Але'}
 
 
 class Es(Language):
