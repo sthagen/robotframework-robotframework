@@ -15,6 +15,7 @@
 
 from datetime import date, datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 
 
 STANDARD_TYPE_DOCS = {
@@ -107,6 +108,12 @@ Integers and floats are considered to be seconds.
 See the [https://robotframework.org/robotframework/|Robot Framework User Guide]
 for more details about the supported time formats.
 ''',
+    Path: '''\
+Strings are converted [https://docs.python.org/library/pathlib.html|Path] objects.
+On Windows ``/`` is converted to ``\\`` automatically.
+
+Examples: ``/tmp/absolute/path``, ``relative/path/to/file.ext``, ``name.txt``
+''',
     type(None): '''\
 String ``NONE`` (case-insensitive) is converted to Python ``None`` object.
 Other values cause an error.
@@ -118,6 +125,9 @@ literals. They are converted to actual lists using the
 function. They can contain any values ``ast.literal_eval`` supports, including
 lists and other containers.
 
+If the type has nested types like ``list[int]``, items are converted
+to those types automatically. This in new in Robot Framework 5.1.
+
 Examples: ``['one', 'two']``, ``[('one', 1), ('two', 2)]``
 ''',
     tuple: '''\
@@ -126,6 +136,9 @@ literals. They are converted to actual tuples using the
 [https://docs.python.org/library/ast.html#ast.literal_eval|ast.literal_eval]
 function. They can contain any values ``ast.literal_eval`` supports, including
 tuples and other containers.
+
+If the type has nested types like ``tuple[str, int, int]``, items are converted
+to those types automatically. This in new in Robot Framework 5.1.
 
 Examples: ``('one', 'two')``, ``(('one', 1), ('two', 2))``
 ''',
@@ -136,6 +149,9 @@ literals. They are converted to actual dictionaries using the
 function. They can contain any values ``ast.literal_eval`` supports, including
 dictionaries and other containers.
 
+If the type has nested types like ``dict[str, int]``, items are converted
+to those types automatically. This in new in Robot Framework 5.1.
+
 Examples: ``{'a': 1, 'b': 2}``, ``{'key': 1, 'nested': {'key': 2}}``
 ''',
     set: '''\
@@ -143,6 +159,9 @@ Strings must be Python [https://docs.python.org/library/stdtypes.html#set|set]
 literals. They are converted to actual sets using the
 [https://docs.python.org/library/ast.html#ast.literal_eval|ast.literal_eval]
 function. They can contain any values ``ast.literal_eval`` supports.
+
+If the type has nested types like ``set[int]``, items are converted
+to those types automatically. This in new in Robot Framework 5.1.
 
 Examples: ``{1, 2, 3, 42}``, ``set()`` (an empty set)
 ''',
@@ -152,6 +171,9 @@ literals. They are converted to actual sets using the
 [https://docs.python.org/library/ast.html#ast.literal_eval|ast.literal_eval]
 function and then converted to ``frozenset`` objects. They can contain
 any values ``ast.literal_eval`` supports.
+
+If the type has nested types like ``frozenset[int]``, items are converted
+to those types automatically. This in new in Robot Framework 5.1.
 
 Examples: ``{1, 2, 3, 42}``, ``set()`` (an empty set)
 '''
