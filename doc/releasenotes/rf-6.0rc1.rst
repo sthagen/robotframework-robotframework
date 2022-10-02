@@ -1,22 +1,19 @@
-==========================
-Robot Framework 5.1 beta 2
-==========================
+=======================================
+Robot Framework 6.0 release candidate 1
+=======================================
 
 .. default-role:: code
 
-`Robot Framework`_ 5.1 is a new feature release that starts Robot Framework's
-localization efforts and also brings in other nice enhancements.
-Robot Framework 5.1 preview releases are targeted especially
-for people interested in translations.
+`Robot Framework`_ 6.0 is a new major release that starts Robot Framework's
+localization efforts. In addition to that, it contains several nice enhancements
+related to, for example, automatic argument conversion and using embedded arguments.
+Robot Framework 6.0 rc 1 is the first and hopefully also the last release candidate
+containing all features and fixes planned to be included in the final release.
 
-**NOTE:**
+Robot Framework 6.0 was initially labeled Robot Framework 5.1 and considered
+a feature release. In the end it grow so big that we decided to make it a major
+release instead. The previous preview release was `RF 5.1 beta 2 <rf-5.1b2.rst>`_.
 
-    Robot Framework 5.1 grew so big that we considered it is better to call
-    it a major release and changed the version number accordingly.
-    The next release after RF 5.1 beta 2 was thus `RF 6.0 rc 1 <rf-6.0rc1.rst>`__.
-
-All issues targeted for Robot Framework 5.1 can be found
-from the `issue tracker milestone`_.
 Questions and comments related to the release can be sent to the
 `robotframework-users`_ mailing list or to `Robot Framework Slack`_,
 and possible bugs submitted to the `issue tracker`_.
@@ -31,22 +28,25 @@ to install the latest available release or use
 
 ::
 
-   pip install robotframework==5.1b2
+   pip install robotframework==6.0rc1
 
 to install exactly this version. Alternatively you can download the source
 distribution from PyPI_ and install it manually. For more details and other
 installation approaches, see the `installation instructions`_.
 
-Robot Framework 5.1 beta 2 was released on Wednesday September 21, 2022.
+Robot Framework 6.0 rc 1 was released on Friday September 30, 2022.
+The final release is planned to be released on Wednesday October 5, 2022
+just in time for the `RoboCon Germany <https://robocon.io/germany>`_ conference.
 
 .. _Robot Framework: http://robotframework.org
 .. _Robot Framework Foundation: http://robotframework.org/foundation
 .. _pip: http://pip-installer.org
 .. _PyPI: https://pypi.python.org/pypi/robotframework
-.. _issue tracker milestone: https://github.com/robotframework/robotframework/issues?q=milestone%3Av5.1
+.. _issue tracker milestone: https://github.com/robotframework/robotframework/issues?q=milestone%3Av6.0
 .. _issue tracker: https://github.com/robotframework/robotframework/issues
 .. _robotframework-users: http://groups.google.com/group/robotframework-users
-.. _Robot Framework Slack: https://robotframework-slack-invite.herokuapp.com
+.. _Robot Framework Slack: http://slack.robotframework.org/
+.. _Slack: http://slack.robotframework.org/
 .. _installation instructions: ../../INSTALL.rst
 
 .. contents::
@@ -59,7 +59,7 @@ Most important enhancements
 Localization
 ------------
 
-Robot Framework 5.1 starts our localization efforts by making it possible to translate
+Robot Framework 6.0 starts our localization efforts by making it possible to translate
 various markers used in the data. It is possible to translate headers (e.g. `Test Cases`)
 and settings (e.g. `Documentation`) (`#4096`_), `Given/When/Then` prefixes used in BDD
 (`#519`_), as well as true and false strings used in Boolean argument conversion (`#4400`_).
@@ -87,31 +87,98 @@ subsequent files, but that behavior is likely to change and *should not* be depe
 on. Either use `language: <lang>` in each parsed file or specify the language to
 use from the command line.
 
-Robot Framework 5.1 beta 2 contains built-in support for these languages in addition
+Robot Framework 6.0 contains built-in support for these languages in addition
 to English that is automatically supported:
 
-- Bosnian (BS)
-- Czech (CS)
-- Dutch (NL)
-- Finnish (FI)
-- French (FR)
-- German (DE)
-- Polish (PL)
-- Portuguese (PT) and Brazilian Portuguese (PT-BR)
-- Russian (RU)
-- Simplified Chinese (ZH-CN)
-- Spanish (ES)
-- Thai (TH)
-- Turkish (TR)
-- Ukrainian (UK)
+- Bosnian (bs)
+- Chinese Simplified (zh-CN) and Chinese Traditional (zh-TW)
+- Czech (cs)
+- Dutch (nl)
+- Finnish (fi)
+- French (fr)
+- German (de)
+- Polish (pl)
+- Portuguese (pt) and Brazilian Portuguese (pt-BR)
+- Russian (ru)
+- Spanish (es)
+- Thai (th)
+- Turkish (tr)
+- Ukrainian (uk)
 
 All these translations have been provided by our awesome community and we hope to get
-more community contributed translations still before Robot Framework 5.1 final
-release. If you are interested to help, head to Crowdin__ that we use
-for collaboration. For more instructions see issue `#4390`_ and for general
-discussion and questions join the `#localization` channel on our Slack.
+more community contributed translations in future releases. If you are interested to
+help, head to Crowdin__ that we use for collaboration. For more instructions see
+issue `#4390`_ and for general discussion and questions join the `#localization`
+channel on our Slack_.
 
 __ https://robotframework.crowdin.com/robot-framework
+
+Enhancements to using keywords with embedded arguments
+------------------------------------------------------
+
+When using keywords with embedded arguments, it is pretty common that a keyword
+that is used matches multiple keyword implementations. For example,
+`Execute "ls" with "-lh"` in this example matches both of the keywords:
+
+.. sourcecode:: robotframework
+
+   *** Test Cases ***
+   Automatic conflict resolution
+       Execute "ls"
+       Execute "ls" with "-lh"
+
+   *** Keywords ***
+   Execute "${cmd}"
+       Log    Running command '${cmd}'.
+
+   Execute "${cmd}" with "${opts}"
+       Log    Running command '${cmd}' with options '${opts}'.
+
+Earlier when such conflicts occurred, execution failed due to there being
+multiple matching keywords. Nowadays, if there is a match that is better than
+others, it will be used and the conflict is resolved. In the above example,
+`Execute "${cmd}" with "${opts}"` is considered to be a better match than
+the more generic `Execute "${cmd}"` and the example thus succeeds. (`#4454`_)
+
+There can, however, be cases where it is not possible to find a single best
+match. In such cases conflicts cannot be resolved automatically and
+execution fails as earlier.
+
+Another nice enhancement related to keywords using embedded arguments is that
+if they are used with `Run Keyword` or its variants, arguments are not anymore
+always converted to strings. That allows passing arguments containing other
+values than strings as variables also in this context. (`#1595`_)
+
+Enhancements to automatic argument conversion
+---------------------------------------------
+
+Automatic argument conversion makes it possible for library authors to specify
+what types certain arguments have and then Robot Framework automatically converts
+used arguments accordingly. This support has been enhanced in various ways.
+
+Nowadays, if a container type like `list` is used with parameters like `list[int]`,
+arguments are not only converted to the container type, but items they contain are
+also converted to specified nested types (`#4433`_). This works with all containers
+Robot Framework's argument conversion works in general. Most important examples
+are the already mentioned lists, dictionaries like `dict[str, int]`, tuples like
+`tuple[str, int, bool]` and heterogeneous tuples like `tuple[int, ...]`. Notice
+that using parameters with Python's standard types `requires Python 3.9`__. With
+earlier versions it is possible to use `List`, `Dict` and other such types
+available in the typing__ module.
+
+Another container type that is nowadays handled better is TypedDict__. Earlier,
+when TypedDicts were used as type hints, arguments were only converted to
+dictionaries, but nowadays items are converted according to the specified
+types. In addition to that, Robot Framework validates that all the specified
+items are present. (`#4477`_)
+
+A bit smaller but still nice enhancement is that automatic conversion nowadays
+works also with `pathlib.Path`__. (`#4461`_)
+
+__ https://peps.python.org/pep-0585/
+__ https://docs.python.org/3/library/typing.html
+__ https://docs.python.org/3/library/typing.html#typing.TypedDict
+__ https://docs.python.org/3/library/pathlib.html
 
 Enhancements for setting keyword and test tags
 ----------------------------------------------
@@ -137,42 +204,6 @@ also in combination with the new `Keyword Tags`. For more details see `#4374`__.
 __ `Force Tags and Default Tags settings`_
 __ `Force Tags and Default Tags settings`_
 __ https://github.com/robotframework/robotframework/issues/4374
-
-Enhancements to using keywords with embedded arguments
-------------------------------------------------------
-
-When using keywords with embedded arguments, it is pretty common that a keyword
-that is used matches multiple keyword implementations. For example,
-`Execute "ls" with "-lh"` in this example matches both of the keywords:
-
-.. sourcecode:: robotframework
-
-   *** Test Cases ***
-   Automatic conflict resolution
-       Execute "ls"
-       Execute "ls" with "-lh"
-
-   *** Keywords ***
-   Execute "${cmd}"
-       Log    Running command '${cmd}'.
-
-   Execute "${cmd}" with "${opts}"
-       Log    Running command '${cmd}' with options '${opts}'.
-
-Earlier when such conflicts have occurred, execution has failed due to there
-being multiple matching keywords. Nowadays Robot Framework tries to find the
-best match and use that. In the above example, `Execute "${cmd}" with "${opts}"`
-is considered a better match than the more generic `Execute "${cmd}"` and
-the example thus succeeds. (`#4454`_)
-
-There can, however, be cases where there is no single match that would be better
-than others. In such cases conflicts cannot be automatically resolved and
-execution fails as earlier.
-
-Another nice enhancement related to keywords using embedded arguments is that
-if they are used with `Run Keyword` or its variants, arguments aren't anymore
-always converted to strings. This allows passing arguments containing other
-values as variables. (`#1595`_)
 
 Enhancements to keyword namespaces
 ----------------------------------
@@ -201,7 +232,7 @@ Robot Framework generally stops executing a keyword or a test case if there
 is a failure. Exceptions to this rule include teardowns, templates and
 cases where the continue-on-failure mode has been explicitly enabled with
 `robot:continue-on-failure` or `robot:recursive-continue-on-failure`
-tags. Robot Framework 5.1 makes it possible to disable the implicit or explicit
+tags. Robot Framework 6.0 makes it possible to disable the implicit or explicit
 continue-on-failure mode when needed by using `robot:stop-on-failure` and
 `robot:recursive-stop-on-failure` tags (`#4303`_).
 
@@ -223,25 +254,33 @@ can be seen especially if user keywords fail often, for example, when using
 Python 3.11 support
 --------------------
 
-Robot Framework 5.1 officially supports the forthcoming Python 3.11
+Robot Framework 6.0 officially supports the forthcoming Python 3.11
 release (`#4401`_). Incompatibilities were not too big, so also the earlier
 versions work fairly well.
 
 At the other end of the spectrum, Python 3.6 is deprecated and will not
-anymore be supported by Robot Framework 6.0 (`#4295`_).
+anymore be supported by Robot Framework 7.0 (`#4295`_).
 
 
 Backwards incompatible changes
 ==============================
 
 - Space is required after `Given/When/Then` prefixes used with BDD scenarios. (`#4379`_)
+
 - Dictionary related keywords in `Collections` require dictionaries to inherit `Mapping`. (`#4413`_)
+
 - `Dictionary Should Contain Item` from the Collections library does not anymore convert
   values to strings before comparison. (`#4408`_)
+
+- Automatic `TypedDict` conversion can cause problems if a keyword expects to get any
+  dictionary. Nowadays dictionaries that do not match the type spec cause failures
+  and the keyword is not called at all. (`#4477`_)
+
 - Generation time in XML and JSON spec files generated by Libdoc has been changed to
   `2022-05-27T19:07:15+00:00`. With XML specs the format used to be `2022-05-27T19:07:15Z`
   that is equivalent with the new format. JSON spec files did not include the timezone
   information at all and the format was `2022-05-27 19:07:15`. (`#4262`_)
+
 - `BuiltIn.run_keyword()` nowadays resolves variables in the name of the keyword to
   execute when earlier they were resolved by Robot Framework before calling the keyword.
   This affects programmatic usage if the used name contains variables or backslashes.
@@ -258,7 +297,7 @@ Deprecated features
 As `discussed above`__, new `Test Tags` setting has been added to replace `Force Tags`
 and there is a plan to remove `Default Tags` altogether. Both of these settings still
 work but they are considered deprecated. There is no visible deprecation warning yet,
-but such a warning will be emitted starting from Robot Framework 6.0 and eventually these
+but such a warning will be emitted starting from Robot Framework 7.0 and eventually these
 settings will be removed. (`#4368`_)
 
 The plan is to add new `-tag` syntax that can be used with the `[Tags]` setting
@@ -287,9 +326,9 @@ Python that uses `as` for similar purpose. We also already use `AS` with
 the syntax. Having less markers will also ease translations (but these markers
 cannot yet be translated).
 
-In Robot Framework 5.1 both `AS` and `WITH NAME` work when setting an alias
+In Robot Framework 6.0 both `AS` and `WITH NAME` work when setting an alias
 for a library. `WITH NAME` is considered deprecated, but there will not be
-visible deprecation warnings until Robot Framework 6.0.
+visible deprecation warnings until Robot Framework 7.0.
 
 Singular section headers like `Test Case`
 -----------------------------------------
@@ -298,7 +337,7 @@ Robot Framework has earlier accepted both plural (e.g. `Test Cases`) and singula
 (e.g. `Test Case`) section headers. The singular variants are now deprecated
 and their support will eventually be removed (`#4431`_). The is no visible
 deprecation warning yet, but they will most likely be emitted starting from
-Robot Framework 6.0.
+Robot Framework 7.0.
 
 Using variables with embedded arguments so that value does not match custom pattern
 -----------------------------------------------------------------------------------
@@ -311,16 +350,15 @@ compatibility it is now only deprecated, but validation will be more strict
 in the future. (`#4462`_)
 
 Custom patterns have often been used to avoid conflicts when using embedded arguments.
-That need is nowadays smaller because Robot Framework 5.1 can typically resolve
+That need is nowadays smaller because Robot Framework 6.0 can typically resolve
 conflicts automatically. (`#4454`_)
 
 Python 3.6 support
 ------------------
 
 Python 3.6 `reached end-of-life`__ in December 2021. It will be still supported
-by Robot Framework 5.1 and all future RF 5.x releases, but not anymore by
-Robot Framework 6.0 (`#4295`_). Users are recommended to upgrade to newer
-versions already now.
+by all future Robot Framework 6.x releases, but not anymore by Robot Framework
+7.0 (`#4295`_). Users are recommended to upgrade to newer versions already now.
 
 __  https://endoflife.date/python
 
@@ -329,7 +367,7 @@ Acknowledgements
 ================
 
 Robot Framework development is sponsored by the `Robot Framework Foundation`_
-and its ~50 member organizations. Robot Framework 5.1 team funded by the foundation
+and its ~50 member organizations. Robot Framework 6.0 team funded by the foundation
 consisted of `Pekka Klärck <https://github.com/pekkaklarck>`_ and
 `Janne Härkönen <https://github.com/yanne>`_ (part time).
 In addition to that, the wider open source community has provided several
@@ -340,20 +378,25 @@ great contributions:
 
   - Bosnian by `Namik <https://github.com/Delilovic>`_
   - Czech by `Václav Fuksa <https://github.com/MoreFamed>`_
-  - Dutch by `Pim Jansen <https://github.com/pimjansen>`_ and
-    `Elout van Leeuwen <https://github.com/leeuwe>`_
+  - Dutch by `Pim Jansen <https://github.com/pimjansen>`_
+    and `Elout van Leeuwen <https://github.com/leeuwe>`_
   - French by `@lesnake <https://github.com/lesnake>`_
-  - German by `René <https://github.com/Snooz82>`_ and `Markus <https://github.com/Noordsestern>`_
+    and `Martin Malorni <https://github.com/mmalorni>`_
+  - German by `René <https://github.com/Snooz82>`_
+    and `Markus <https://github.com/Noordsestern>`_
   - Polish by `Bartłomiej Hirsz <https://github.com/bhirsz>`_
-  - Portuguese and Brazilian Portuguese by `Hélio Guilherme <https://github.com/HelioGuilherme66>`_
+  - Portuguese and Brazilian Portuguese
+    by `Hélio Guilherme <https://github.com/HelioGuilherme66>`_
   - Russian by `Anatoly Kolpakov <https://github.com/axxyhtrx>`_
-  - Simplified Chinese by `charis <https://github.com/mawentao119>`_ and `@nixuewei <https://github.com/nixuewei>`_
+  - Simplified and Traditional Chinese
+    by `@nixuewei <https://github.com/nixuewei>`_
+    and `charis <https://github.com/mawentao119>`_
   - Spanish by Miguel Angel Apolayo Mendoza
   - Thai by `Somkiat Puisungnoen <https://github.com/up1>`_
   - Turkish by `Yusuf Can Bayrak <https://github.com/yusufcanb>`_
   - Ukrainian by `@Sunshine0000000 <https://github.com/Sunshine0000000>`_
 
-- `Oliver Boehmer <https://github.com/oboehmer>`_ provide several contributions:
+- `Oliver Boehmer <https://github.com/oboehmer>`_ provided several contributions:
 
   - Support to disable the continue-on-failure mode using `robot:stop-on-failure` and
     `robot:recursive-stop-on-failure` tags. (`#4303`_)
@@ -362,14 +405,15 @@ great contributions:
   - Default value to `Get From Dictionary` keyword. (`#4398`_)
   - Allow passing explicit flags to regexp related keywords. (`#4429`_)
 
+- `J. Foederer <https://github.com/JFoederer>`_ enhanced performance of
+  `Keyword Should Exist` when a keyword is not found (`#4470`_) and provided
+  the initial pull request to support parameterized generics like `list[int]` (`#4433`_)
+
 - `Ossi R. <https://github.com/osrjv>`_ added more information to `start/end_keyword`
   listener methods when they are used with control structures (`#4335`_).
 
 - `René <https://github.com/Snooz82>`_ fixed Libdoc's HTML outputs if type hints
   matched Javascript variables in browser namespace (`#4464`_) or keyword names (`#4471`_).
-
-- `J. Foederer <https://github.com/JFoederer>`_ enhanced performance of
-  `Keyword Should Exist` when a keyword is not found (`#4470`_).
 
 - `Fabio Zadrozny <https://github.com/fabioz>`_ provided a pull request speeding up
   user keyword execution (`#4353`_).
@@ -377,13 +421,16 @@ great contributions:
 - `@Apteryks <https://github.com/Apteryks>`_ added support to generate deterministic
   library documentation by using `SOURCE_DATE_EPOCH`__ environment variable (`#4262`_).
 
+- `@F3licity <https://github.com/F3licity>`_ enhanced `Sleep` keyword documentation. (`#4485`_)
+
 __ https://reproducible-builds.org/specs/source-date-epoch/
 
 Thanks also to all community members who have submitted bug reports, helped debugging
-problems, or otherwise helped with the release.
+problems, or otherwise helped to make Robot Framework 6.0 our best release so far!
 
 | `Pekka Klärck <https://github.com/pekkaklarck>`__
 | Robot Framework Creator
+
 
 Full list of fixes and enhancements
 ===================================
@@ -411,6 +458,16 @@ Full list of fixes and enhancements
       - high
       - Embedded arguments are not passed as objects when executed with `Run Keyword` or its variants
       - beta 2
+    * - `#4348`_
+      - bug
+      - high
+      - Invalid IF or WHILE condition should not cause error that does not allow continuation
+      - rc 1
+    * - `#4483`_
+      - bug
+      - high
+      - BREAK and CONTINUE hide continuable errors with WHILE loops
+      - rc 1
     * - `#4295`_
       - enhancement
       - high
@@ -466,11 +523,21 @@ Full list of fixes and enhancements
       - high
       - Python 3.11 compatibility
       - alpha 1
+    * - `#4433`_
+      - enhancement
+      - high
+      - Convert and validate collection contents when using generics in type hints
+      - rc 1
     * - `#4454`_
       - enhancement
       - high
       - Automatically select "best" match if there is conflict with keywords using embedded arguments
       - beta 2
+    * - `#4477`_
+      - enhancement
+      - high
+      - Convert and validate `TypedDict` items
+      - rc 1
     * - `#4351`_
       - bug
       - medium
@@ -546,6 +613,26 @@ Full list of fixes and enhancements
       - medium
       - Libdoc: Type hints aren't shown for types with same name as Javascript variables available in browser namespace
       - beta 2
+    * - `#4476`_
+      - bug
+      - medium
+      - BuiltIn: `Call Method` loses traceback if calling the method fails
+      - rc 1
+    * - `#4480`_
+      - bug
+      - medium
+      - Creating log and report fails if WHILE loop has no condition
+      - rc 1
+    * - `#4482`_
+      - bug
+      - medium
+      - WHILE and FOR loop contents not shown in log if running them fails due to errors
+      - rc 1
+    * - `#4484`_
+      - bug
+      - medium
+      - Invalid TRY/EXCEPT structure causes normal error, not syntax error
+      - rc 1
     * - `#4262`_
       - enhancement
       - medium
@@ -641,6 +728,11 @@ Full list of fixes and enhancements
       - low
       - Libdoc: If keyword and type have same case-insensitive name, opening type info opens keyword documentation
       - beta 2
+    * - `#4481`_
+      - bug
+      - low
+      - Invalid BREAK and CONTINUE cause errros even when not actually executed
+      - rc 1
     * - `#4346`_
       - enhancement
       - low
@@ -651,17 +743,24 @@ Full list of fixes and enhancements
       - low
       - Document how to import resource files bundled into Python packages
       - alpha 1
+    * - `#4485`_
+      - enhancement
+      - low
+      - Update docstring for kw Sleep to specify the default value
+      - rc 1
     * - `#4394`_
       - bug
       - ---
       - Error when `--doc` or `--metadata` value matches an existing directory
       - alpha 1
 
-Altogether 52 issues. View on the `issue tracker <https://github.com/robotframework/robotframework/issues?q=milestone%3Av5.1>`__.
+Altogether 62 issues. View on the `issue tracker <https://github.com/robotframework/robotframework/issues?q=milestone%3Av6.0>`__.
 
 .. _#4096: https://github.com/robotframework/robotframework/issues/4096
 .. _#519: https://github.com/robotframework/robotframework/issues/519
 .. _#1595: https://github.com/robotframework/robotframework/issues/1595
+.. _#4348: https://github.com/robotframework/robotframework/issues/4348
+.. _#4483: https://github.com/robotframework/robotframework/issues/4483
 .. _#4295: https://github.com/robotframework/robotframework/issues/4295
 .. _#430: https://github.com/robotframework/robotframework/issues/430
 .. _#4303: https://github.com/robotframework/robotframework/issues/4303
@@ -673,7 +772,9 @@ Altogether 52 issues. View on the `issue tracker <https://github.com/robotframew
 .. _#4388: https://github.com/robotframework/robotframework/issues/4388
 .. _#4400: https://github.com/robotframework/robotframework/issues/4400
 .. _#4401: https://github.com/robotframework/robotframework/issues/4401
+.. _#4433: https://github.com/robotframework/robotframework/issues/4433
 .. _#4454: https://github.com/robotframework/robotframework/issues/4454
+.. _#4477: https://github.com/robotframework/robotframework/issues/4477
 .. _#4351: https://github.com/robotframework/robotframework/issues/4351
 .. _#4355: https://github.com/robotframework/robotframework/issues/4355
 .. _#4357: https://github.com/robotframework/robotframework/issues/4357
@@ -689,6 +790,10 @@ Altogether 52 issues. View on the `issue tracker <https://github.com/robotframew
 .. _#4447: https://github.com/robotframework/robotframework/issues/4447
 .. _#4455: https://github.com/robotframework/robotframework/issues/4455
 .. _#4464: https://github.com/robotframework/robotframework/issues/4464
+.. _#4476: https://github.com/robotframework/robotframework/issues/4476
+.. _#4480: https://github.com/robotframework/robotframework/issues/4480
+.. _#4482: https://github.com/robotframework/robotframework/issues/4482
+.. _#4484: https://github.com/robotframework/robotframework/issues/4484
 .. _#4262: https://github.com/robotframework/robotframework/issues/4262
 .. _#4312: https://github.com/robotframework/robotframework/issues/4312
 .. _#4353: https://github.com/robotframework/robotframework/issues/4353
@@ -708,7 +813,9 @@ Altogether 52 issues. View on the `issue tracker <https://github.com/robotframew
 .. _#4358: https://github.com/robotframework/robotframework/issues/4358
 .. _#4453: https://github.com/robotframework/robotframework/issues/4453
 .. _#4471: https://github.com/robotframework/robotframework/issues/4471
+.. _#4481: https://github.com/robotframework/robotframework/issues/4481
 .. _#4346: https://github.com/robotframework/robotframework/issues/4346
 .. _#4372: https://github.com/robotframework/robotframework/issues/4372
+.. _#4485: https://github.com/robotframework/robotframework/issues/4485
 .. _#4394: https://github.com/robotframework/robotframework/issues/4394
 .. _#4390: https://github.com/robotframework/robotframework/issues/4390
