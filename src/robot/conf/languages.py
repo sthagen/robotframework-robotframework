@@ -16,34 +16,68 @@
 import inspect
 import os.path
 
-from robot.utils import is_list_like, Importer, normalize
+from robot.errors import DataError
+from robot.utils import classproperty, is_list_like, Importer, normalize
 
 
 class Languages:
+    """Keeps a list of languages and unifies the translations in the properties.
 
-    def __init__(self, languages=None):
+    Example::
+
+        languages = Languages('de', add_english=False)
+        print(languages.settings)
+        languages = Languages(['pt-BR', 'Finnish', 'MyLang.py'])
+        for lang in languages:
+            print(lang.name, lang.code)
+    """
+
+    def __init__(self, languages=None, add_english=True):
+        """
+        :param languages: Initial language or list of languages.
+            Languages can be given as language codes or names, paths or names of
+            language modules to load, or as :class:`Language` instances.
+        :param add_english: If True, English is added automatically.
+        :raises: :class:`~robot.errors.DataError` if a given language is not found.
+
+        :meth:`add.language` can be used to add languages after initialization.
+        """
         self.languages = []
-        # The English singular forms are added for backwards compatibility
-        self.headers = {
-            'Setting': 'Settings',
-            'Variable': 'Variables',
-            'Test Case': 'Test Cases',
-            'Task': 'Tasks',
-            'Keyword': 'Keywords',
-            'Comment': 'Comments'
-        }
+        self.headers = {}
         self.settings = {}
         self.bdd_prefixes = set()
-        self.true_strings = {'1'}
-        self.false_strings = {'0', 'NONE', ''}
-        for lang in self._get_languages(languages):
+        self.true_strings = {'True', '1'}
+        self.false_strings = {'False', '0', 'None', ''}
+        for lang in self._get_languages(languages, add_english):
             self._add_language(lang)
 
-    def reset(self, languages=None):
-        self.__init__(languages)
+    def reset(self, languages=None, add_english=True):
+        """Resets the instance to the given languages."""
+        self.__init__(languages, add_english)
 
-    def add_language(self, name):
-        self._add_language(Language.from_name(name))
+    def add_language(self, lang):
+        """Add new language.
+
+        :param lang: Language to add. Can be a language code or name, name or
+            path of a language module to load, or a :class:`Language` instance.
+        :raises: :class:`~robot.errors.DataError` if the language is not found.
+
+        Language codes and names are passed to by :meth:`Language.from_name`.
+        Language modules are imported and :class:`Language` subclasses in them
+        loaded.
+        """
+        try:
+            if isinstance(lang, Language):
+                languages = [lang]
+            else:
+                languages = [Language.from_name(lang)]
+        except ValueError as err1:
+            try:
+                languages = self._import_languages(lang)
+            except DataError as err2:
+                raise DataError(f'{err1} {err2}')
+        for lang in languages:
+            self._add_language(lang)
 
     def _add_language(self, lang):
         if lang in self.languages:
@@ -55,8 +89,8 @@ class Languages:
         self.true_strings |= {s.title() for s in lang.true_strings}
         self.false_strings |= {s.title() for s in lang.false_strings}
 
-    def _get_languages(self, languages):
-        languages = self._resolve_languages(languages)
+    def _get_languages(self, languages, add_english=True):
+        languages = self._resolve_languages(languages, add_english)
         available = self._get_available_languages()
         returned = []
         for lang in languages:
@@ -70,22 +104,33 @@ class Languages:
                     returned.extend(self._import_languages(lang))
         return returned
 
-    def _resolve_languages(self, languages):
+    def _resolve_languages(self, languages, add_english=True):
         if not languages:
             languages = []
         elif is_list_like(languages):
             languages = list(languages)
         else:
             languages = [languages]
-        languages.append(En())
+        if add_english:
+            languages.append(En())
+            # The English singular forms are added for backwards compatibility
+            self.headers = {
+                'Setting': 'Settings',
+                'Variable': 'Variables',
+                'Test Case': 'Test Cases',
+                'Task': 'Tasks',
+                'Keyword': 'Keywords',
+                'Comment': 'Comments'
+            }
         return languages
 
     def _get_available_languages(self):
         available = {}
         for lang in Language.__subclasses__():
-            available[normalize(lang.__name__)] = lang
-            if lang.__doc__:
-                available[normalize(lang.__doc__.splitlines()[0])] = lang
+            available[normalize(lang.code, ignore='-')] = lang
+            available[normalize(lang.name)] = lang
+        if '' in available:
+            available.pop('')
         return available
 
     def _import_languages(self, lang):
@@ -167,26 +212,34 @@ class Language:
                 return lang()
         raise ValueError(f"No language with name '{name}' found.")
 
-    @property
-    def code(self):
+    @classproperty
+    def code(cls):
         """Language code like 'fi' or 'pt-BR'.
 
         Got based on the class name. If the class name is two characters (or less),
         the code is just the name in lower case. If it is longer, a hyphen is added
-        remainder of the class name is upper-cased.
+        and the remainder of the class name is upper-cased.
+
+        This special property can be accessed also directly from the class.
         """
-        code = type(self).__name__.lower()
+        if cls is Language:
+            return cls.__dict__['code']
+        code = cls.__name__.lower()
         if len(code) < 3:
             return code
         return f'{code[:2]}-{code[2:].upper()}'
 
-    @property
-    def name(self):
+    @classproperty
+    def name(cls):
         """Language name like 'Finnish' or 'Brazilian Portuguese'.
 
         Got from the first line of the class docstring.
+
+        This special property can be accessed also directly from the class.
         """
-        return self.__doc__.splitlines()[0] if self.__doc__ else ''
+        if cls is Language:
+            return cls.__dict__['name']
+        return cls.__doc__.splitlines()[0] if cls.__doc__ else ''
 
     @property
     def headers(self):
@@ -503,13 +556,13 @@ class De(Language):
     test_teardown_setting = 'Testnachbereitung'
     test_template_setting = 'Testvorlage'
     test_timeout_setting = 'Testzeitlimit'
-    test_tags_setting = 'Test Marker'
+    test_tags_setting = 'Testmarker'
     task_setup_setting = 'Aufgabenvorbereitung'
     task_teardown_setting = 'Aufgabennachbereitung'
     task_template_setting = 'Aufgabenvorlage'
     task_timeout_setting = 'Aufgabenzeitlimit'
-    task_tags_setting = 'Aufgaben Marker'
-    keyword_tags_setting = 'Schlüsselwort Marker'
+    task_tags_setting = 'Aufgabenmarker'
+    keyword_tags_setting = 'Schlüsselwortmarker'
     tags_setting = 'Marker'
     setup_setting = 'Vorbereitung'
     teardown_setting = 'Nachbereitung'
@@ -900,7 +953,7 @@ class Tr(Language):
     documentation_setting = 'Dokümantasyon'
     metadata_setting = 'Üstveri'
     suite_setup_setting = 'Takım Kurulumu'
-    suite_teardown_setting =  'Takım Bitişi'
+    suite_teardown_setting = 'Takım Bitişi'
     test_setup_setting = 'Test Kurulumu'
     task_setup_setting = 'Görev Kurulumu'
     test_teardown_setting = 'Test Bitişi'
@@ -1048,3 +1101,85 @@ class Ro(Language):
     but_prefix = {'Dar'}
     true_strings = {'Adevarat', 'Da', 'Cand'}
     false_strings = {'Fals', 'Nu', 'Oprit', 'Niciun'}
+
+
+class It(Language):
+    """Italian"""
+    settings_header = 'Impostazioni'
+    variables_header = 'Variabili'
+    test_cases_header = 'Casi Di Test'
+    tasks_header = 'Attività'
+    keywords_header = 'Parole Chiave'
+    comments_header = 'Commenti'
+    library_setting = 'Libreria'
+    resource_setting = 'Risorsa'
+    variables_setting = 'Variabile'
+    documentation_setting = 'Documentazione'
+    metadata_setting = 'Metadati'
+    suite_setup_setting = 'Configurazione Suite'
+    suite_teardown_setting = 'Distruzione Suite'
+    test_setup_setting = 'Configurazione Test'
+    test_teardown_setting = 'Distruzione Test'
+    test_template_setting = 'Modello Test'
+    test_timeout_setting = 'Timeout Test'
+    test_tags_setting = 'Tag Del Test'
+    task_setup_setting = 'Configurazione Attività'
+    task_teardown_setting = 'Distruzione Attività'
+    task_template_setting = 'Modello Attività'
+    task_timeout_setting = 'Timeout Attività'
+    task_tags_setting = 'Tag Attività'
+    keyword_tags_setting = 'Tag Parola Chiave'
+    tags_setting = 'Tag'
+    setup_setting = 'Configurazione'
+    teardown_setting = 'Distruzione'
+    template_setting = 'Template'
+    timeout_setting = 'Timeout'
+    arguments_setting = 'Parametri'
+    given_prefix = {'Dato'}
+    when_prefix = {'Quando'}
+    then_prefix = {'Allora'}
+    and_prefix = {'E'}
+    but_prefix = {'Ma'}
+    true_strings = {'Vero', 'Sì', 'On'}
+    false_strings = {'Falso', 'No', 'Off', 'Nessuno'}
+
+
+class Hi(Language):
+    """Hindi"""
+    settings_header = 'स्थापना'
+    variables_header = 'चर'
+    test_cases_header = 'नियत कार्य प्रवेशिका'
+    tasks_header = 'कार्य प्रवेशिका'
+    keywords_header = 'कुंजीशब्द'
+    comments_header = 'टिप्पणी'
+    library_setting = 'कोड़ प्रतिबिंब संग्रह'
+    resource_setting = 'संसाधन'
+    variables_setting = 'चर'
+    documentation_setting = 'प्रलेखन'
+    metadata_setting = 'अधि-आंकड़ा'
+    suite_setup_setting = 'जांच की शुरुवात'
+    suite_teardown_setting = 'परीक्षण कार्य अंत'
+    test_setup_setting = 'परीक्षण कार्य प्रारंभ'
+    test_teardown_setting = 'परीक्षण कार्य अंत'
+    test_template_setting = 'परीक्षण ढांचा'
+    test_timeout_setting = 'परीक्षण कार्य समय समाप्त'
+    test_tags_setting = 'जाँचका उपनाम'
+    task_setup_setting = 'परीक्षण कार्य प्रारंभ'
+    task_teardown_setting = 'परीक्षण कार्य अंत'
+    task_template_setting = 'परीक्षण ढांचा'
+    task_timeout_setting = 'कार्य समयबाह्य'
+    task_tags_setting = 'कार्यका उपनाम'
+    keyword_tags_setting = 'कुंजीशब्द का उपनाम'
+    tags_setting = 'निशान'
+    setup_setting = 'व्यवस्थापना'
+    teardown_setting = 'विमोचन'
+    template_setting = 'साँचा'
+    timeout_setting = 'समय समाप्त'
+    arguments_setting = 'प्राचल'
+    given_prefix = {'दिया हुआ'}
+    when_prefix = {'जब'}
+    then_prefix = {'तब'}
+    and_prefix = {'और'}
+    but_prefix = {'परंतु'}
+    true_strings = {'यथार्थ', 'निश्चित', 'हां', 'पर'}
+    false_strings = {'गलत', 'नहीं', 'हालाँकि', 'यद्यपि', 'नहीं', 'हैं'}
