@@ -100,7 +100,9 @@ taken into use using both module and class names, such as
 :name:`mymodule.MyLibrary` or :name:`parent.submodule.MyLib`.
 
 .. tip:: If the library name is really long, it is recommended to give
-         the library a simpler alias by using the `WITH NAME syntax`_.
+         the library a `simpler alias`__ by using `AS`.
+
+__ `Setting custom name to library`_
 
 Providing arguments to libraries
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1187,6 +1189,9 @@ Other types cause conversion failures.
    |             |               |            | None_        | to `None`. Other strings and other accepted values are         |                                      |
    |             |               |            |              | passed as-is, allowing keywords to handle them specially if    |                                      |
    |             |               |            |              | needed. All string comparisons are case-insensitive.           |                                      |
+   |             |               |            |              |                                                                |                                      |
+   |             |               |            |              | True and false strings can be localized_. See the              |                                      |
+   |             |               |            |              | Translations_ appendix for supported translations.             |                                      |
    +-------------+---------------+------------+--------------+----------------------------------------------------------------+--------------------------------------+
    | int_        | Integral_     | integer,   | str_,        | Conversion is done using the int_ built-in function. Floats    | | `42`                               |
    |             |               | long       | float_       | are accepted only if they can be represented as integers       | | `-1`                               |

@@ -1,5 +1,5 @@
-All command line options
-========================
+Command line options
+====================
 
 This appendix lists all the command line options that are available
 when `executing test cases`_  and when `post-processing outputs`_.
@@ -14,6 +14,9 @@ Command line options for test execution
 ---------------------------------------
 
   --rpa                   Turn on `generic automation`_ mode.
+  --language <lang>       Activate localization_. `lang` can be a name or a code
+                          of a `built-in language <Translations_>`__, or a path
+                          or a module name of a custom language file.
   -F, --extension <value>  `Parse only these files`_ when executing a directory.
   -N, --name <name>       `Sets the name`_ of the top-level test suite.
   -D, --doc <document>    `Sets the documentation`_ of the top-level test suite.
