@@ -77,24 +77,29 @@ class Settings:
             message = self._get_non_existing_setting_message(orig, name)
             raise ValueError(message)
         if self.settings[name] is not None and name not in self.multi_use:
-            raise ValueError("Setting '%s' is allowed only once. "
-                             "Only the first value is used." % orig)
+            raise ValueError(f"Setting '{orig}' is allowed only once. "
+                             f"Only the first value is used.")
         if name in self.single_value and len(statement) > 2:
-            raise ValueError("Setting '%s' accepts only one value, got %s."
-                             % (orig, len(statement) - 1))
+            raise ValueError(f"Setting '{orig}' accepts only one value, "
+                             f"got {len(statement)-1}.")
 
     def _get_non_existing_setting_message(self, name, normalized):
-        if normalized in (set(TestCaseFileSettings.names) |
-                          set(TestCaseFileSettings.aliases)):
-            is_resource = isinstance(self, ResourceFileSettings)
-            return "Setting '%s' is not allowed in %s file." % (
-                name, 'resource' if is_resource else 'suite initialization'
-            )
+        if self._is_valid_somewhere(normalized):
+            return self._not_valid_here(name)
         return RecommendationFinder(normalize).find_and_format(
             name=normalized,
             candidates=tuple(self.settings) + tuple(self.aliases),
-            message="Non-existing setting '%s'." % name
+            message=f"Non-existing setting '{name}'."
         )
+
+    def _is_valid_somewhere(self, normalized):
+        for cls in Settings.__subclasses__():
+            if normalized in cls.names or normalized in cls.aliases:
+                return True
+        return False
+
+    def _not_valid_here(self, name):
+        raise NotImplementedError
 
     def _lex_error(self, setting, values, error):
         setting.set_error(error)
@@ -155,6 +160,9 @@ class TestCaseFileSettings(Settings):
         'Task Timeout': 'Test Timeout',
     }
 
+    def _not_valid_here(self, name):
+        return f"Setting '{name}' is not allowed in suite file."
+
 
 class InitFileSettings(Settings):
     names = (
@@ -179,6 +187,9 @@ class InitFileSettings(Settings):
         'Task Timeout': 'Test Timeout',
     }
 
+    def _not_valid_here(self, name):
+        return f"Setting '{name}' is not allowed in suite initialization file."
+
 
 class ResourceFileSettings(Settings):
     names = (
@@ -188,6 +199,9 @@ class ResourceFileSettings(Settings):
         'Resource',
         'Variables'
     )
+
+    def _not_valid_here(self, name):
+        return f"Setting '{name}' is not allowed in resource file."
 
 
 class TestCaseSettings(Settings):
@@ -200,8 +214,8 @@ class TestCaseSettings(Settings):
         'Timeout'
     )
 
-    def __init__(self, parent, markers):
-        super().__init__(markers)
+    def __init__(self, parent, languages):
+        super().__init__(languages)
         self.parent = parent
 
     def _format_name(self, name):
@@ -223,6 +237,9 @@ class TestCaseSettings(Settings):
     def _has_value(self, setting):
         return setting and setting[0].value
 
+    def _not_valid_here(self, name):
+        return f"Setting '{name}' is not allowed with tests or tasks."
+
 
 class KeywordSettings(Settings):
     names = (
@@ -236,3 +253,6 @@ class KeywordSettings(Settings):
 
     def _format_name(self, name):
         return name[1:-1].strip()
+
+    def _not_valid_here(self, name):
+        return f"Setting '{name}' is not allowed with user keywords."
