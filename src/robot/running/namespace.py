@@ -65,19 +65,19 @@ class Namespace:
         for item in import_settings:
             try:
                 if not item.name:
-                    raise DataError(f'{item.type} setting requires value.')
+                    raise DataError(f'{item.setting_name} setting requires value.')
                 self._import(item)
             except DataError as err:
                 item.report_invalid_syntax(err.message)
 
     def _import(self, import_setting):
-        action = {'Library': self._import_library,
-                  'Resource': self._import_resource,
-                  'Variables': self._import_variables}[import_setting.type]
+        action = import_setting.select(self._import_library,
+                                       self._import_resource,
+                                       self._import_variables)
         action(import_setting)
 
     def import_resource(self, name, overwrite=True):
-        self._import_resource(Import('Resource', name), overwrite=overwrite)
+        self._import_resource(Import(Import.RESOURCE, name), overwrite=overwrite)
 
     def _import_resource(self, import_setting, overwrite=False):
         path = self._resolve_name(import_setting)
@@ -89,7 +89,7 @@ class Namespace:
             self._kw_store.resources[path] = user_library
             self._handle_imports(resource.imports)
             LOGGER.imported("Resource", user_library.name,
-                            importer=import_setting.source,
+                            importer=str(import_setting.source),
                             source=path)
         else:
             LOGGER.info(f"Resource file '{path}' already imported by "
@@ -102,7 +102,7 @@ class Namespace:
                             f"a resource file.")
 
     def import_variables(self, name, args, overwrite=False):
-        self._import_variables(Import('Variables', name, args), overwrite)
+        self._import_variables(Import(Import.VARIABLES, name, args), overwrite)
 
     def _import_variables(self, import_setting, overwrite=False):
         path = self._resolve_name(import_setting)
@@ -112,7 +112,7 @@ class Namespace:
             self.variables.set_from_file(path, args, overwrite)
             LOGGER.imported("Variables", os.path.basename(path),
                             args=list(args),
-                            importer=import_setting.source,
+                            importer=str(import_setting.source),
                             source=path)
         else:
             msg = f"Variable file '{path}'"
@@ -121,8 +121,7 @@ class Namespace:
             LOGGER.info(f"{msg} already imported by suite '{self._suite_name}'.")
 
     def import_library(self, name, args=(), alias=None, notify=True):
-        self._import_library(Import('Library', name, args, alias),
-                             notify=notify)
+        self._import_library(Import(Import.LIBRARY, name, args, alias), notify=notify)
 
     def _import_library(self, import_setting, notify=True):
         name = self._resolve_name(import_setting)
@@ -136,7 +135,7 @@ class Namespace:
             LOGGER.imported("Library", lib.name,
                             args=list(import_setting.args),
                             originalname=lib.orig_name,
-                            importer=import_setting.source,
+                            importer=str(import_setting.source),
                             source=lib.source)
         self._kw_store.libraries[lib.name] = lib
         lib.start_suite()
@@ -150,17 +149,18 @@ class Namespace:
         except DataError as err:
             self._raise_replacing_vars_failed(setting, err)
         if self._is_import_by_path(setting.type, name):
-            return find_file(name, setting.directory, file_type=setting.type)
+            file_type = setting.select('Library', 'Resource file', 'Variable file')
+            return find_file(name, setting.directory, file_type=file_type)
         return name
 
     def _raise_replacing_vars_failed(self, setting, error):
-        raise DataError(f"Replacing variables from setting '{setting.type}' "
+        raise DataError(f"Replacing variables from setting '{setting.setting_name}' "
                         f"failed: {error}")
 
     def _is_import_by_path(self, import_type, path):
-        if import_type == 'Library':
+        if import_type == Import.LIBRARY:
             return path.lower().endswith(self._library_import_by_path_ends)
-        if import_type == 'Variables':
+        if import_type == Import.VARIABLES:
             return path.lower().endswith(self._variables_import_by_path_ends)
         return True
 

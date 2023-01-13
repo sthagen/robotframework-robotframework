@@ -75,16 +75,19 @@ class BodyItem(ModelObject):
     def has_teardown(self):
         return False
 
+    def to_dict(self):
+        raise NotImplementedError
+
 
 class BaseBody(ItemList):
     """Base class for Body and Branches objects."""
     __slots__ = []
-    # Set using 'Body.register' when these classes are created.
+    # Set using 'BaseBody.register' when these classes are created.
     keyword_class = None
     for_class = None
+    while_class = None
     if_class = None
     try_class = None
-    while_class = None
     return_class = None
     continue_class = None
     break_class = None
@@ -93,12 +96,24 @@ class BaseBody(ItemList):
     def __init__(self, parent=None, items=None):
         super().__init__(BodyItem, {'parent': parent}, items)
 
+    def _item_from_dict(self, data):
+        item_type = data.get('type', None)
+        if not item_type:
+            item_class = self.keyword_class
+        elif item_type == BodyItem.IF_ELSE_ROOT:
+            item_class = self.if_class
+        elif item_type == BodyItem.TRY_EXCEPT_ROOT:
+            item_class = self.try_class
+        else:
+            item_class = getattr(self, item_type.lower() + '_class')
+        return item_class.from_dict(data)
+
     @classmethod
     def register(cls, item_class):
         name_parts = re.findall('([A-Z][a-z]+)', item_class.__name__) + ['class']
         name = '_'.join(name_parts).lower()
         if not hasattr(cls, name):
-            raise TypeError("Cannot register '%s'." % name)
+            raise TypeError(f"Cannot register '{name}'.")
         setattr(cls, name, item_class)
         return item_class
 
@@ -202,7 +217,7 @@ class BaseBody(ItemList):
 
 
 class Body(BaseBody):
-    """A list-like object representing body of a suite, a test or a keyword.
+    """A list-like object representing a body of a test, keyword, etc.
 
     Body contains the keywords and other structures such as FOR loops.
     """
@@ -210,12 +225,15 @@ class Body(BaseBody):
 
 
 class Branches(BaseBody):
-    """A list-like object representing branches IF and TRY objects contain."""
+    """A list-like object representing IF and TRY branches."""
     __slots__ = ['branch_class']
 
     def __init__(self, branch_class, parent=None, items=None):
         self.branch_class = branch_class
         super().__init__(parent, items)
+
+    def _item_from_dict(self, data):
+        return self.branch_class.from_dict(data)
 
     def create_branch(self, *args, **kwargs):
         return self.append(self.branch_class(*args, **kwargs))

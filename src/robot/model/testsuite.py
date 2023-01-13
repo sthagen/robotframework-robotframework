@@ -13,6 +13,8 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+from pathlib import Path
+
 from robot.utils import setter
 
 from .configurer import SuiteConfigurer
@@ -35,22 +37,34 @@ class TestSuite(ModelObject):
     test_class = TestCase    #: Internal usage only.
     fixture_class = Keyword  #: Internal usage only.
     repr_args = ('name',)
-    __slots__ = ['parent', 'source', '_name', 'doc', '_setup', '_teardown',  'rpa',
+    __slots__ = ['parent', '_name', 'doc', '_setup', '_teardown',  'rpa',
                  '_my_visitors']
 
-    def __init__(self, name='', doc='', metadata=None, source=None, rpa=False,
-                 parent=None):
+    def __init__(self, name: str = '', doc: str = '', metadata: dict = None,
+                 source: Path = None, rpa: bool = False, parent: 'TestSuite' = None):
         self._name = name
         self.doc = doc
         self.metadata = metadata
-        self.source = source  #: Path to the source file or directory.
-        self.parent = parent  #: Parent suite. ``None`` with the root suite.
+        self.source = source
+        self.parent = parent
         self.rpa = rpa        #: ``True`` when RPA mode is enabled.
         self.suites = None
         self.tests = None
         self._setup = None
         self._teardown = None
         self._my_visitors = []
+
+    @staticmethod
+    def name_from_source(source: Path):
+        if not source:
+            return ''
+        if not isinstance(source, Path):
+            source = Path(source)
+        name = source.name if source.is_dir() else source.stem
+        if '__' in name:
+            name = name.split('__', 1)[1] or name
+        name = name.replace('_', ' ').strip()
+        return name.title() if name.islower() else name
 
     @property
     def _visitors(self):
@@ -59,12 +73,22 @@ class TestSuite(ModelObject):
 
     @property
     def name(self):
-        """Test suite name. If not set, constructed from child suite names."""
-        return self._name or ' & '.join(s.name for s in self.suites)
+        """Test suite name.
+
+        If name is not set, it is constructed from source. If source is not set,
+        name is constructed from child suite names or.
+        """
+        return (self._name
+                or self.name_from_source(self.source)
+                or ' & '.join(s.name for s in self.suites))
 
     @name.setter
     def name(self, name):
         self._name = name
+
+    @setter
+    def source(self, source):
+        return source if isinstance(source, (Path, type(None))) else Path(source)
 
     @property
     def longname(self):
@@ -265,9 +289,29 @@ class TestSuite(ModelObject):
     def __str__(self):
         return self.name
 
+    def to_dict(self):
+        data = {'name': self.name}
+        if self.doc:
+            data['doc'] = self.doc
+        if self.metadata:
+            data['metadata'] = dict(self.metadata)
+        if self.source:
+            data['source'] = str(self.source)
+        if self.rpa:
+            data['rpa'] = self.rpa
+        if self.has_setup:
+            data['setup'] = self.setup.to_dict()
+        if self.has_teardown:
+            data['teardown'] = self.teardown.to_dict()
+        if self.tests:
+            data['tests'] = self.tests.to_dicts()
+        if self.suites:
+            data['suites'] = self.suites.to_dicts()
+        return data
+
 
 class TestSuites(ItemList):
     __slots__ = []
 
     def __init__(self, suite_class=TestSuite, parent=None, suites=None):
-        ItemList.__init__(self, suite_class, {'parent': parent}, suites)
+        super().__init__(suite_class, {'parent': parent}, suites)
