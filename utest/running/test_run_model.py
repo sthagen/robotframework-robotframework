@@ -107,8 +107,21 @@ Keyword
     def test_from_model_with_custom_name(self):
         for source in [self.data, self.path]:
             model = api.get_model(source)
-            suite = TestSuite.from_model(model, name='Custom name')
+            with warnings.catch_warnings(record=True) as w:
+                suite = TestSuite.from_model(model, name='Custom name')
+                assert_equal(str(w[0].message),
+                             "'name' argument of 'TestSuite.from_model' is deprecated. "
+                             "Set the name to the returned suite separately.")
             self._verify_suite(suite, 'Custom name')
+
+    def test_from_string(self):
+        suite = TestSuite.from_string(self.data)
+        self._verify_suite(suite, name='')
+
+    def test_from_string_config(self):
+        suite = TestSuite.from_string(self.data.replace('Test Cases', 'Testit'),
+                                      lang='Finnish', curdir='.')
+        self._verify_suite(suite, name='')
 
     def _verify_suite(self, suite, name='Test Run Model', rpa=False):
         assert_equal(suite.name, name)
@@ -231,16 +244,17 @@ class TestToFromDict(unittest.TestCase):
                      name='Setup', lineno=1)
 
     def test_for(self):
-        self._verify(For(), type='FOR', variables=[], flavor='IN', values=[])
-        self._verify(For(['${i}'], 'IN RANGE', ['10'], lineno=2), type='FOR',
-                     variables=['${i}'], flavor='IN RANGE', values=['10'], lineno=2)
+        self._verify(For(), type='FOR', variables=[], flavor='IN', values=[], body=[])
+        self._verify(For(['${i}'], 'IN RANGE', ['10'], lineno=2),
+                     type='FOR', variables=['${i}'], flavor='IN RANGE', values=['10'],
+                     body=[], lineno=2)
 
     def test_while(self):
-        self._verify(While(), type='WHILE', condition=None)
+        self._verify(While(), type='WHILE', body=[])
         self._verify(While('1 > 0', '1 min'),
-                     type='WHILE', condition='1 > 0', limit='1 min')
+                     type='WHILE', condition='1 > 0', limit='1 min', body=[])
         self._verify(While('True', lineno=3, error='x'),
-                     type='WHILE', condition='True', lineno=3, error='x')
+                     type='WHILE', condition='True', body=[], lineno=3, error='x')
 
     def test_if(self):
         self._verify(If(), type='IF/ELSE ROOT', body=[])
@@ -325,7 +339,7 @@ class TestToFromDict(unittest.TestCase):
         self._verify(TestSuite(), name='', resource={})
         self._verify(TestSuite('N', 'D', {'M': 'V'}, 'x.robot', rpa=True),
                      name='N', doc='D', metadata={'M': 'V'}, source='x.robot', rpa=True,
-                     resource={'source': 'x.robot'})
+                     resource={})
 
     def test_suite_structure(self):
         suite = TestSuite('Root')
@@ -370,12 +384,12 @@ class TestToFromDict(unittest.TestCase):
 
     def test_resource_file(self):
         self._verify(ResourceFile())
-        resource = ResourceFile('x.resource', 'doc')
+        resource = ResourceFile('x.resource', doc='doc')
         resource.imports.library('L', 'a', 'A', 1)
         resource.imports.resource('R', 2)
         resource.imports.variables('V', 'a', 3)
-        resource.variables.create('${x}', 'value')
-        resource.variables.create('@{y}', ['v1', 'v2'], lineno=4)
+        resource.variables.create('${x}', ('value',))
+        resource.variables.create('@{y}', ('v1', 'v2'), lineno=4)
         resource.variables.create('&{z}', ['k=v'], error='E')
         resource.keywords.create('UK').body.create_keyword('K')
         self._verify(resource,
@@ -386,7 +400,7 @@ class TestToFromDict(unittest.TestCase):
                               {'type': 'RESOURCE', 'name': 'R', 'lineno': 2},
                               {'type': 'VARIABLES', 'name': 'V', 'args': ['a'],
                                'lineno': 3}],
-                     variables=[{'name': '${x}', 'value': 'value'},
+                     variables=[{'name': '${x}', 'value': ['value']},
                                 {'name': '@{y}', 'value': ['v1', 'v2'], 'lineno': 4},
                                 {'name': '&{z}', 'value': ['k=v'], 'error': 'E'}],
                      keywords=[{'name': 'UK', 'body': [{'name': 'K'}]}])
@@ -397,10 +411,12 @@ class TestToFromDict(unittest.TestCase):
 
     def _verify(self, obj, **expected):
         data = obj.to_dict()
-        assert_equal(data, expected)
-        assert_equal(list(data), list(expected))
+        self.assertListEqual(list(data), list(expected))
+        self.assertDictEqual(data, expected)
         roundtrip = type(obj).from_dict(data).to_dict()
-        assert_equal(roundtrip, expected)
+        self.assertDictEqual(roundtrip, expected)
+        roundtrip = type(obj).from_json(obj.to_json()).to_dict()
+        self.assertDictEqual(roundtrip, expected)
 
 
 if __name__ == '__main__':

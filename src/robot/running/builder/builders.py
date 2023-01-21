@@ -13,13 +13,13 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import os
+from pathlib import Path
 
 from robot.errors import DataError
 from robot.output import LOGGER
 from robot.parsing import SuiteStructureBuilder, SuiteStructureVisitor
 
-from .parsers import RobotParser, NoInitFileDirectoryParser, RestParser
+from .parsers import JsonParser, RobotParser, NoInitFileDirectoryParser, RestParser
 from .settings import Defaults
 
 
@@ -46,9 +46,8 @@ class TestSuiteBuilder:
     :mod:`robot.api` package.
     """
 
-    def __init__(self, included_suites=None, included_extensions=('.robot',),
-                 rpa=None, lang=None, allow_empty_suite=False,
-                 process_curdir=True):
+    def __init__(self, included_suites=None, included_extensions=('.robot', '.rbt'),
+                 rpa=None, lang=None, allow_empty_suite=False, process_curdir=True):
         """
         :param include_suites:
             List of suite names to include. If ``None`` or an empty list, all
@@ -117,11 +116,14 @@ class SuiteStructureParser(SuiteStructureVisitor):
     def _get_parsers(self, extensions, lang, process_curdir):
         robot_parser = RobotParser(lang, process_curdir)
         rest_parser = RestParser(lang, process_curdir)
+        json_parser = JsonParser()
         parsers = {
             None: NoInitFileDirectoryParser(),
             'robot': robot_parser,
             'rst': rest_parser,
-            'rest': rest_parser
+            'rest': rest_parser,
+            'rbt': json_parser,
+            'json': json_parser
         }
         for ext in extensions:
             if ext not in parsers:
@@ -202,7 +204,9 @@ class ResourceFileBuilder:
         self.lang = lang
         self.process_curdir = process_curdir
 
-    def build(self, source):
+    def build(self, source: Path):
+        if not isinstance(source, Path):
+            source = Path(source)
         LOGGER.info(f"Parsing resource file '{source}'.")
         resource = self._parse(source)
         if resource.imports or resource.variables or resource.keywords:
@@ -213,6 +217,6 @@ class ResourceFileBuilder:
         return resource
 
     def _parse(self, source):
-        if os.path.splitext(source)[1].lower() in ('.rst', '.rest'):
+        if source.suffix.lower() in ('.rst', '.rest'):
             return RestParser(self.lang, self.process_curdir).parse_resource_file(source)
         return RobotParser(self.lang, self.process_curdir).parse_resource_file(source)

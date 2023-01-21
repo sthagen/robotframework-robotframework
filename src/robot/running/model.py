@@ -33,7 +33,8 @@ __ http://robotframework.org/robotframework/latest/RobotFrameworkUserGuide.html#
 __ http://robotframework.org/robotframework/latest/RobotFrameworkUserGuide.html#listener-interface
 """
 
-import os
+import warnings
+from pathlib import Path
 
 from robot import model
 from robot.conf import RobotSettings
@@ -326,16 +327,17 @@ class TestCase(model.TestCase):
 
     See the base class for documentation of attributes not documented here.
     """
-    __slots__ = ['template']
+    __slots__ = ['template', 'error']
     body_class = Body        #: Internal usage only.
     fixture_class = Keyword  #: Internal usage only.
 
     def __init__(self, name='', doc='', tags=None, timeout=None, template=None,
-                 lineno=None):
+                 lineno=None, error=None):
         super().__init__(name, doc, tags, timeout, lineno)
         #: Name of the keyword that has been used as a template when building the test.
         # ``None`` if template is not used.
         self.template = template
+        self.error = error
 
     @property
     def source(self):
@@ -345,6 +347,8 @@ class TestCase(model.TestCase):
         data = super().to_dict()
         if self.template:
             data['template'] = self.template
+        if self.error:
+            data['error'] = self.error
         return data
 
 
@@ -362,12 +366,13 @@ class TestSuite(model.TestSuite):
         #: :class:`ResourceFile` instance containing imports, variables and
         #: keywords the suite owns. When data is parsed from the file system,
         #: this data comes from the same test case file that creates the suite.
-        self.resource = ResourceFile(source)
+        self.resource = ResourceFile(parent=self)
 
     @setter
     def resource(self, resource):
         if isinstance(resource, dict):
             resource = ResourceFile.from_dict(resource)
+            resource.parent = self
         return resource
 
     @classmethod
@@ -392,10 +397,37 @@ class TestSuite(model.TestSuite):
         :func:`~robot.parsing.parser.parser.get_model` function and possibly
         modified by other tooling in the :mod:`robot.parsing` module.
 
+        The ``name`` argument is deprecated since Robot Framework 6.1. Users
+        should set the name and possible other attributes to the returned suite
+        separately. One easy way is using the :meth:`config` method like this::
+
+            suite = TestSuite.from_model(model).config(name='X', doc='Example')
+
         New in Robot Framework 3.2.
         """
         from .builder import RobotParser
-        return RobotParser().build_suite(model, name)
+        suite = RobotParser().parse_model(model)
+        if name is not None:
+            # TODO: Change DeprecationWarning to more visible UserWarning in RF 6.2.
+            warnings.warn("'name' argument of 'TestSuite.from_model' is deprecated. "
+                          "Set the name to the returned suite separately.",
+                          DeprecationWarning)
+            suite.name = name
+        return suite
+
+    @classmethod
+    def from_string(cls, string, **config):
+        """Create a :class:`TestSuite` object based on the given ``string``.
+
+        The string is internally parsed into a model by using the
+        :func:`~robot.parsing.parser.parser.get_model` function and ``config``
+        can be used to configure it. The model is then converted into a suite
+        by using :meth:`from_model`.
+
+        New in Robot Framework 6.1.
+        """
+        from robot.parsing import get_model
+        return cls.from_model(get_model(string, data_only=True, **config))
 
     def configure(self, randomize_suites=False, randomize_tests=False,
                   randomize_seed=None, **options):
@@ -510,7 +542,7 @@ class TestSuite(model.TestSuite):
 class Variable(ModelObject):
     repr_args = ('name', 'value')
 
-    def __init__(self, name, value, parent=None, lineno=None, error=None):
+    def __init__(self, name, value=(), parent=None, lineno=None, error=None):
         self.name = name
         self.value = value
         self.parent = parent
@@ -532,7 +564,7 @@ class Variable(ModelObject):
         return cls(**data)
 
     def to_dict(self):
-        data = {'name': self.name, 'value': self.value}
+        data = {'name': self.name, 'value': list(self.value)}
         if self.lineno:
             data['lineno'] = self.lineno
         if self.error:
@@ -542,14 +574,29 @@ class Variable(ModelObject):
 
 class ResourceFile(ModelObject):
     repr_args = ('source',)
-    __slots__ = ('source', 'doc')
+    __slots__ = ('_source', 'parent', 'doc')
 
-    def __init__(self, source=None, doc=''):
-        self.source = source
+    def __init__(self, source=None, parent=None, doc=''):
+        self._source = source
+        self.parent = parent
         self.doc = doc
         self.imports = []
         self.variables = []
         self.keywords = []
+
+    @property
+    def source(self):
+        if self._source:
+            return self._source
+        if self.parent:
+            return self.parent.source
+        return None
+
+    @source.setter
+    def source(self, source):
+        if not isinstance(source, (Path, type(None))):
+            source = Path(source)
+        self._source = source
 
     @setter
     def imports(self, imports):
@@ -565,8 +612,8 @@ class ResourceFile(ModelObject):
 
     def to_dict(self):
         data = {}
-        if self.source:
-            data['source'] = self.source
+        if self._source:
+            data['source'] = str(self.source)
         if self.doc:
             data['doc'] = self.doc
         if self.imports:
@@ -693,16 +740,13 @@ class Import(ModelObject):
         return super()._repr(repr_args)
 
     @property
-    def source(self):
+    def source(self) -> Path:
         return self.parent.source if self.parent is not None else None
 
     @property
-    def directory(self):
-        if not self.source:
-            return None
-        if os.path.isdir(self.source):
-            return self.source
-        return os.path.dirname(self.source)
+    def directory(self) -> Path:
+        source = self.source
+        return source.parent if source and source.is_file() else source
 
     @property
     def setting_name(self):

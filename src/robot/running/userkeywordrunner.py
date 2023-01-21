@@ -146,12 +146,16 @@ class UserKeywordRunner:
         return kwonly, kwargs
 
     def _trace_log_args_message(self, variables):
+        return self._format_trace_log_args_message(
+            self._format_args_for_trace_logging(), variables)
+
+    def _format_args_for_trace_logging(self):
         args = ['${%s}' % arg for arg in self.arguments.positional]
         if self.arguments.var_positional:
             args.append('@{%s}' % self.arguments.var_positional)
         if self.arguments.var_named:
             args.append('&{%s}' % self.arguments.var_named)
-        return self._format_trace_log_args_message(args, variables)
+        return args
 
     def _format_trace_log_args_message(self, args, variables):
         args = ['%s=%s' % (name, prepr(variables[name])) for name in args]
@@ -159,8 +163,6 @@ class UserKeywordRunner:
 
     def _execute(self, context):
         handler = self._handler
-        if not (handler.body or handler.return_value):
-            raise DataError("User keyword '%s' contains no keywords." % self.name)
         if context.dry_run and handler.tags.robot('no-dry-run'):
             return None, None
         error = return_ = pass_ = None
@@ -245,21 +247,22 @@ class EmbeddedArgumentsRunner(UserKeywordRunner):
         self.embedded_args = handler.embedded.match(name).groups()
 
     def _resolve_arguments(self, args, variables=None):
-        # Validates that no arguments given.
         self.arguments.resolve(args, variables)
-        if not variables:
-            return []
-        embedded = [variables.replace_scalar(e) for e in self.embedded_args]
-        return self._handler.embedded.map(embedded)
+        if variables:
+            embedded = [variables.replace_scalar(e) for e in self.embedded_args]
+            self.embedded_args = self._handler.embedded.map(embedded)
+        return super()._resolve_arguments(args, variables)
 
-    def _set_arguments(self, embedded_args, context):
+    def _set_arguments(self, args, context):
         variables = context.variables
-        for name, value in embedded_args:
+        for name, value in self.embedded_args:
             variables['${%s}' % name] = value
+        super()._set_arguments(args, context)
         context.output.trace(lambda: self._trace_log_args_message(variables))
 
     def _trace_log_args_message(self, variables):
         args = [f'${{{arg}}}' for arg in self._handler.embedded.args]
+        args += self._format_args_for_trace_logging()
         return self._format_trace_log_args_message(args, variables)
 
     def _get_result(self, kw, assignment, variables):
