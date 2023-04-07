@@ -49,7 +49,7 @@ class Token:
 
     TESTCASE_NAME = 'TESTCASE NAME'
     KEYWORD_NAME = 'KEYWORD NAME'
-
+    SUITE_NAME = 'SUITE NAME'
     DOCUMENTATION = 'DOCUMENTATION'
     SUITE_SETUP = 'SUITE SETUP'
     SUITE_TEARDOWN = 'SUITE TEARDOWN'
@@ -118,6 +118,7 @@ class Token:
     ))
     SETTING_TOKENS = frozenset((
         DOCUMENTATION,
+        SUITE_NAME,
         SUITE_SETUP,
         SUITE_TEARDOWN,
         METADATA,
@@ -242,7 +243,7 @@ class EOS(Token):
     __slots__ = []
 
     def __init__(self, lineno=-1, col_offset=-1):
-        Token.__init__(self, Token.EOS, '', lineno, col_offset)
+        super().__init__(Token.EOS, '', lineno, col_offset)
 
     @classmethod
     def from_token(cls, token, before=False):
@@ -260,7 +261,7 @@ class END(Token):
 
     def __init__(self, lineno=-1, col_offset=-1, virtual=False):
         value = 'END' if not virtual else ''
-        Token.__init__(self, Token.END, value, lineno, col_offset)
+        super().__init__(Token.END, value, lineno, col_offset)
 
     @classmethod
     def from_token(cls, token, virtual=False):

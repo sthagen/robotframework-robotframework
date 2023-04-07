@@ -434,6 +434,20 @@ class KeywordTags(MultiValue):
 
 
 @Statement.register
+class SuiteName(SingleValue):
+    type = Token.SUITE_NAME
+
+    @classmethod
+    def from_params(cls, value, separator=FOUR_SPACES, eol=EOL):
+        return cls([
+            Token(Token.SUITE_NAME, 'Name'),
+            Token(Token.SEPARATOR, separator),
+            Token(Token.NAME, value),
+            Token(Token.EOL, eol)
+        ])
+
+
+@Statement.register
 class SuiteSetup(Fixture):
     type = Token.SUITE_SETUP
 
@@ -554,7 +568,7 @@ class Variable(Statement):
     def validate(self, ctx: 'ValidationContext'):
         name = self.get_value(Token.VARIABLE)
         match = search_variable(name, ignore_errors=True)
-        if not match.is_assign(allow_assign_mark=True):
+        if not match.is_assign(allow_assign_mark=True, allow_nested=True):
             self.errors += (f"Invalid variable name '{name}'.",)
         if match.is_dict_assign(allow_assign_mark=True):
             self._validate_dict_items()
