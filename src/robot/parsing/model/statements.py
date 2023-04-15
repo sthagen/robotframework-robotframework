@@ -78,14 +78,10 @@ class Statement(ast.AST):
 
     @classmethod
     def from_params(cls, *args, **kwargs):
-        """Create statement from passed parameters.
+        """Create a statement from passed parameters.
 
-        Required and optional arguments should match class properties. Values are
-        used to create matching tokens.
-
-        There is one notable difference for `Documentation` statement where
-        ``settings_header`` flag is used to determine if statement belongs to
-        settings header or test/keyword.
+        Required and optional arguments in general match class properties.
+        Values are used to create matching tokens.
 
         Most implementations support following general properties:
 
@@ -100,7 +96,7 @@ class Statement(ast.AST):
         return [t for t in self.tokens if t.type not in Token.NON_DATA_TOKENS]
 
     def get_token(self, *types):
-        """Return a token with the given ``type``.
+        """Return a token with any of the given ``types``.
 
         If there are no matches, return ``None``. If there are multiple
         matches, return the first match.
@@ -127,9 +123,15 @@ class Statement(ast.AST):
         """Return values of tokens having any of the given ``types``."""
         return tuple(t.value for t in self.tokens if t.type in types)
 
-    def get_option(self, name):
+    def get_option(self, name, default=None):
+        """Return value of a configuration option with the given ``name``.
+
+        If the option has not been used, return ``default``.
+
+        New in Robot Framework 6.1.
+        """
         options = dict(opt.split('=', 1) for opt in self.get_values(Token.OPTION))
-        return options.get(name)
+        return options.get(name, default)
 
     @property
     def lines(self):
@@ -165,16 +167,17 @@ class DocumentationOrMetadata(Statement):
 
     @property
     def value(self):
-        return ''.join(self._get_lines_with_newlines()).rstrip()
+        return ''.join(self._get_lines()).rstrip()
 
-    def _get_lines_with_newlines(self):
-        for parts in self._get_line_parts():
-            line = ' '.join(parts)
-            yield line
-            if not self._escaped_or_has_newline(line):
-                yield '\n'
+    def _get_lines(self):
+        base_offset = -1
+        for tokens in self._get_line_tokens():
+            yield from self._get_line_values(tokens, base_offset)
+            first = tokens[0]
+            if base_offset < 0 or 0 < first.col_offset < base_offset and first.value:
+                base_offset = first.col_offset
 
-    def _get_line_parts(self):
+    def _get_line_tokens(self):
         line = []
         lineno = -1
         # There are no EOLs during execution or if data has been parsed with
@@ -190,12 +193,31 @@ class DocumentationOrMetadata(Statement):
                     yield line
                 line = []
             if not eol:
-                line.append(token.value)
+                line.append(token)
             lineno = token.lineno
         if line:
             yield line
 
-    def _escaped_or_has_newline(self, line):
+    def _get_line_values(self, tokens, offset):
+        token = None
+        for index, token in enumerate(tokens):
+            if token.col_offset > offset > 0:
+                yield ' ' * (token.col_offset - offset)
+            elif index > 0:
+                yield ' '
+            yield self._remove_trailing_backslash(token.value)
+            offset = token.end_col_offset
+        if token and not self._has_trailing_backslash_or_newline(token.value):
+            yield '\n'
+
+    def _remove_trailing_backslash(self, value):
+        if value and value[-1] == '\\':
+            match = re.search(r'(\\+)$', value)
+            if len(match.group(1)) % 2 == 1:
+                value = value[:-1]
+        return value
+
+    def _has_trailing_backslash_or_newline(self, line):
         match = re.search(r'(\\+)n?$', line)
         return match and len(match.group(1)) % 2 == 1
 
@@ -1027,7 +1049,7 @@ class WhileHeader(Statement):
     type = Token.WHILE
 
     @classmethod
-    def from_params(cls, condition, limit=None, on_limit_message=None,
+    def from_params(cls, condition, limit=None, on_limit=None, on_limit_message=None,
                     indent=FOUR_SPACES, separator=FOUR_SPACES, eol=EOL):
         tokens = [Token(Token.SEPARATOR, indent),
                   Token(cls.type),
@@ -1052,6 +1074,10 @@ class WhileHeader(Statement):
         return self.get_option('limit')
 
     @property
+    def on_limit(self):
+        return self.get_option('on_limit')
+
+    @property
     def on_limit_message(self):
         return self.get_option('on_limit_message')
 
@@ -1059,6 +1085,8 @@ class WhileHeader(Statement):
         values = self.get_values(Token.ARGUMENT)
         if len(values) > 1:
             self.errors += (f'WHILE cannot have more than one condition, got {seq2str(values)}.',)
+        if self.on_limit and not self.limit:
+            self.errors += ('WHILE on_limit option cannot be used without limit.',)
 
 
 @Statement.register
