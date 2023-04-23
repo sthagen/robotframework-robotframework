@@ -14,6 +14,7 @@
 #  limitations under the License.
 
 import re
+from collections.abc import Iterator
 
 from .tokens import Token
 
@@ -22,7 +23,7 @@ class Tokenizer:
     _space_splitter = re.compile(r'(\s{2,}|\t)', re.UNICODE)
     _pipe_splitter = re.compile(r'((?:\A|\s+)\|(?:\s+|\Z))', re.UNICODE)
 
-    def tokenize(self, data, data_only=False):
+    def tokenize(self, data: str, data_only: bool = False) -> 'Iterator[list[Token]]':
         current = []
         for lineno, line in enumerate(data.splitlines(not data_only), start=1):
             tokens = self._tokenize_line(line, lineno, not data_only)
@@ -35,7 +36,7 @@ class Tokenizer:
                 current.extend(tokens)
         yield current
 
-    def _tokenize_line(self, line, lineno, include_separators=True):
+    def _tokenize_line(self, line: str, lineno: int, include_separators: bool):
         # Performance optimized code.
         tokens = []
         append = tokens.append
@@ -55,13 +56,13 @@ class Tokenizer:
             append(Token(Token.EOL, trailing_whitespace, lineno, offset))
         return tokens
 
-    def _split_from_spaces(self, line):
+    def _split_from_spaces(self, line: str) -> 'Iterator[tuple[str, bool]]':
         is_data = True
         for value in self._space_splitter.split(line):
             yield value, is_data
             is_data = not is_data
 
-    def _split_from_pipes(self, line):
+    def _split_from_pipes(self, line) -> 'Iterator[tuple[str, bool]]':
         splitter = self._pipe_splitter
         _, separator, rest = splitter.split(line, 1)
         yield separator, False
@@ -72,7 +73,8 @@ class Tokenizer:
         yield rest, True
 
     def _cleanup_tokens(self, tokens, data_only):
-        has_data, continues = self._handle_comments_and_continuation(tokens)
+        has_data, has_comments, continues \
+                = self._handle_comments_and_continuation(tokens)
         self._remove_trailing_empty(tokens)
         if continues:
             self._remove_leading_empty(tokens)
@@ -81,19 +83,19 @@ class Tokenizer:
             starts_new = False
         else:
             starts_new = has_data
-        if data_only:
-            tokens = self._remove_non_data(tokens)
+        if data_only and (has_comments or continues):
+            tokens = [t for t in tokens if t.type is None]
         return tokens, starts_new
 
     def _handle_comments_and_continuation(self, tokens):
         has_data = False
-        continues = False
         commented = False
-        for token in tokens:
+        continues = False
+        for index, token in enumerate(tokens):
             if token.type is None:
                 # lstrip needed to strip possible leading space from first token.
                 # Other leading/trailing spaces have been consumed as separators.
-                value = token.value.lstrip()
+                value = token.value if index else token.value.lstrip()
                 if commented:
                     token.type = Token.COMMENT
                 elif value:
@@ -106,7 +108,7 @@ class Tokenizer:
                             continues = True
                         else:
                             has_data = True
-        return has_data, continues
+        return has_data, commented, continues
 
     def _remove_trailing_empty(self, tokens):
         for token in reversed(tokens):
@@ -132,6 +134,3 @@ class Tokenizer:
         for token in tokens:
             if token.type == Token.CONTINUATION:
                 return token
-
-    def _remove_non_data(self, tokens):
-        return [t for t in tokens if t.type is None]
