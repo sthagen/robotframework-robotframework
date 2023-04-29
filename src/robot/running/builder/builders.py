@@ -22,12 +22,12 @@ from robot.conf import LanguagesLike
 from robot.errors import DataError
 from robot.output import LOGGER
 from robot.parsing import SuiteStructure, SuiteStructureBuilder, SuiteStructureVisitor
-from robot.utils import Importer, seq2str, split_args_from_name_or_path
+from robot.utils import Importer, seq2str, split_args_from_name_or_path, type_name
 
 from ..model import ResourceFile, TestSuite
 from .parsers import (CustomParser, JsonParser, NoInitFileDirectoryParser, Parser,
                       RestParser, RobotParser)
-from .settings import Defaults
+from .settings import TestDefaults
 
 
 class TestSuiteBuilder:
@@ -57,28 +57,34 @@ class TestSuiteBuilder:
     def __init__(self, included_suites: Sequence[str] = (),
                  included_extensions: Sequence[str] = ('.robot', '.rbt'),
                  custom_parsers: Sequence[str] = (),
+                 defaults: 'TestDefaults|None' = None,
                  rpa: 'bool|None' = None, lang: LanguagesLike = None,
                  allow_empty_suite: bool = False, process_curdir: bool = True):
         """
-        :param include_suites:
+        :param included_suites:
             List of suite names to include. If not given, all suites are included.
-            Same as using `--suite` on the command line.
+            Same as using ``--suite`` on the command line.
         :param included_extensions:
-            List of extensions of files to parse. Same as `--extension`.
+            List of extensions of files to parse. Same as ``--extension``.
         :param custom_parsers:
-            FIXME: PARSER: Documentation.
-        :param rpa: Explicit execution mode. ``True`` for RPA and
-            ``False`` for test automation. By default, mode is got from data file
-            headers and possible conflicting headers cause an error.
-            Same as `--rpa` or `--norpa`.
-        :param lang: Additional languages to be supported during parsing.
+            Custom parsers as names or paths (same as ``--parser``) or as
+            parser objects. New in RF 6.1.
+        :param defaults:
+            Possible test specific defaults from suite initialization files.
+            New in RF 6.1.
+        :param rpa:
+            Explicit execution mode. ``True`` for RPA and ``False`` for test
+            automation. By default, mode is got from data file headers and possible
+            conflicting headers cause an error. Same as ``--rpa`` or ``--norpa``.
+        :param lang:
+            Additional languages to be supported during parsing.
             Can be a string matching any of the supported language codes or names,
             an initialized :class:`~robot.conf.languages.Language` subclass,
             a list containing such strings or instances, or a
             :class:`~robot.conf.languages.Languages` instance.
         :param allow_empty_suite:
             Specify is it an error if the built suite contains no tests.
-            Same as `--runemptysuite`.
+            Same as ``--runemptysuite``.
         :param process_curdir:
             Control processing the special ``${CURDIR}`` variable. It is
             resolved already at parsing time by default, but that can be
@@ -86,6 +92,7 @@ class TestSuiteBuilder:
         """
         self.standard_parsers = self._get_standard_parsers(lang, process_curdir)
         self.custom_parsers = self._get_custom_parsers(custom_parsers)
+        self.defaults = defaults
         self.included_suites = tuple(included_suites or ())
         self.included_extensions = tuple(included_extensions or ())
         self.rpa = rpa
@@ -104,19 +111,22 @@ class TestSuiteBuilder:
             'json': json_parser
         }
 
-    def _get_custom_parsers(self, names: Sequence[str]) -> 'dict[str, CustomParser]':
-        parsers = {}
+    def _get_custom_parsers(self, parsers: Sequence[str]) -> 'dict[str, CustomParser]':
+        custom_parsers = {}
         importer = Importer('parser', LOGGER)
-        for name in names:
-            name, args = split_args_from_name_or_path(name)
-            imported = importer.import_class_or_module(name, args)
+        for parser in parsers:
+            if isinstance(parser, (str, Path)):
+                name, args = split_args_from_name_or_path(parser)
+                parser = importer.import_class_or_module(name, args)
+            else:
+                name = type_name(parser)
             try:
-                parser = CustomParser(imported)
+                custom_parser = CustomParser(parser)
             except TypeError as err:
                 raise DataError(f"Importing parser '{name}' failed: {err}")
-            for ext in parser.extensions:
-                parsers[ext] = parser
-        return parsers
+            for ext in custom_parser.extensions:
+                custom_parsers[ext] = custom_parser
+        return custom_parsers
 
     def build(self, *paths: 'Path|str'):
         """
@@ -127,7 +137,7 @@ class TestSuiteBuilder:
         extensions = chain(self.included_extensions, self.custom_parsers)
         structure = SuiteStructureBuilder(extensions,
                                           self.included_suites).build(*paths)
-        suite = SuiteStructureParser(self._get_parsers(paths),
+        suite = SuiteStructureParser(self._get_parsers(paths), self.defaults,
                                      self.rpa).parse(structure)
         if not self.included_suites and not self.allow_empty_suite:
             self._validate_not_empty(suite, multi_source=len(paths) > 1)
@@ -168,12 +178,18 @@ class TestSuiteBuilder:
 
 class SuiteStructureParser(SuiteStructureVisitor):
 
-    def __init__(self, parsers: 'dict[str, Parser]', rpa: 'bool|None' = None):
+    def __init__(self, parsers: 'dict[str, Parser]',
+                 defaults: 'TestDefaults|None' = None, rpa: 'bool|None' = None):
         self.parsers = parsers
         self.rpa = rpa
+        self.defaults = defaults
         self._rpa_given = rpa is not None
         self.suite: 'TestSuite|None' = None
-        self._stack: 'list[tuple[TestSuite, Defaults]]' = []
+        self._stack: 'list[tuple[TestSuite, TestDefaults]]' = []
+
+    @property
+    def parent_defaults(self) -> 'TestDefaults|None':
+        return self._stack[-1][-1] if self._stack else self.defaults
 
     def parse(self, structure: SuiteStructure) -> TestSuite:
         structure.visit(self)
@@ -182,7 +198,7 @@ class SuiteStructureParser(SuiteStructureVisitor):
 
     def visit_file(self, structure: SuiteStructure):
         LOGGER.info(f"Parsing file '{structure.source}'.")
-        suite, _ = self._build_suite(structure)
+        suite = self._build_suite_file(structure)
         if self.suite is None:
             self.suite = suite
         else:
@@ -191,7 +207,7 @@ class SuiteStructureParser(SuiteStructureVisitor):
     def start_directory(self, structure: SuiteStructure):
         if structure.source:
             LOGGER.info(f"Parsing directory '{structure.source}'.")
-        suite, defaults = self._build_suite(structure)
+        suite, defaults = self._build_suite_directory(structure)
         if self.suite is None:
             self.suite = suite
         else:
@@ -203,21 +219,27 @@ class SuiteStructureParser(SuiteStructureVisitor):
         if suite.rpa is None and suite.suites:
             suite.rpa = suite.suites[0].rpa
 
-    def _build_suite(self, structure: SuiteStructure) -> 'tuple[TestSuite, Defaults]':
-        parent_defaults = self._stack[-1][-1] if self._stack else None
+    def _build_suite_file(self, structure: SuiteStructure):
         source = structure.source
-        defaults = Defaults(parent_defaults)
+        defaults = self.parent_defaults or TestDefaults()
         parser = self.parsers[structure.extension]
         try:
-            if structure.is_file:
-                suite = parser.parse_suite_file(source, defaults)
-                if not suite.tests:
-                    LOGGER.info(f"Data source '{source}' has no tests or tasks.")
-            else:
-                suite = parser.parse_init_file(structure.init_file or source, defaults)
-                if not source:
-                    suite.config(name='', source=None)
+            suite = parser.parse_suite_file(source, defaults)
+            if not suite.tests:
+                LOGGER.info(f"Data source '{source}' has no tests or tasks.")
             self._validate_execution_mode(suite)
+        except DataError as err:
+            raise DataError(f"Parsing '{source}' failed: {err.message}")
+        return suite
+
+    def _build_suite_directory(self, structure: SuiteStructure):
+        source = structure.init_file or structure.source
+        defaults = TestDefaults(self.parent_defaults)
+        parser = self.parsers[structure.extension]
+        try:
+            suite = parser.parse_init_file(source, defaults)
+            if structure.is_multi_source:
+                suite.config(name='', source=None)
         except DataError as err:
             raise DataError(f"Parsing '{source}' failed: {err.message}")
         return suite, defaults
