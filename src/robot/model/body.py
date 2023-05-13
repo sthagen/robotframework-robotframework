@@ -14,9 +14,24 @@
 #  limitations under the License.
 
 import re
+from typing import Any, Callable, cast, Iterable, Type, TYPE_CHECKING, TypeVar, Union
 
 from .itemlist import ItemList
-from .modelobject import ModelObject, full_name
+from .modelobject import DataDict, full_name, ModelObject
+
+if TYPE_CHECKING:
+    from robot.running.model import UserKeyword, ResourceFile
+    from .control import (Break, Continue, Error, For, If, IfBranch, Return,
+                          Try, TryBranch, While)
+    from .keyword import Keyword
+    from .message import Message
+    from .testcase import TestCase
+    from .testsuite import TestSuite
+
+
+BodyItemParent = Union['TestSuite', 'TestCase', 'UserKeyword', 'For', 'If', 'IfBranch',
+                       'Try', 'TryBranch', 'While', None]
+T = TypeVar("T", bound="BodyItem")
 
 
 class BodyItem(ModelObject):
@@ -43,56 +58,76 @@ class BodyItem(ModelObject):
     __slots__ = ['parent']
 
     @property
-    def id(self):
+    def id(self) -> 'str|None':
         """Item id in format like ``s1-t3-k1``.
 
         See :attr:`TestSuite.id <robot.model.testsuite.TestSuite.id>` for
         more information.
+
+        ``id`` is ``None`` only in these special cases:
+
+        - Keyword uses a placeholder for ``setup`` or ``teardown`` when
+          a ``setup`` or ``teardown`` is not actually used.
+        - With :class:`~robot.model.control.If` and :class:`~robot.model.control.Try`
+          instances representing IF/TRY structure roots.
         """
-        # This algorithm must match the id creation algorithm in the JavaScript side
-        # or linking to warnings and errors won't work.
-        if not self:
-            return None
-        if not self.parent:
-            return 'k1'
         return self._get_id(self.parent)
 
-    def _get_id(self, parent):
+    def _get_id(self, parent: 'BodyItemParent|ResourceFile') -> str:
+        if not parent:
+            return 'k1'
+        # This algorithm must match the id creation algorithm in the JavaScript side
+        # or linking to warnings and errors won't work.
         steps = []
         if getattr(parent, 'has_setup', False):
-            steps.append(parent.setup)
+            steps.append(parent.setup)          # type: ignore - Use Protocol with RF 7.
         if hasattr(parent, 'body'):
-            steps.extend(step for step in parent.body.flatten()
+            steps.extend(step for step in
+                         parent.body.flatten()  # type: ignore - Use Protocol with RF 7.
                          if step.type != self.MESSAGE)
         if getattr(parent, 'has_teardown', False):
-            steps.append(parent.teardown)
+            steps.append(parent.teardown)       # type: ignore - Use Protocol with RF 7.
         index = steps.index(self) if self in steps else len(steps)
-        parent_id = parent.id
+        parent_id = getattr(parent, 'id', None)
         return f'{parent_id}-k{index + 1}' if parent_id else f'k{index + 1}'
 
-    def to_dict(self):
+    def to_dict(self) -> DataDict:
         raise NotImplementedError
 
 
-class BaseBody(ItemList):
+class BaseBody(ItemList[BodyItem]):
     """Base class for Body and Branches objects."""
     __slots__ = []
     # Set using 'BaseBody.register' when these classes are created.
-    keyword_class = None
-    for_class = None
-    while_class = None
-    if_class = None
-    try_class = None
-    return_class = None
-    continue_class = None
-    break_class = None
-    message_class = None
-    error_class = None
 
-    def __init__(self, parent=None, items=None):
+    if TYPE_CHECKING:
+        keyword_class = Keyword
+        for_class = For
+        while_class = While
+        if_class = If
+        try_class = Try
+        return_class = Return
+        continue_class = Continue
+        break_class = Break
+        message_class = Message
+        error_class = Error
+    else:
+        keyword_class = None
+        for_class = None
+        while_class = None
+        if_class = None
+        try_class = None
+        return_class = None
+        continue_class = None
+        break_class = None
+        message_class = None
+        error_class = None
+
+    def __init__(self, parent: BodyItemParent = None,
+                 items: 'Iterable[BodyItem|DataDict]' = ()):
         super().__init__(BodyItem, {'parent': parent}, items)
 
-    def _item_from_dict(self, data):
+    def _item_from_dict(self, data: DataDict) -> BodyItem:
         item_type = data.get('type', None)
         if not item_type:
             item_class = self.keyword_class
@@ -102,10 +137,11 @@ class BaseBody(ItemList):
             item_class = self.try_class
         else:
             item_class = getattr(self, item_type.lower() + '_class')
+        item_class = cast(Type[BodyItem], item_class)
         return item_class.from_dict(data)
 
     @classmethod
-    def register(cls, item_class):
+    def register(cls, item_class: Type[T]) -> Type[T]:
         name_parts = re.findall('([A-Z][a-z]+)', item_class.__name__) + ['class']
         name = '_'.join(name_parts).lower()
         if not hasattr(cls, name):
@@ -120,42 +156,44 @@ class BaseBody(ItemList):
             f"Use item specific methods like 'create_keyword' instead."
         )
 
-    def create_keyword(self, *args, **kwargs):
-        return self._create(self.keyword_class, 'create_keyword', args, kwargs)
-
-    def _create(self, cls, name, args, kwargs):
+    def _create(self, cls: 'Type[T]', name: str, args: 'tuple[Any]',
+                kwargs: 'dict[str, Any]') -> T:
         if cls is None:
             raise TypeError(f"'{full_name(self)}' object does not support '{name}'.")
         return self.append(cls(*args, **kwargs))
 
-    def create_for(self, *args, **kwargs):
+    def create_keyword(self, *args, **kwargs) -> 'Keyword':
+        return self._create(self.keyword_class, 'create_keyword', args, kwargs)
+
+    def create_for(self, *args, **kwargs) -> 'For':
         return self._create(self.for_class, 'create_for', args, kwargs)
 
-    def create_if(self, *args, **kwargs):
+    def create_if(self, *args, **kwargs) -> 'If':
         return self._create(self.if_class, 'create_if', args, kwargs)
 
-    def create_try(self, *args, **kwargs):
+    def create_try(self, *args, **kwargs) -> 'Try':
         return self._create(self.try_class, 'create_try', args, kwargs)
 
-    def create_while(self, *args, **kwargs):
+    def create_while(self, *args, **kwargs) -> 'While':
         return self._create(self.while_class, 'create_while', args, kwargs)
 
-    def create_return(self, *args, **kwargs):
+    def create_return(self, *args, **kwargs) -> 'Return':
         return self._create(self.return_class, 'create_return', args, kwargs)
 
-    def create_continue(self, *args, **kwargs):
+    def create_continue(self, *args, **kwargs) -> 'Continue':
         return self._create(self.continue_class, 'create_continue', args, kwargs)
 
-    def create_break(self, *args, **kwargs):
+    def create_break(self, *args, **kwargs) -> 'Break':
         return self._create(self.break_class, 'create_break', args, kwargs)
 
-    def create_message(self, *args, **kwargs):
+    def create_message(self, *args, **kwargs) -> 'Message':
         return self._create(self.message_class, 'create_message', args, kwargs)
 
-    def create_error(self, *args, **kwargs):
+    def create_error(self, *args, **kwargs) -> 'Error':
         return self._create(self.error_class, 'create_error', args, kwargs)
 
-    def filter(self, keywords=None, messages=None, predicate=None):
+    def filter(self, keywords: 'bool|None' = None, messages: 'bool|None' = None,
+               predicate: 'Callable[[T], bool]|None' = None):
         """Filter body items based on type and/or custom predicate.
 
         To include or exclude items based on types, give matching arguments
@@ -199,7 +237,7 @@ class BaseBody(ItemList):
             items = [item for item in items if predicate(item)]
         return items
 
-    def flatten(self):
+    def flatten(self) -> 'list[BodyItem]':
         """Return steps so that IF and TRY structures are flattened.
 
         Basically the IF/ELSE and TRY/EXCEPT root elements are replaced
@@ -209,6 +247,7 @@ class BaseBody(ItemList):
         steps = []
         for item in self:
             if item.type in roots:
+                item = cast('Try|If', item)
                 steps.extend(item.body)
             else:
                 steps.append(item)
@@ -227,12 +266,14 @@ class Branches(BaseBody):
     """A list-like object representing IF and TRY branches."""
     __slots__ = ['branch_class']
 
-    def __init__(self, branch_class, parent=None, items=None):
+    def __init__(self, branch_class: 'Type[IfBranch|TryBranch]',
+                 parent: BodyItemParent = None,
+                 items: 'Iterable[BodyItem|DataDict]' = ()):
         self.branch_class = branch_class
         super().__init__(parent, items)
 
-    def _item_from_dict(self, data):
+    def _item_from_dict(self, data: DataDict) -> 'IfBranch|TryBranch':
         return self.branch_class.from_dict(data)
 
-    def create_branch(self, *args, **kwargs):
-        return self.append(self.branch_class(*args, **kwargs))
+    def create_branch(self, *args, **kwargs) -> 'IfBranch|TryBranch':
+        return self._create(self.branch_class, 'create_branch', args, kwargs)

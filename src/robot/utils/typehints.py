@@ -13,23 +13,22 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from collections.abc import Iterable, Mapping
-
-from robot.utils import NormalizedDict
+from typing import Any, Callable, TypeVar
 
 
-class Metadata(NormalizedDict[str]):
+T = TypeVar('T', bound=Callable[..., Any])
 
-    def __init__(self, initial: 'Mapping[str, str]|Iterable[tuple[str, str]]|None' = None):
-        super().__init__(initial, ignore='_')
+# Type Alias for objects that are only known at runtime. This should be Used as a
+# default value for generic classes that also use `@copy_signature` decorator
+KnownAtRuntime = type(object)
 
-    def __setitem__(self, key: str, value: str):
-        if not isinstance(key, str):
-            key = str(key)
-        if not isinstance(value, str):
-            value = str(value)
-        super().__setitem__(key, value)
 
-    def __str__(self):
-        items = ', '.join(f'{key}: {self[key]}' for key in self)
-        return f'{{{items}}}'
+def copy_signature(target: T) -> Callable[..., T]:
+    """A decorator that applies the signature of `T` to any function that it decorates
+    see https://github.com/python/typing/issues/270#issuecomment-555966301 for source
+    and discussion.
+    """
+    def decorator(func):
+        return func
+
+    return decorator
