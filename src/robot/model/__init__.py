@@ -25,7 +25,7 @@ elsewhere.
 This package is considered stable.
 """
 
-from .body import BaseBody, Body, BodyItem, Branches
+from .body import BaseBody, Body, BodyItem, BaseBranches
 from .configurer import SuiteConfigurer
 from .control import Break, Continue, Error, For, If, IfBranch, Return, Try, TryBranch, While
 from .fixture import create_fixture
@@ -34,7 +34,7 @@ from .keyword import Keyword, Keywords
 from .message import Message, Messages
 from .modelobject import DataDict, ModelObject
 from .modifier import ModelModifier
-from .namepatterns import SuiteNamePatterns, TestNamePatterns
+from .namepatterns import SuiteNamePatterns, TestNamePatterns, FileNamePatterns
 from .statistics import Statistics
 from .tags import Tags, TagPattern, TagPatterns
 from .testcase import TestCase, TestCases

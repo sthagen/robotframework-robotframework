@@ -6,16 +6,17 @@ Resource           atest_resource.robot
 ${DATA FORMATS}    ${DATADIR}/parsing/data_formats
 
 *** Test Cases ***
-One extension
-    --extension robot      29
-    --EXTENSION .TXT       23
+Simple filename
+    -f sample.robot                 18
 
-Multiple extensions
-    -F robot:txt:.ROBOT    52
+Pattern
+    --files *.robot                 29
 
-Any extension is accepted
-    --extension bar        1
-    --extension FoO:bar    2
+Multiple patterns
+    --files sample.robot --files tests.robot    27
+
+Combine extension and files
+    --files sample.rst -F rst       18
 
 *** Keywords ***
 Expected number of tests should be run
