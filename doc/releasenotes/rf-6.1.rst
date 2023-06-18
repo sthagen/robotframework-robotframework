@@ -1,16 +1,13 @@
-=======================================
-Robot Framework 6.1 release candidate 1
-=======================================
+===================
+Robot Framework 6.1
+===================
 
 .. default-role:: code
 
 `Robot Framework`_ 6.1 is a new feature release with support for converting
 Robot Framework data to JSON and back, a new external parser API, possibility
 to mix embedded and normal arguments, and various other interesting new features
-both for normal users and for external tool developers. This release candidate
-contains all planned fixes and features. We hope that all Robot Framework users
-could test it in their environments to help us find possible regressions before
-the final release.
+both for normal users and for external tool developers.
 
 Questions and comments related to the release can be sent to the
 `robotframework-users`_ mailing list or to `Robot Framework Slack`_,
@@ -20,20 +17,19 @@ If you have pip_ installed, just run
 
 ::
 
-   pip install --pre --upgrade robotframework
+   pip install --upgrade robotframework
 
 to install the latest available release or use
 
 ::
 
-   pip install robotframework==6.1rc1
+   pip install robotframework==6.1
 
 to install exactly this version. Alternatively you can download the source
 distribution from PyPI_ and install it manually. For more details and other
 installation approaches, see the `installation instructions`_.
 
-Robot Framework 6.1 rc 1 was released on Monday June 5, 2023. The final release
-is targeted for Monday, June 12, 2023.
+Robot Framework 6.1 was released on Monday June 12, 2023.
 
 .. _Robot Framework: http://robotframework.org
 .. _Robot Framework Foundation: http://robotframework.org/foundation
@@ -62,8 +58,8 @@ use cases:
 
 - Transferring data between processes and machines. A suite can be converted
   to JSON in one machine and recreated somewhere else.
-- Saving a suite constructed from normal Robot Framework data into a single
-  JSON file that is faster to parse.
+- Saving a suite, possibly a nested suite, constructed from normal Robot Framework
+  data into a single JSON file that is faster to parse.
 - Alternative data format for external tools generating tests or tasks.
 
 This feature is designed more for tool developers than for regular Robot Framework
@@ -81,8 +77,10 @@ functionalities are explained below:
 
       # Construct suite based on data on the file system.
       suite = TestSuite.from_file_system('/path/to/data')
+
       # Get JSON data as a string.
       data = suite.to_json()
+
       # Save JSON data to a file with custom indentation.
       suite.to_json('data.rbt', indent=2)
 
@@ -98,15 +96,17 @@ functionalities are explained below:
 
       # Create suite from JSON data in a file.
       suite = TestSuite.from_json('data.rbt')
+
       # Create suite from a JSON string.
       suite = TestSuite.from_json('{"name": "Suite", "tests": [{"name": "Test"}]}')
 
    If you have data as a Python dictionary, you can use `TestSuite.from_dict`__
    instead.
 
-3. When using the `robot` command normally, JSON files with the `.rbt` extension
-   are parsed automatically. This includes running individual JSON files like
-   `robot tests.rbt` and running directories containing `.rbt` files.
+3. When executing tests or tasks using the `robot` command, JSON files with
+   the custom `.rbt` extension are parsed automatically. This includes running
+   individual JSON files like `robot tests.rbt` and running directories
+   containing `.rbt` files.
 
 Suite source information in the data got from `TestSuite.to_json` and
 `TestSuite.to_dict` is in absolute format. If a suite is recreated later on
@@ -274,6 +274,17 @@ supports headers in format `=== Test Cases ===` in addition to
 __ https://robot-framework.readthedocs.io/en/latest/autodoc/robot.running.html#robot.running.model.TestSuite.from_string
 __ https://robot-framework.readthedocs.io/en/latest/autodoc/robot.running.html#robot.running.model.TestSuite.from_model
 __ https://robot-framework.readthedocs.io/en/latest/autodoc/robot.running.html#robot.running.model.TestSuite.from_file_system
+
+Python 3.12 compatibility
+-------------------------
+
+Python 3.12 will be released in `October 2023`__. It contains a `subtle change
+to tokenization`__ that affects Robot Framework's Python evaluation when the
+special `$var` syntax is used. This issue has been fixed and Robot Framework 6.1
+is also otherwise Python 3.12 compatible (`#4771`_).
+
+__ https://peps.python.org/pep-0693/
+__ https://github.com/python/cpython/issues/104802
 
 User keywords with both embedded and normal arguments
 -----------------------------------------------------
@@ -613,11 +624,10 @@ suites as child suites. Earlier this virtual suite could be
 configured only by using command line options like `--name`, but now
 it is possible to use normal suite initialization files (`__init__.robot`)
 for that purpose (`#4015`_). If an initialization file is included
-in the call like::
+in the call as in the following example, the root suite is configured
+based on data it contains::
 
     robot __init__.robot first.robot second.robot
-
-the root suite is configured based on data it contains.
 
 The most important feature this enhancement allows is specifying suite
 setup and teardown to the virtual root suite. Earlier that was not possible
@@ -653,16 +663,19 @@ with a help from an external packaging tool like PDM__.
 __ https://docs.python.org/3/library/zipapp.html
 __ https://pdm.fming.dev
 
-Python 3.12 compatibility
--------------------------
+New translations
+----------------
 
-Python 3.12 will be released in `October 2023`__. It contains a `subtle change
-to tokenization`__ that affects Robot Framework's Python evaluation when the
-special `$var` syntax is used. This issue has been fixed and Robot Framework 6.1
-is also otherwise Python 3.12 compatible (`#4771`_).
+Robot Framework 6.0 started our `localization efforts`__ and added built-in support
+for various languages. Robot Framework 6.1 adds support for Vietnamese (`#4792`_)
+and we hope to add more languages in the future.
 
-__ https://peps.python.org/pep-0693/
-__ https://github.com/python/cpython/issues/104802
+The new `Name` setting (`#4583`_) has also been translated to various languages
+but not yet for all. All supported languages and exact translations used by
+them are listed in the `User Guide`__.
+
+__ https://github.com/robotframework/robotframework/blob/master/doc/releasenotes/rf-6.0.rst#localization
+__ http://robotframework.org/robotframework/latest/RobotFrameworkUserGuide.html#translations
 
 
 Backwards incompatible changes
@@ -684,10 +697,13 @@ output.xml files so that they go through all elements need to take `<error>`
 elements into account, but tools just querying information using xpath
 expression or otherwise should not be affected.
 
-Another change is that with `FOR IN ENUMERATE` loops the `<for>` element
-may get `start` attribute (`#4684`_) and with `FOR IN ZIP` loops it may get
-`mode` and `fill` attributes (`#4682`_). This affects tools processing
-all possible attributes, but such tools ought to be very rare.
+Another change is that `<for>` and `<while>` elements may have new attributes.
+With `FOR IN ENUMERATE` loops the `<for>` element may get `start` attribute
+(`#4684`_), with `FOR IN ZIP` loops the `<for>` element may get `mode` and `fill`
+attributes (`#4682`_), and with `WHILE` loops the `<while>` element may get
+`on_limit` (`#4562`_) and `on_limit_message` (`#4575`_) attributes. This
+affects tools processing all possible attributes, but such tools ought to
+be very rare.
 
 Changes to `TestSuite` model structure
 --------------------------------------
@@ -896,6 +912,9 @@ In addition to that, the community has provided several great contributions:
 - `Yuri Verweij <https://github.com/yuriverweij>`__ enhanced `Dictionaries Should Be Equal`
   so that it supports ignoring keys (`#2717`_).
 
+- `Hưng Trịnh <https://github.com/hungtrinh>`__ provided Vietnamese translation (`#4792`_)
+  and `Elout van Leeuwen <https://github.com/leeuwe>`__ helped with localization otherwise.
+
 Big thanks to Robot Framework Foundation for the continued support, to community
 members listed above for their valuable contributions, and to everyone else who
 has submitted bug reports, proposed enhancements, debugged problems, or otherwise
@@ -903,6 +922,7 @@ helped to make Robot Framework 6.1 such a great release!
 
 | `Pekka Klärck <https://github.com/pekkaklarck>`__
 | Robot Framework Creator
+
 
 Full list of fixes and enhancements
 ===================================
@@ -914,379 +934,316 @@ Full list of fixes and enhancements
       - Type
       - Priority
       - Summary
-      - Added
     * - `#1283`_
       - enhancement
       - critical
       - External parser API for custom parsers
-      - beta 1
     * - `#3902`_
       - enhancement
       - critical
       - Support serializing executable suite into JSON
-      - alpha 1
     * - `#4234`_
       - enhancement
       - critical
       - Support user keywords with both embedded and normal arguments
-      - alpha 1
     * - `#4771`_
       - enhancement
       - critical
       - Python 3.12 compatibility
-      - rc 1
     * - `#4705`_
       - bug
       - high
       - Items are not converted when using generics like `list[int]` and passing object, not string
-      - beta 1
     * - `#4744`_
       - bug
       - high
       - WHILE limit doesn't work in teardown
-      - beta 1
     * - `#4015`_
       - enhancement
       - high
       - Support configuring virtual suite created when running multiple suites with `__init__.robot`
-      - alpha 1
     * - `#4089`_
       - enhancement
       - high
       - Support asynchronous functions and methods as keywords
-      - beta 1
     * - `#4510`_
       - enhancement
       - high
       - Make it possible for custom converters to get access to the library
-      - alpha 1
     * - `#4532`_
       - enhancement
       - high
       - JSON variable file support
-      - alpha 1
     * - `#4536`_
       - enhancement
       - high
       - Add new pseudo log level `CONSOLE` that logs to console and to log file
-      - alpha 1
     * - `#4546`_
       - enhancement
       - high
-      - Support item assigment with lists and dicts like `${x}[key] =    Keyword`
-      - rc 1
+      - Support item assignment with lists and dicts like `${x}[key] =    Keyword`
     * - `#4562`_
       - enhancement
       - high
       - Possibility to continue execution after WHILE limit is reached
-      - beta 1
     * - `#4570`_
       - enhancement
       - high
       - Add type information to `TestSuite` structure
-      - rc 1
     * - `#4584`_
       - enhancement
       - high
       - New `robot:flatten` tag for "flattening" keyword structures
-      - alpha 1
     * - `#4613`_
       - enhancement
       - high
       - Make Robot Framework compatible with `zipapp`
-      - beta 1
     * - `#4637`_
       - enhancement
       - high
       - Deprecate Python 3.7
-      - alpha 1
     * - `#4682`_
       - enhancement
       - high
       - Make `FOR IN ZIP` loop behavior if lists have different lengths configurable
-      - alpha 1
+    * - `#4746`_
+      - enhancement
+      - high
+      - Decide and document XDG media type
+    * - `#4792`_
+      - enhancement
+      - high
+      - Add Vietnamese translation
     * - `#4538`_
       - bug
       - medium
       - Libdoc doesn't handle parameterized types like `list[int]` properly
-      - alpha 1
     * - `#4571`_
       - bug
       - medium
       - Suite setup and teardown are executed even if all tests are skipped
-      - alpha 1
     * - `#4589`_
       - bug
       - medium
       - Remove unused attributes from `robot.running.Keyword` model object
-      - alpha 1
     * - `#4604`_
       - bug
       - medium
       - Listeners do not get source information for keywords executed with `Run Keyword`
-      - alpha 1
     * - `#4626`_
       - bug
       - medium
       - Inconsistent argument conversion when using `None` as default value with Python 3.11 and earlier
-      - alpha 1
     * - `#4635`_
       - bug
       - medium
       - Dialogs created by `Dialogs` on Windows don't have focus
-      - alpha 1
     * - `#4648`_
       - bug
       - medium
       - Argument conversion should be attempted with all possible types even if some type wouldn't be recognized
-      - alpha 1
     * - `#4670`_
       - bug
       - medium
       - Parsing model: `Documentation.from_params(...).value` doesn't work
-      - beta 1
     * - `#4680`_
       - bug
       - medium
       - User Guide generation broken on Windows
-      - alpha 1
     * - `#4689`_
       - bug
       - medium
       - Invalid sections are not represented properly in parsing model
-      - alpha 1
     * - `#4692`_
       - bug
       - medium
       - `ELSE IF` condition not passed to listeners
-      - alpha 1
     * - `#4695`_
       - bug
       - medium
       - Accessing `id` property of model objects may cause `ValueError`
-      - beta 1
     * - `#4716`_
       - bug
       - medium
       - Variable nodes with nested variables report a parsing error, but work properly in the runtime
-      - beta 1
     * - `#4754`_
       - bug
       - medium
       - Back navigation does not work properly in HTML outputs (log, report, Libdoc)
-      - rc 1
     * - `#4756`_
       - bug
       - medium
       - Failed keywords inside skipped tests are not expanded
-      - rc 1
     * - `#2717`_
       - enhancement
       - medium
       - `Dictionaries Should Be Equal` should support ignoring keys
-      - rc 1
     * - `#3579`_
       - enhancement
       - medium
       - Enhance performance of selecting tests using `--include` and `--exclude`
-      - rc 1
     * - `#4210`_
       - enhancement
       - medium
       - Enhance error detection at parsing time
-      - alpha 1
     * - `#4547`_
       - enhancement
       - medium
       - Support long command line options with hyphens like `--pre-run-modifier`
-      - alpha 1
     * - `#4567`_
       - enhancement
       - medium
       - Add optional typed base class for dynamic library API
-      - alpha 1
     * - `#4568`_
       - enhancement
       - medium
       - Add optional typed base classes for listener API
-      - alpha 1
     * - `#4569`_
       - enhancement
       - medium
       - Add type information to the visitor API
-      - alpha 1
     * - `#4575`_
       - enhancement
       - medium
       - Add `on_limit_message` option to WHILE loops to control message used if loop limit is exceeded
-      - beta 1
     * - `#4576`_
       - enhancement
       - medium
       - Make the WHILE loop condition optional
-      - beta 1
     * - `#4583`_
       - enhancement
       - medium
       - Possibility to give a custom name to a suite using `Name` setting
-      - beta 1
     * - `#4601`_
       - enhancement
       - medium
       - Add `robot.running.TestSuite.from_string` method
-      - alpha 1
     * - `#4609`_
       - enhancement
       - medium
       - If multiple keywords match, resolve conflict first using search order
-      - rc 1
-    * - `#4647`_
-      - enhancement
-      - medium
-      - Add explicit argument converter for `Any` that does no conversion
-      - alpha 1
-    * - `#4660`_
-      - enhancement
-      - medium
-      - Dynamic API: Support positional-only arguments
-      - beta 1
-    * - `#4666`_
-      - enhancement
-      - medium
-      - Add public API to query is Robot running and is dry-run active
-      - alpha 1
-    * - `#4676`_
-      - enhancement
-      - medium
-      - Propose using `$var` syntax if evaluation IF or WHILE condition using `${var}` fails
-      - alpha 1
-    * - `#4683`_
-      - enhancement
-      - medium
-      - Report syntax errors better in log file
-      - alpha 1
-    * - `#4684`_
-      - enhancement
-      - medium
-      - Handle start index with `FOR IN ENUMERATE` loops already in parser
-      - alpha 1
-    * - `#4687`_
-      - enhancement
-      - medium
-      - Add explicit command line option to limit which files are parsed
-      - rc 1
-    * - `#4688`_
-      - enhancement
-      - medium
-      - Do not exclude files during parsing if using `--suite` option
-      - rc 1
-    * - `#4729`_
-      - enhancement
-      - medium
-      - Leading and internal spaces should be preserved in documentation
-      - beta 1
-    * - `#4740`_
-      - enhancement
-      - medium
-      - Add type hints to parsing API
-      - beta 1
-    * - `#4765`_
-      - enhancement
-      - medium
-      - Add forward compatible `start_time`, `end_time` and `elapsed_time` propertys to result objects
-      - rc 1
-    * - `#4777`_
-      - enhancement
-      - medium
-      - Parse files with `.robot.rst` extension automatically
-      - rc 1
     * - `#4627`_
       - enhancement
       - medium
       - Support custom converters that accept only `*varargs`
-      - beta 1
+    * - `#4647`_
+      - enhancement
+      - medium
+      - Add explicit argument converter for `Any` that does no conversion
+    * - `#4660`_
+      - enhancement
+      - medium
+      - Dynamic API: Support positional-only arguments
+    * - `#4666`_
+      - enhancement
+      - medium
+      - Add public API to query is Robot running and is dry-run active
+    * - `#4676`_
+      - enhancement
+      - medium
+      - Propose using `$var` syntax if evaluation IF or WHILE condition using `${var}` fails
+    * - `#4683`_
+      - enhancement
+      - medium
+      - Report syntax errors better in log file
+    * - `#4684`_
+      - enhancement
+      - medium
+      - Handle start index with `FOR IN ENUMERATE` loops already in parser
+    * - `#4687`_
+      - enhancement
+      - medium
+      - Add explicit command line option to limit which files are parsed
+    * - `#4688`_
+      - enhancement
+      - medium
+      - Do not exclude files during parsing if using `--suite` option
+    * - `#4729`_
+      - enhancement
+      - medium
+      - Leading and internal spaces should be preserved in documentation
+    * - `#4740`_
+      - enhancement
+      - medium
+      - Add type hints to parsing API
+    * - `#4765`_
+      - enhancement
+      - medium
+      - Add forward compatible `start_time`, `end_time` and `elapsed_time` propertys to result objects
+    * - `#4777`_
+      - enhancement
+      - medium
+      - Parse files with `.robot.rst` extension automatically
+    * - `#4793`_
+      - enhancement
+      - medium
+      - Enhance programmatic API to create resource files
     * - `#4611`_
       - bug
       - low
       - Some unit tests cannot be run independently
-      - alpha 1
     * - `#4634`_
       - bug
       - low
       - Dialogs created by `Dialogs` are not centered and their minimum size is too small
-      - alpha 1
     * - `#4638`_
       - bug
       - low
       - Using bare `Union` as annotation is not handled properly
-      - alpha 1
     * - `#4646`_
       - bug
       - low
       - Bad error message when function is annotated with an empty tuple `()`
-      - alpha 1
     * - `#4663`_
       - bug
       - low
       - `BuiltIn.Log` documentation contains a defect
-      - alpha 1
     * - `#4736`_
       - bug
       - low
       - Backslash preventing newline in documentation can form escape sequence like `\n`
-      - beta 1
     * - `#4749`_
       - bug
       - low
       - Process: `Split/Join Command Line` do not work properly with `pathlib.Path` objects
-      - beta 1
     * - `#4780`_
       - bug
       - low
       - Libdoc crashes if it does not detect documentation format
-      - rc 1
     * - `#4781`_
       - bug
       - low
       - Libdoc: Type info for `TypedDict` doesn't list `Mapping` in converted types
-      - rc 1
     * - `#4522`_
       - enhancement
       - low
       - Deprecate `accept_plain_values` argument used by `timestr_to_secs`
-      - alpha 1
     * - `#4596`_
       - enhancement
       - low
       - Make `TestSuite.source` attribute `pathlib.Path` instance
-      - alpha 1
     * - `#4598`_
       - enhancement
       - low
       - Deprecate `name` argument of `TestSuite.from_model`
-      - alpha 1
     * - `#4619`_
       - enhancement
       - low
       - Dialogs created by `Dialogs` should bind `Enter` key to `OK` button
-      - alpha 1
     * - `#4636`_
       - enhancement
       - low
       - Buttons in dialogs created by `Dialogs` should get keyboard shortcuts
-      - alpha 1
     * - `#4656`_
       - enhancement
       - low
       - Deprecate `Return` node in parsing model
-      - alpha 1
     * - `#4709`_
       - enhancement
       - low
       - Add `__repr__()` method to NormalizedDict
-      - beta 1
 
-Altogether 74 issues. View on the `issue tracker <https://github.com/robotframework/robotframework/issues?q=milestone%3Av6.1>`__.
+Altogether 77 issues. View on the `issue tracker <https://github.com/robotframework/robotframework/issues?q=milestone%3Av6.1>`__.
 
 .. _#1283: https://github.com/robotframework/robotframework/issues/1283
 .. _#3902: https://github.com/robotframework/robotframework/issues/3902
@@ -1306,6 +1263,8 @@ Altogether 74 issues. View on the `issue tracker <https://github.com/robotframew
 .. _#4613: https://github.com/robotframework/robotframework/issues/4613
 .. _#4637: https://github.com/robotframework/robotframework/issues/4637
 .. _#4682: https://github.com/robotframework/robotframework/issues/4682
+.. _#4746: https://github.com/robotframework/robotframework/issues/4746
+.. _#4792: https://github.com/robotframework/robotframework/issues/4792
 .. _#4538: https://github.com/robotframework/robotframework/issues/4538
 .. _#4571: https://github.com/robotframework/robotframework/issues/4571
 .. _#4589: https://github.com/robotframework/robotframework/issues/4589
@@ -1333,6 +1292,7 @@ Altogether 74 issues. View on the `issue tracker <https://github.com/robotframew
 .. _#4583: https://github.com/robotframework/robotframework/issues/4583
 .. _#4601: https://github.com/robotframework/robotframework/issues/4601
 .. _#4609: https://github.com/robotframework/robotframework/issues/4609
+.. _#4627: https://github.com/robotframework/robotframework/issues/4627
 .. _#4647: https://github.com/robotframework/robotframework/issues/4647
 .. _#4660: https://github.com/robotframework/robotframework/issues/4660
 .. _#4666: https://github.com/robotframework/robotframework/issues/4666
@@ -1345,7 +1305,7 @@ Altogether 74 issues. View on the `issue tracker <https://github.com/robotframew
 .. _#4740: https://github.com/robotframework/robotframework/issues/4740
 .. _#4765: https://github.com/robotframework/robotframework/issues/4765
 .. _#4777: https://github.com/robotframework/robotframework/issues/4777
-.. _#4627: https://github.com/robotframework/robotframework/issues/4627
+.. _#4793: https://github.com/robotframework/robotframework/issues/4793
 .. _#4611: https://github.com/robotframework/robotframework/issues/4611
 .. _#4634: https://github.com/robotframework/robotframework/issues/4634
 .. _#4638: https://github.com/robotframework/robotframework/issues/4638
