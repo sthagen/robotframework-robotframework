@@ -336,13 +336,13 @@ class TestCreateStatementsFromParams(unittest.TestCase):
             name='library_name.py'
         )
 
-        # Library    library_name.py    WITH NAME    anothername
+        # Library    library_name.py    AS    anothername
         tokens = [
             Token(Token.LIBRARY, 'Library'),
             Token(Token.SEPARATOR, '    '),
             Token(Token.NAME, 'library_name.py'),
             Token(Token.SEPARATOR, '    '),
-            Token(Token.WITH_NAME),
+            Token(Token.AS),
             Token(Token.SEPARATOR, '    '),
             Token(Token.NAME, 'anothername'),
             Token(Token.EOL, '\n')
@@ -534,7 +534,7 @@ class TestCreateStatementsFromParams(unittest.TestCase):
 
     def test_ForceTags(self):
         tokens = [
-            Token(Token.FORCE_TAGS, 'Force Tags'),
+            Token(Token.TEST_TAGS, 'Force Tags'),
             Token(Token.SEPARATOR, '    '),
             Token(Token.ARGUMENT, 'some tag'),
             Token(Token.SEPARATOR, '    '),
@@ -543,7 +543,7 @@ class TestCreateStatementsFromParams(unittest.TestCase):
         ]
         assert_created_statement(
             tokens,
-            ForceTags,
+            TestTags,
             values=['some tag', 'another_tag']
         )
 
@@ -678,9 +678,9 @@ class TestCreateStatementsFromParams(unittest.TestCase):
             Token(Token.SEPARATOR, '    '),
             Token(Token.FOR),
             Token(Token.SEPARATOR, '  '),
-            Token(Token.VARIABLE, '${value1}'),
+            Token(Token.ASSIGN, '${value1}'),
             Token(Token.SEPARATOR, '  '),
-            Token(Token.VARIABLE, '${value2}'),
+            Token(Token.ASSIGN, '${value2}'),
             Token(Token.SEPARATOR, '  '),
             Token(Token.FOR_SEPARATOR, 'IN ZIP'),
             Token(Token.SEPARATOR, '  '),
@@ -823,7 +823,7 @@ class TestCreateStatementsFromParams(unittest.TestCase):
             Token(Token.SEPARATOR, '    '),
             Token(Token.AS, 'AS'),
             Token(Token.SEPARATOR, '    '),
-            Token(Token.VARIABLE, '${var}'),
+            Token(Token.ASSIGN, '${var}'),
             Token(Token.EOL, '\n')
         ]
         assert_created_statement(
@@ -861,7 +861,7 @@ class TestCreateStatementsFromParams(unittest.TestCase):
             Token(Token.SEPARATOR, '    '),
             Token(Token.AS, 'AS'),
             Token(Token.SEPARATOR, '    '),
-            Token(Token.VARIABLE, '${var}'),
+            Token(Token.ASSIGN, '${var}'),
             Token(Token.EOL, '\n')]
         assert_created_statement(
             tokens,

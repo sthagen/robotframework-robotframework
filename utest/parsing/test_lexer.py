@@ -82,7 +82,7 @@ Name              Custom Suite Name
             (T.TEST_TIMEOUT, 'Test Timeout', 10, 0),
             (T.ARGUMENT, '1 day', 10, 18),
             (T.EOS, '', 10, 23),
-            (T.FORCE_TAGS, 'Force Tags', 11, 0),
+            (T.TEST_TAGS, 'Force Tags', 11, 0),
             (T.ARGUMENT, 'foo', 11, 18),
             (T.ARGUMENT, 'bar', 11, 25),
             (T.EOS, '', 11, 28),
@@ -109,7 +109,7 @@ Default Tags      Not allowed in init file
             (T.TEST_TEMPLATE, 'Test Template', 2, 0),
             (T.NAME, 'Not allowed in init file', 2, 18),
             (T.EOS, '', 2, 42),
-            (T.FORCE_TAGS, 'Force Tags', 3, 0),
+            (T.TEST_TAGS, 'Force Tags', 3, 0),
             (T.ARGUMENT, 'Allowed in both', 3, 18),
             (T.EOS, '', 3, 33),
             (T.DEFAULT_TAGS, 'Default Tags', 4, 0),
@@ -124,7 +124,7 @@ Default Tags      Not allowed in init file
             (T.ERROR, 'Test Template', 2, 0,
              "Setting 'Test Template' is not allowed in suite initialization file."),
             (T.EOS, '', 2, 13),
-            (T.FORCE_TAGS, 'Force Tags', 3, 0),
+            (T.TEST_TAGS, 'Force Tags', 3, 0),
             (T.ARGUMENT, 'Allowed in both', 3, 18),
             (T.EOS, '', 3, 33),
             (T.ERROR, 'Default Tags', 4, 0,
@@ -229,37 +229,37 @@ VariAbles         variables.py    arg
         assert_tokens(data, expected, get_init_tokens, data_only=True)
         assert_tokens(data, expected, get_resource_tokens, data_only=True)
 
-    def test_with_name(self):
+    def test_aliasing_with_as(self):
         data = '''\
 *** Settings ***
-Library         Easter                       WITH NAME    Christmas
-Library         Arguments    arg             WITH NAME    One argument
+Library         Easter                       AS    Christmas
+Library         Arguments    arg             AS    One argument
 Library         Arguments    arg1    arg2
-...                          arg3    arg4    WITH NAME    Four arguments
+...                          arg3    arg4    AS    Four arguments
 '''
         expected = [
             (T.SETTING_HEADER, '*** Settings ***', 1, 0),
             (T.EOS, '', 1, 16),
             (T.LIBRARY, 'Library', 2, 0),
             (T.NAME, 'Easter', 2, 16),
-            (T.WITH_NAME, 'WITH NAME', 2, 45),
-            (T.NAME, 'Christmas', 2, 58),
-            (T.EOS, '', 2, 67),
+            (T.AS, 'AS', 2, 45),
+            (T.NAME, 'Christmas', 2, 51),
+            (T.EOS, '', 2, 60),
             (T.LIBRARY, 'Library', 3, 0),
             (T.NAME, 'Arguments', 3, 16),
             (T.ARGUMENT, 'arg', 3, 29),
-            (T.WITH_NAME, 'WITH NAME', 3, 45),
-            (T.NAME, 'One argument', 3, 58),
-            (T.EOS, '', 3, 70),
+            (T.AS, 'AS', 3, 45),
+            (T.NAME, 'One argument', 3, 51),
+            (T.EOS, '', 3, 63),
             (T.LIBRARY, 'Library', 4, 0),
             (T.NAME, 'Arguments', 4, 16),
             (T.ARGUMENT, 'arg1', 4, 29),
             (T.ARGUMENT, 'arg2', 4, 37),
             (T.ARGUMENT, 'arg3', 5, 29),
             (T.ARGUMENT, 'arg4', 5, 37),
-            (T.WITH_NAME, 'WITH NAME', 5, 45),
-            (T.NAME, 'Four arguments', 5, 58),
-            (T.EOS, '', 5, 72)
+            (T.AS, 'AS', 5, 45),
+            (T.NAME, 'Four arguments', 5, 51),
+            (T.EOS, '', 5, 65)
         ]
         assert_tokens(data, expected, get_tokens, data_only=True)
         assert_tokens(data, expected, get_init_tokens, data_only=True)
@@ -389,7 +389,7 @@ Name              Ignored
             (T.ERROR, 'Test Timeout', 15, 0,
              "Setting 'Test Timeout' is allowed only once. Only the first value is used."),
             (T.EOS, '', 15, 12),
-            (T.FORCE_TAGS, 'Force Tags', 16, 0),
+            (T.TEST_TAGS, 'Force Tags', 16, 0),
             (T.ARGUMENT, 'Used', 16, 18),
             (T.EOS, '', 16, 22),
             (T.ERROR, 'Force Tags', 17, 0,
@@ -939,7 +939,7 @@ class TestForLoop(unittest.TestCase):
         header = 'FOR    ${i}    IN    foo    bar'
         expected = [
             (T.FOR, 'FOR', 3, 4),
-            (T.VARIABLE, '${i}', 3, 11),
+            (T.ASSIGN, '${i}', 3, 11),
             (T.FOR_SEPARATOR, 'IN', 3, 19),
             (T.ARGUMENT, 'foo', 3, 25),
             (T.ARGUMENT, 'bar', 3, 32),
@@ -1685,7 +1685,7 @@ class TestTokenizeVariables(unittest.TestCase):
     def test_settings(self):
         data = '''\
 *** Settings ***
-Library       My${Name}    my ${arg}    ${x}[0]    WITH NAME    Your${Name}
+Library       My${Name}    my ${arg}    ${x}[0]    AS    Your${Name}
 ${invalid}    ${usage}
 '''
         expected = [(T.SETTING_HEADER, '*** Settings ***', 1, 0),
@@ -1696,10 +1696,10 @@ ${invalid}    ${usage}
                     (T.ARGUMENT, 'my ', 2, 27),
                     (T.VARIABLE, '${arg}', 2, 30),
                     (T.VARIABLE, '${x}[0]', 2, 40),
-                    (T.WITH_NAME, 'WITH NAME', 2, 51),
-                    (T.NAME, 'Your', 2, 64),
-                    (T.VARIABLE, '${Name}', 2, 68),
-                    (T.EOS, '', 2, 75),
+                    (T.AS, 'AS', 2, 51),
+                    (T.NAME, 'Your', 2, 57),
+                    (T.VARIABLE, '${Name}', 2, 61),
+                    (T.EOS, '', 2, 68),
                     (T.ERROR, '${invalid}', 3, 0, "Non-existing setting '${invalid}'."),
                     (T.EOS, '', 3, 10)]
         assert_tokens(data, expected, get_tokens=get_tokens,
@@ -1953,7 +1953,7 @@ class TestReturn(unittest.TestCase):
     END
 '''
             expected = [(T.FOR, 'FOR', 3, 4),
-                        (T.VARIABLE, '${x}', 3, 11),
+                        (T.ASSIGN, '${x}', 3, 11),
                         (T.FOR_SEPARATOR, 'IN', 3, 19),
                         (T.ARGUMENT, '@{STUFF}', 3, 25),
                         (T.EOS, '', 3, 33),
@@ -2004,7 +2004,7 @@ class TestContinue(unittest.TestCase):
     END
 '''
         expected = [(T.FOR, 'FOR', 3, 4),
-                    (T.VARIABLE, '${x}', 3, 11),
+                    (T.ASSIGN, '${x}', 3, 11),
                     (T.FOR_SEPARATOR, 'IN', 3, 19),
                     (T.ARGUMENT, '@{STUFF}', 3, 25),
                     (T.EOS, '', 3, 33),
@@ -2030,7 +2030,7 @@ class TestContinue(unittest.TestCase):
     END
 '''
         expected = [(T.FOR, 'FOR', 3, 4),
-                    (T.VARIABLE, '${x}', 3, 11),
+                    (T.ASSIGN, '${x}', 3, 11),
                     (T.FOR_SEPARATOR, 'IN', 3, 19),
                     (T.ARGUMENT, '@{STUFF}', 3, 25),
                     (T.EOS, '', 3, 33),
@@ -2055,7 +2055,7 @@ class TestContinue(unittest.TestCase):
     END
 '''
         expected = [(T.FOR, 'FOR', 3, 4),
-                    (T.VARIABLE, '${x}', 3, 11),
+                    (T.ASSIGN, '${x}', 3, 11),
                     (T.FOR_SEPARATOR, 'IN', 3, 19),
                     (T.ARGUMENT, '@{STUFF}', 3, 25),
                     (T.EOS, '', 3, 33),
@@ -2120,7 +2120,7 @@ class TestBreak(unittest.TestCase):
     END
 '''
         expected = [(T.FOR, 'FOR', 3, 4),
-                    (T.VARIABLE, '${x}', 3, 11),
+                    (T.ASSIGN, '${x}', 3, 11),
                     (T.FOR_SEPARATOR, 'IN', 3, 19),
                     (T.ARGUMENT, '@{STUFF}', 3, 25),
                     (T.EOS, '', 3, 33),
@@ -2142,7 +2142,7 @@ class TestBreak(unittest.TestCase):
     END
 '''
         expected = [(T.FOR, 'FOR', 3, 4),
-                    (T.VARIABLE, '${x}', 3, 11),
+                    (T.ASSIGN, '${x}', 3, 11),
                     (T.FOR_SEPARATOR, 'IN', 3, 19),
                     (T.ARGUMENT, '@{STUFF}', 3, 25),
                     (T.EOS, '', 3, 33),
@@ -2178,7 +2178,7 @@ class TestBreak(unittest.TestCase):
     END
 '''
         expected = [(T.FOR, 'FOR', 3, 4),
-                    (T.VARIABLE, '${x}', 3, 11),
+                    (T.ASSIGN, '${x}', 3, 11),
                     (T.FOR_SEPARATOR, 'IN', 3, 19),
                     (T.ARGUMENT, '@{STUFF}', 3, 25),
                     (T.EOS, '', 3, 33),
