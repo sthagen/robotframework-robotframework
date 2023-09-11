@@ -347,7 +347,7 @@ class ForBuilder(NodeVisitor):
     def build(self, node):
         error = format_error(self._get_errors(node))
         self.model = self.parent.body.create_for(
-            node.variables, node.flavor, node.values, node.start, node.mode, node.fill,
+            node.assign, node.flavor, node.values, node.start, node.mode, node.fill,
             lineno=node.lineno, error=error
         )
         for step in node.body:
@@ -483,7 +483,7 @@ class TryBuilder(NodeVisitor):
         errors = self._get_errors(node)
         while node:
             self.model = root.body.create_branch(node.type, node.patterns,
-                                                 node.pattern_type, node.variable,
+                                                 node.pattern_type, node.assign,
                                                  lineno=node.lineno)
             for step in node.body:
                 self.visit(step)
@@ -627,12 +627,20 @@ class ErrorReporter(NodeVisitor):
         pass
 
     def visit_SectionHeader(self, node):
-        token = node.get_token(Token.INVALID_HEADER)
-        if token:
+        token = node.get_token(*Token.HEADER_TOKENS)
+        if not token.error:
+            return
+        message = self._format_message(token)
+        if token.type == Token.INVALID_HEADER:
             if self.raise_on_invalid_header:
-                raise DataError(self._format_message(token))
+                raise DataError(message)
             else:
-                LOGGER.error(self._format_message(token))
+                LOGGER.error(message)
+        else:
+            # Errors, other than totally invalid headers, can occur only with
+            # deprecated singular headers, and we want to report them as warnings.
+            # A more generic solution for separating errors and warnings would be good.
+            LOGGER.warn(self._format_message(token))
 
     def visit_Error(self, node):
         for error in node.get_tokens(Token.ERROR):

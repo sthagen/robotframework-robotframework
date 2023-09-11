@@ -26,8 +26,6 @@ class LibdocXmlWriter:
         self._write_start(libdoc, writer)
         self._write_keywords('inits', 'init', libdoc.inits, libdoc.source, writer)
         self._write_keywords('keywords', 'kw', libdoc.keywords, libdoc.source, writer)
-        # Write deprecated '<datatypes>' element.
-        self._write_data_types(libdoc.type_docs, writer)
         # Write new '<types>' element.
         self._write_type_docs(libdoc.type_docs, writer)
         self._write_end(writer)
@@ -38,7 +36,7 @@ class LibdocXmlWriter:
                  'format': libdoc.doc_format,
                  'scope': libdoc.scope,
                  'generated': get_generation_time(),
-                 'specversion': '5'}
+                 'specversion': '6'}
         self._add_source_info(attrs, libdoc)
         writer.start('keywordspec', attrs)
         writer.element('version', libdoc.version)
@@ -91,10 +89,7 @@ class LibdocXmlWriter:
             attrs['union'] = 'true'
         if type_info.name in type_docs:
             attrs['typedoc'] = type_docs[type_info.name]
-        # Writing content, and omitting newlines, is backwards compatibility with
-        # specs created using RF < 6.1. TODO: Remove in RF 7.
-        writer.start('type', attrs, newline=False)
-        writer.content(str(type_info))
+        writer.start('type', attrs)
         for nested in type_info.nested:
             self._write_type_info(nested, type_docs, writer, top=False)
         writer.end('type', newline=top)
@@ -107,29 +102,6 @@ class LibdocXmlWriter:
             attrs['deprecated'] = 'true'
         self._add_source_info(attrs, kw, lib_source)
         return attrs
-
-    # Write legacy 'datatypes'. TODO: Remove in RF 7.
-    def _write_data_types(self, types, writer):
-        enums = sorted(t for t in types if t.type == 'Enum')
-        typed_dicts = sorted(t for t in types if t.type == 'TypedDict')
-        writer.start('datatypes')
-        if enums:
-            writer.start('enums')
-            for enum in enums:
-                writer.start('enum', {'name': enum.name})
-                writer.element('doc', enum.doc)
-                self._write_enum_members(enum, writer)
-                writer.end('enum')
-            writer.end('enums')
-        if typed_dicts:
-            writer.start('typeddicts')
-            for typ_dict in typed_dicts:
-                writer.start('typeddict', {'name': typ_dict.name})
-                writer.element('doc', typ_dict.doc)
-                self._write_typed_dict_items(typ_dict, writer)
-                writer.end('typeddict')
-            writer.end('typeddicts')
-        writer.end('datatypes')
 
     def _write_type_docs(self, type_docs, writer):
         writer.start('typedocs')
