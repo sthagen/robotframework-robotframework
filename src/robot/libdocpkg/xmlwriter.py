@@ -26,7 +26,6 @@ class LibdocXmlWriter:
         self._write_start(libdoc, writer)
         self._write_keywords('inits', 'init', libdoc.inits, libdoc.source, writer)
         self._write_keywords('keywords', 'kw', libdoc.keywords, libdoc.source, writer)
-        # Write new '<types>' element.
         self._write_type_docs(libdoc.type_docs, writer)
         self._write_end(writer)
 
@@ -83,16 +82,19 @@ class LibdocXmlWriter:
             writer.end('arg')
         writer.end('arguments')
 
-    def _write_type_info(self, type_info: TypeInfo, type_docs: dict, writer, top=True):
+    def _write_type_info(self, type_info: TypeInfo, type_docs: dict, writer):
         attrs = {'name': type_info.name}
         if type_info.is_union:
             attrs['union'] = 'true'
         if type_info.name in type_docs:
             attrs['typedoc'] = type_docs[type_info.name]
-        writer.start('type', attrs)
-        for nested in type_info.nested:
-            self._write_type_info(nested, type_docs, writer, top=False)
-        writer.end('type', newline=top)
+        if type_info.nested:
+            writer.start('type', attrs)
+            for nested in type_info.nested:
+                self._write_type_info(nested, type_docs, writer)
+            writer.end('type')
+        else:
+            writer.element('type', attrs=attrs)
 
     def _get_start_attrs(self, kw, lib_source):
         attrs = {'name': kw.name}
