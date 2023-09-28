@@ -18,6 +18,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Union
 
+from robot.errors import DataError
 from robot.utils import has_args, is_union, NOT_SET, type_repr
 
 
@@ -81,9 +82,8 @@ class TypeInfo:
     def from_sting(cls, hint: str) -> 'TypeInfo':
         try:
             return TypeInfoParser(hint).parse()
-        except ValueError:
-            # Would be nice to report the error somewhere.
-            return cls(hint)
+        except ValueError as err:
+            raise DataError(str(err))
 
     @classmethod
     def from_dict(cls, data: dict) -> 'TypeInfo':
@@ -187,30 +187,37 @@ class TypeInfoParser:
         self.tokens = TypeInfoTokenizer(self.source).tokenize()
         info = self.type()
         if not self.at_end:
-            self.error('Tokens remaining.')
+            self.error(f"Extra content after '{info}'.")
         return info
 
     def type(self) -> 'TypeInfo':
         if not self.check(TypeInfoTokenType.NAME):
-            self.error('Token name missing.')
+            self.error('Type name missing.')
         info = TypeInfo(self.advance().value)
         if self.match(TypeInfoTokenType.LEFT_SQUARE):
-            info.nested = tuple(self.nested())
-        if self.check(TypeInfoTokenType.PIPE):
-            nested = [info]
-            while self.match(TypeInfoTokenType.PIPE):
-                nested.append(self.type())
+            info.nested = self.params()
+        if self.match(TypeInfoTokenType.PIPE):
+            nested = [info] + self.union()
             info = TypeInfo('Union', nested)
         return info
 
-    def nested(self) -> 'list[TypeInfo]':
-        nested = []
-        while not nested or self.match(TypeInfoTokenType.COMMA):
-            nested.append(self.type())
-        if not self.check(TypeInfoTokenType.RIGHT_SQUARE):
-            self.error("']' missing.")
-        self.advance()
-        return nested
+    def params(self) -> 'list[TypeInfo]':
+        params = []
+        while not params or self.match(TypeInfoTokenType.COMMA):
+            params.append(self.type())
+        if not self.match(TypeInfoTokenType.RIGHT_SQUARE):
+            self.error("Closing ']' missing.")
+        return params
+
+    def union(self) -> 'list[TypeInfo]':
+        types = []
+        while not types or self.match(TypeInfoTokenType.PIPE):
+            info = self.type()
+            if info.is_union:
+                types.extend(info.nested)
+            else:
+                types.append(info)
+        return types
 
     def match(self, *types: TypeInfoTokenType) -> bool:
         for typ in types:
@@ -237,6 +244,6 @@ class TypeInfoParser:
 
     def error(self, message: str):
         token = self.peek()
-        position = f'in index {token.position}' if token else 'at end'
-        raise ValueError(f"Parsing type info {self.source!r} failed: "
-                         f"Error {position}: {message}")
+        position = f'index {token.position}' if token else 'end'
+        raise ValueError(f"Parsing type {self.source!r} failed: "
+                         f"Error at {position}: {message}")
