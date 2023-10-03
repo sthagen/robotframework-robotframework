@@ -407,17 +407,6 @@ class TestModel(unittest.TestCase):
         assert_equal(kw.teardown.name, None)
         assert_equal(kw.teardown.type, 'TEARDOWN')
 
-    def test_keywords_deprecation(self):
-        kw = Keyword()
-        kw.body = [Keyword(), Message(), Keyword(), Keyword(), Message()]
-        kw.teardown.config(kwname='T')
-        with warnings.catch_warnings(record=True) as w:
-            kws = kw.keywords
-            assert_equal(list(kws), [kw.body[0], kw.body[2], kw.body[3], kw.teardown])
-            assert_true('deprecated' in str(w[0].message))
-        assert_raises(AttributeError, kws.append, Keyword())
-        assert_raises(AttributeError, setattr, kw, 'keywords', [])
-
     def test_for_parents(self):
         test = TestCase()
         for_ = test.body.create_for()
@@ -449,15 +438,14 @@ class TestModel(unittest.TestCase):
         assert_equal(kw.parent, branch)
 
     def test_while_name(self):
-        assert_equal(While().name, '')
-        assert_equal(While('$x > 0').name, '$x > 0')
-        assert_equal(While('True', '1 minute').name, 'True | limit=1 minute')
-        assert_equal(While(limit='1 minute').name, 'limit=1 minute')
-        assert_equal(While('True', '1 s', on_limit_message='Error message').name,
+        assert_equal(While()._name, '')
+        assert_equal(While('$x > 0')._name, '$x > 0')
+        assert_equal(While('True', '1 minute')._name, 'True | limit=1 minute')
+        assert_equal(While(limit='1 minute')._name, 'limit=1 minute')
+        assert_equal(While('True', '1 s', on_limit_message='Error message')._name,
                      'True | limit=1 s | on_limit_message=Error message')
-        assert_equal(While(on_limit='pass').name,
-                     'on_limit=pass')
-        assert_equal(While(on_limit_message='Error message').name,
+        assert_equal(While(on_limit='pass')._name, 'on_limit=pass')
+        assert_equal(While(on_limit_message='Error message')._name,
                      'on_limit_message=Error message')
 
 
@@ -560,28 +548,23 @@ class TestDeprecatedKeywordSpecificAttributes(unittest.TestCase):
 
     def test_deprecated_keyword_specific_properties(self):
         for_ = For(['${x}', '${y}'], 'IN', ['a', 'b', 'c', 'd'])
-        for name, expected in [('name', '${x} | ${y} IN [ a | b | c | d ]'),
-                               ('args', ()),
+        for name, expected in [('args', ()),
                                ('tags', Tags()),
                                ('timeout', None)]:
-            assert_equal(getattr(for_, name), expected)
+            with warnings.catch_warnings(record=True) as w:
+                assert_equal(getattr(for_, name), expected)
+                assert_true(issubclass(w[-1].category, UserWarning))
+                assert_true(f'For, {name}' in str(w[-1].message))
 
     def test_if(self):
-        for name, expected in [('name', ''),
-                               ('args', ()),
+        for name, expected in [('args', ()),
                                ('assign', ()),
                                ('tags', Tags()),
                                ('timeout', None)]:
-            assert_equal(getattr(If(), name), expected)
-
-    def test_if_branch(self):
-        branch = IfBranch(IfBranch.IF, '$x > 0')
-        for name, expected in [('name', '$x > 0'),
-                               ('args', ()),
-                               ('assign', ()),
-                               ('tags', Tags()),
-                               ('timeout', None)]:
-            assert_equal(getattr(branch, name), expected)
+            with warnings.catch_warnings(record=True) as w:
+                assert_equal(getattr(If(), name), expected)
+                assert_true(issubclass(w[-1].category, UserWarning))
+                assert_true(f'If, {name}' in str(w[-1].message))
 
 
 if __name__ == '__main__':

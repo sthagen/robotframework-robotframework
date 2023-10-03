@@ -43,7 +43,7 @@ from pathlib import Path
 from typing import Generic, Literal, Mapping, Sequence, Type, Union, TypeVar
 
 from robot import model
-from robot.model import (BodyItem, create_fixture, DataDict, Keywords, Tags,
+from robot.model import (BodyItem, create_fixture, DataDict, Tags,
                          SuiteVisitor, TotalStatistics, TotalStatisticsBuilder,
                          TestSuites)
 from robot.utils import copy_signature, KnownAtRuntime, setter
@@ -323,8 +323,7 @@ class ForIteration(BodyItem, StatusMixin, DeprecatedAttributesMixin):
         visitor.visit_for_iteration(self)
 
     @property
-    @deprecated
-    def name(self) -> str:
+    def _name(self):
         return ', '.join('%s = %s' % item for item in self.assign.items())
 
 
@@ -358,8 +357,7 @@ class For(model.For, StatusMixin, DeprecatedAttributesMixin):
         return self.iterations_class(self.iteration_class, self, iterations)
 
     @property
-    @deprecated
-    def name(self) -> str:
+    def _name(self):
         assign = ' | '.join(self.assign)
         values = ' | '.join(self.values)
         for name, value in [('start', self.start),
@@ -397,11 +395,6 @@ class WhileIteration(BodyItem, StatusMixin, DeprecatedAttributesMixin):
     def visit(self, visitor: SuiteVisitor):
         visitor.visit_while_iteration(self)
 
-    @property
-    @deprecated
-    def name(self) -> str:
-        return ''
-
 
 @Body.register
 class While(model.While, StatusMixin, DeprecatedAttributesMixin):
@@ -431,8 +424,7 @@ class While(model.While, StatusMixin, DeprecatedAttributesMixin):
         return self.iterations_class(self.iteration_class, self, iterations)
 
     @property
-    @deprecated
-    def name(self) -> str:
+    def _name(self):
         parts = []
         if self.condition:
             parts.append(self.condition)
@@ -465,8 +457,7 @@ class IfBranch(model.IfBranch, StatusMixin, DeprecatedAttributesMixin):
         self.doc = doc
 
     @property
-    @deprecated
-    def name(self) -> str:
+    def _name(self):
         return self.condition or ''
 
 
@@ -512,8 +503,7 @@ class TryBranch(model.TryBranch, StatusMixin, DeprecatedAttributesMixin):
         self.doc = doc
 
     @property
-    @deprecated
-    def name(self) -> str:
+    def _name(self):
         patterns = list(self.patterns)
         if self.pattern_type:
             patterns.append(f'type={self.pattern_type}')
@@ -574,12 +564,7 @@ class Return(model.Return, StatusMixin, DeprecatedAttributesMixin):
         return self.body_class(self, body)
 
     @property
-    @deprecated
-    def args(self) -> 'tuple[str, ...]':
-        return self.values
-
-    @property
-    @deprecated
+    # FIXME @deprecated
     def doc(self) -> str:
         return ''
 
@@ -612,12 +597,7 @@ class Continue(model.Continue, StatusMixin, DeprecatedAttributesMixin):
         return self.body_class(self, body)
 
     @property
-    @deprecated
-    def args(self) -> 'tuple[str, ...]':
-        return ()
-
-    @property
-    @deprecated
+    # FIXME @deprecated
     def doc(self) -> str:
         return ''
 
@@ -650,12 +630,7 @@ class Break(model.Break, StatusMixin, DeprecatedAttributesMixin):
         return self.body_class(self, body)
 
     @property
-    @deprecated
-    def args(self) -> 'tuple[str, ...]':
-        return ()
-
-    @property
-    @deprecated
+    # FIXME @deprecated
     def doc(self) -> str:
         return ''
 
@@ -687,19 +662,13 @@ class Error(model.Error, StatusMixin, DeprecatedAttributesMixin):
         return self.body_class(self, body)
 
     @property
-    @deprecated
-    def kwname(self) -> str:
-        return self.values[0]
-
-    @property
-    @deprecated
-    def args(self) -> 'tuple[str, ...]':
-        return self.values[1:]
-
-    @property
-    @deprecated
+    # FIXME @deprecated
     def doc(self) -> 'str':
         return ''
+
+    @property
+    def _name(self):
+        return self.values[0]
 
 
 @Body.register
@@ -762,21 +731,6 @@ class Keyword(model.Keyword, StatusMixin):
         return self.body_class(self, body)
 
     @property
-    def keywords(self) -> Keywords:    # FIXME: Remove in RF 7.
-        """Deprecated since Robot Framework 4.0.
-
-        Use :attr:`body` or :attr:`teardown` instead.
-        """
-        keywords = self.body.filter(messages=False)
-        if self.teardown:
-            keywords.append(self.teardown)
-        return Keywords(self, keywords)
-
-    @keywords.setter
-    def keywords(self, keywords):
-        Keywords.raise_deprecation_error()
-
-    @property
     def messages(self) -> 'list[Message]':
         """Keyword's messages.
 
@@ -784,15 +738,6 @@ class Keyword(model.Keyword, StatusMixin):
         in :attr:`body`.
         """
         return self.body.filter(messages=True)    # type: ignore
-
-    @property
-    def children(self) -> 'list[BodyItem]':    # FIXME: Remove in RF 7.
-        """List of child keywords and messages in creation order.
-
-        Deprecated since Robot Framework 4.0. Use :attr:`body` instead.
-        """
-        warnings.warn("'Keyword.children' is deprecated. Use 'Keyword.body' instead.")
-        return list(self.body)
 
     @property
     def name(self) -> 'str|None':
@@ -920,11 +865,6 @@ class TestCase(model.TestCase[Keyword], StatusMixin):
     @property
     def not_run(self) -> bool:
         return False
-
-    @property
-    def critical(self) -> bool:    # FIXME: Remove in RF 7.
-        warnings.warn("'TestCase.critical' is deprecated and always returns 'True'.")
-        return True
 
     @setter
     def body(self, body: 'Sequence[BodyItem|DataDict]') -> Body:

@@ -14,19 +14,25 @@
 #  limitations under the License.
 
 from enum import auto, Enum
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence, Set
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Union
 
+from robot.conf import LanguagesLike
 from robot.errors import DataError
-from robot.utils import has_args, is_union, NOT_SET, type_repr, typeddict_types
+from robot.utils import (has_args, is_union, NOT_SET, plural_or_not as s, setter,
+                         SetterAwareType, type_repr, typeddict_types)
+
+from .customconverters import CustomArgumentConverters
+from .typeconverters import TypeConverter
 
 
 TYPE_NAMES = {
     '...': Ellipsis,
+    'ellipsis': Ellipsis,
     'any': Any,
     'str': str,
     'string': str,
@@ -59,12 +65,13 @@ TYPE_NAMES = {
 }
 
 
-class TypeInfo:
+class TypeInfo(metaclass=SetterAwareType):
     """Represents argument type.
 
     With unions and parametrized types, :attr:`nested` contains nested types.
     """
-    __slots__ = ('name', 'type', 'nested')
+    is_typed_dict = False
+    __slots__ = ('name', 'type')
 
     def __init__(self, name: 'str|None' = None,
                  type: 'type|None' = None,
@@ -73,9 +80,43 @@ class TypeInfo:
             type = TYPE_NAMES.get(name.lower())
         self.name = name
         self.type = type
-        self.nested = tuple(nested)
-        if self.is_union and not nested:
-            raise DataError('Union used as a type hint cannot be empty.')
+        self.nested = nested
+
+    @setter
+    def nested(self, nested: 'Sequence[TypeInfo]') -> 'tuple[TypeInfo, ...]':
+        if self.is_union:
+            if not nested:
+                raise DataError('Union used as a type hint cannot be empty.')
+            return tuple(nested)
+        typ = self.type
+        if typ is None or not nested:
+            return tuple(nested)
+        if not isinstance(typ, type):
+            self._report_nested_error(nested, 0)
+        elif issubclass(typ, tuple):
+            if nested[-1].type is Ellipsis and len(nested) != 2:
+                self._report_nested_error(nested, 1, 'Homogenous tuple', -1)
+        elif issubclass(typ, Sequence) and not issubclass(typ, (str, bytes, bytearray)):
+            if len(nested) != 1:
+                self._report_nested_error(nested, 1)
+        elif issubclass(typ, Set):
+            if len(nested) != 1:
+                self._report_nested_error(nested, 1)
+        elif issubclass(typ, Mapping):
+            if len(nested) != 2:
+                self._report_nested_error(nested, 2)
+        elif typ in TYPE_NAMES.values():
+            self._report_nested_error(nested, 0)
+        return tuple(nested)
+
+    def _report_nested_error(self, nested, expected, kind=None, offset=0):
+        args = ', '.join(str(n) for n in nested)
+        kind = kind or f"'{self.name}{'[]' if expected > 0 else ''}'"
+        if expected == 0:
+            raise DataError(f"{kind} does not accept arguments, "
+                            f"'{self.name}[{args}]' has {len(nested) + offset}.")
+        raise DataError(f"{kind} requires exactly {expected} argument{s(expected)}, "
+                        f"'{self.name}[{args}]' has {len(nested) + offset}.")
 
     @property
     def is_union(self):
@@ -85,6 +126,14 @@ class TypeInfo:
     def from_type_hint(cls, hint: Any) -> 'TypeInfo':
         if hint is NOT_SET:
             return cls()
+        if isinstance(hint, typeddict_types):
+            return TypedDictInfo(hint.__name__, hint)
+        if hasattr(hint, '__origin__'):
+            if has_args(hint):
+                nested = [cls.from_type_hint(t) for t in hint.__args__]
+            else:
+                nested = []
+            return cls(type_repr(hint, nested=False), hint.__origin__, nested)
         if isinstance(hint, type):
             return cls(type_repr(hint), hint)
         if hint is None:
@@ -98,12 +147,6 @@ class TypeInfo:
             return cls('Union', nested=nested)
         if isinstance(hint, (tuple, list)):
             return cls.from_sequence(hint)
-        if hasattr(hint, '__origin__'):
-            if has_args(hint):
-                nested = [cls.from_type_hint(t) for t in hint.__args__]
-            else:
-                nested = []
-            return cls(type_repr(hint, nested=False), hint.__origin__, nested)
         if hint is Union:
             return cls('Union')
         if hint is Any:
@@ -143,6 +186,18 @@ class TypeInfo:
             return infos[0]
         return cls('Union', nested=infos)
 
+    def convert(self, value: Any,
+                name: 'str|None' = None,
+                custom_converters: 'CustomArgumentConverters|dict|None' = None,
+                languages: 'LanguagesLike' = None,
+                kind: str = 'Argument'):
+        if isinstance(custom_converters, dict):
+            custom_converters = CustomArgumentConverters.from_dict(custom_converters)
+        converter = TypeConverter.converter_for(self, custom_converters, languages)
+        if not converter:
+            raise TypeError(f"No converter found for '{self}'.")
+        return converter.convert(value, name, kind)
+
     def __str__(self):
         if self.is_union:
             return ' | '.join(str(n) for n in self.nested)
@@ -153,6 +208,18 @@ class TypeInfo:
 
     def __bool__(self):
         return self.name is not None
+
+
+class TypedDictInfo(TypeInfo):
+    is_typed_dict = True
+    __slots__ = ('annotations', 'required')
+
+    def __init__(self, name: str, type: type):
+        super().__init__(name, type)
+        self.annotations = {n: TypeInfo.from_type_hint(t)
+                            for n, t in type.__annotations__.items()}
+        # __required_keys__ is new in Python 3.9.
+        self.required = getattr(type, '__required_keys__', frozenset())
 
 
 class TypeInfoTokenType(Enum):
