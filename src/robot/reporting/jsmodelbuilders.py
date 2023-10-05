@@ -14,12 +14,10 @@
 #  limitations under the License.
 
 from robot.output import LEVELS
-from robot.result import (Break, Continue, Error, For, ForIteration, IfBranch,
-                          Keyword, Return, TryBranch, While, WhileIteration)
+from robot.result import Error, Keyword, Return
 
 from .jsbuildingcontext import JsBuildingContext
 from .jsexecutionresult import JsExecutionResult
-from ..model import BodyItem
 
 STATUSES = {'FAIL': 0, 'PASS': 1, 'SKIP': 2, 'NOT RUN': 3}
 KEYWORD_TYPES = {'KEYWORD': 0, 'SETUP': 1, 'TEARDOWN': 2,
@@ -61,7 +59,7 @@ class _Builder:
         model = (STATUSES[item.status],
                  self._timestamp(item.start_time),
                  round(item.elapsed_time.total_seconds() * 1000))
-        msg = getattr(item, 'message', '')
+        msg = item.message
         if not msg:
             return model
         elif msg.startswith('*HTML*'):
@@ -152,32 +150,34 @@ class KeywordBuilder(_Builder):
         return self.build_body_item(item, split)
 
     def build_body_item(self, item, split=False):
-        self._context.check_expansion(item)
         with self._context.prune_input(item.body):
             if isinstance (item, Keyword):
-                items = item.body.flatten()
+                self._context.check_expansion(item)
+                body = item.body.flatten()
                 if item.has_teardown:
-                    items.append(item.teardown)
-                return self._build(item, item.kwname, item.libname, item.timeout, item.doc, item.args,
-                                   item.assign, item.tags, split=split)
+                    body.append(item.teardown)
+                return self._build(item, item.name, item.owner, item.timeout, item.doc, item.args,
+                                   item.assign, item.tags, body, split=split)
             if isinstance(item, Return):
                 return self._build(item, args=item.values, split=split)
             if isinstance(item, Error):
                 return self._build(item, item._name, args=item.values[1:], split=split)
             return self._build(item, item._name, split=split)
 
-    def _build(self, item, kwname='', libname='', timeout='', doc='', args=(), assign=(),
-               tags=(), items=None, split =False):
+    def _build(self, item, name='', owner='', timeout='', doc='', args=(), assign=(),
+               tags=(), body=None, split =False):
+        if body is None:
+            body = item.body.flatten()
         return (KEYWORD_TYPES[item.type],
-                self._string(kwname, attr=True),
-                self._string(libname, attr=True),
+                self._string(name, attr=True),
+                self._string(owner, attr=True),
                 self._string(timeout),
-                self._html(item.doc),
+                self._html(doc),
                 self._string(', '.join(args)),
                 self._string(', '.join(assign)),
                 self._string(', '.join(tags)),
                 self._get_status(item),
-                self._build_body(items if items is not None else item.body.flatten(), split))
+                self._build_body(body, split))
 
 
 class MessageBuilder(_Builder):
