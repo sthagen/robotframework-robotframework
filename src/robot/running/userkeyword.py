@@ -49,6 +49,10 @@ class UserLibrary:
     def _create_handler(self, kw):
         if kw.error:
             raise DataError(kw.error)
+        if not kw.body and not kw.return_:
+            raise DataError('User keyword cannot be empty.')
+        if not kw.name:
+            raise DataError('User keyword name cannot be empty.')
         embedded = EmbeddedArguments.from_name(kw.name)
         if not embedded:
             return UserKeywordHandler(kw, self.name)
@@ -79,6 +83,7 @@ class UserKeywordHandler:
         self.timeout = keyword.timeout
         self.body = keyword.body
         self.return_value = tuple(keyword.return_)
+        self.setup = keyword.setup if keyword.has_setup else None
         self.teardown = keyword.teardown if keyword.has_teardown else None
 
     @property
