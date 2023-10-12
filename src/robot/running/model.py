@@ -624,15 +624,17 @@ class TestSuite(model.TestSuite[Keyword, TestCase]):
 
 
 class Variable(ModelObject):
-    repr_args = ('name', 'value')
+    repr_args = ('name', 'value', 'separator')
 
     def __init__(self, name: str = '',
                  value: Sequence[str] = (),
+                 separator: 'str|None' = None,
                  parent: 'ResourceFile|None' = None,
                  lineno: 'int|None' = None,
                  error: 'str|None' = None):
         self.name = name
         self.value = tuple(value)
+        self.separator = separator
         self.parent = parent
         self.lineno = lineno
         self.error = error
@@ -641,7 +643,7 @@ class Variable(ModelObject):
     def source(self) -> 'Path|None':
         return self.parent.source if self.parent is not None else None
 
-    def report_invalid_syntax(self, message: str, level: str = 'ERROR'):
+    def report_error(self, message: str, level: str = 'ERROR'):
         source = self.source or '<unknown>'
         line = f' on line {self.lineno}' if self.lineno else ''
         LOGGER.write(f"Error in file '{source}'{line}: "
@@ -900,7 +902,7 @@ class Import(ModelObject):
                 self.RESOURCE: resource,
                 self.VARIABLES: variables}[self.type]
 
-    def report_invalid_syntax(self, message: str, level: str = 'ERROR'):
+    def report_error(self, message: str, level: str = 'ERROR'):
         source = self.source or '<unknown>'
         line = f' on line {self.lineno}' if self.lineno else ''
         LOGGER.write(f"Error in file '{source}'{line}: {message}", level)
