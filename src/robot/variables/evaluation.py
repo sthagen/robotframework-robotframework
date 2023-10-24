@@ -23,7 +23,7 @@ from tokenize import generate_tokens, untokenize
 from robot.errors import DataError
 from robot.utils import get_error_message, type_name
 
-from .search import search_variable
+from .search import VariableMatches
 from .notfound import variable_not_found
 
 
@@ -33,7 +33,6 @@ PYTHON_BUILTINS = set(builtins.__dict__)
 def evaluate_expression(expression, variables, modules=None, namespace=None,
                         resolve_variables=False):
     original = expression
-    recommendation = ''
     try:
         if not isinstance(expression, str):
             raise TypeError(f'Expression must be string, got {type_name(expression)}.')
@@ -46,16 +45,18 @@ def evaluate_expression(expression, variables, modules=None, namespace=None,
         return _evaluate(expression, variables.store, modules, namespace)
     except DataError as err:
         error = str(err)
+        variable_recommendation = ''
     except Exception as err:
         error = get_error_message()
+        variable_recommendation = ''
         if isinstance(err, NameError) and 'RF_VAR_' in error:
             name = re.search(r'RF_VAR_([\w_]*)', error).group(1)
             error = (f"Robot Framework variable '${name}' used in the expression part "
                      f"of a comprehension or some other scope where it cannot be seen.")
         else:
-            recommendation = '\n\n' + _recommend_special_variables(original)
+            variable_recommendation = _recommend_special_variables(original)
     raise DataError(f"Evaluating expression '{expression}' failed: {error}\n\n"
-                    f"{recommendation}".strip())
+                    f"{variable_recommendation}".strip())
 
 
 def _evaluate(expression, variable_store, modules=None, namespace=None):
@@ -112,16 +113,12 @@ def _import_modules(module_names):
 
 
 def _recommend_special_variables(expression):
-    example = []
-    remaining = expression
-    while True:
-        match = search_variable(remaining)
-        if not match:
-            break
-        example[-1:] = [match.before, match.identifier, match.base, match.after]
-        remaining = example[-1]
-    if not example:
+    matches = VariableMatches(expression)
+    if not matches:
         return ''
+    example = []
+    for match in matches:
+        example[-1:] += [match.before, match.identifier, match.base, match.after]
     example = ''.join(example)
     return (f"Variables in the original expression '{expression}' were resolved "
             f"before the expression was evaluated. Try using '{example}' "
