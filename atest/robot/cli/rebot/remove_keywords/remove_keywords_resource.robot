@@ -3,7 +3,7 @@ Resource          rebot_resource.robot
 
 *** Variables ***
 ${INPUTFILE}      %{TEMPDIR}${/}rebot-test-rmkw.xml
-${DATA REMOVED}   <i>Data removed using --RemoveKeywords option.</i>
+${DATA REMOVED}   <i>Content removed using the --remove-keywords option.</i>
 
 *** Keywords ***
 Keyword Should Be Empty
@@ -25,6 +25,12 @@ FOR Loop Should Be Empty
     Should Be Equal    ${loop.type}       FOR
     Should Be Equal    ${loop.flavor}     ${flavor}
     Should Be Empty    ${loop.body}
+
+TRY Branch Should Be Empty
+    [Arguments]    ${branch}    ${type}    ${message}=
+    Should Be Equal    ${branch.message}    *HTML* ${message}${DATA REMOVED}
+    Should Be Equal    ${branch.type}       ${type}
+    Should Be Empty    ${branch.body}
 
 Keyword Should Not Be Empty
     [Arguments]    ${kw}    ${name}    @{args}
