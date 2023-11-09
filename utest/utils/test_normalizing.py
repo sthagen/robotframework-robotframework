@@ -32,6 +32,12 @@ class TestNormalize(unittest.TestCase):
         for mother in ['ÄITI', 'ÄiTi', 'äiti', 'äiTi']:
             self._verify(mother, 'äiti', caseless=True)
 
+    def test_casefold(self):
+        self._verify('ß', 'ss', caseless=True)
+        self._verify('Straße', 'strasse', caseless=True)
+        self._verify('Straße', 'strae', ignore='ß', caseless=True)
+        self._verify('Straße', 'trae', ignore='s', caseless=True)
+
     def test_spaceless(self):
         self._verify('Fo o BaR', 'fo o bar', spaceless=False)
         self._verify('Fo o BaR', 'foobar', spaceless=True)
@@ -44,13 +50,6 @@ class TestNormalize(unittest.TestCase):
         self._verify('Foo_ bar', 'bar', ignore=['_', 'F', 'O'])
         self._verify('Foo_ bar', 'Fbar', ignore=['_', 'f', 'o'], caseless=False)
         self._verify('Foo_\n bar\n', 'foo_ bar', ignore=['\n'], spaceless=False)
-
-    def test_bytes(self):
-        self._verify(b'FOO & Bar', b'foo&bar')
-        self._verify(b'FOO & Bar', b'oobar', ignore=[b'F', b'&'])
-        self._verify(b'FOO & Bar', b'oo  bar', ignore=[b'F', b'&'], spaceless=False)
-        self._verify(b'FOO & Bar', b'bar', ignore=b'F&o')
-        self._verify(b'FOO & Bar', b'OOBar', ignore=b'F&o', caseless=False)
 
     def test_string_subclass_without_compatible_init(self):
         class BrokenLikeSudsText(str):
