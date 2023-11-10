@@ -6,7 +6,7 @@ from setuptools import find_packages, setup
 
 # Version number typically updated by running `invoke set-version <version>`.
 # Run `invoke --help set-version` or see tasks.py for details.
-VERSION = '7.0.dev1'
+VERSION = '7.0a2.dev1'
 with open(join(dirname(abspath(__file__)), 'README.rst')) as f:
     LONG_DESCRIPTION = f.read()
     base_url = 'https://github.com/robotframework/robotframework/blob/master'
@@ -55,7 +55,6 @@ setup(
         'Documentation': 'https://robotframework.org/robotframework',
         'Release Notes': f'https://github.com/robotframework/robotframework/blob/master/doc/releasenotes/rf-{VERSION}.rst',
         'Slack': 'http://slack.robotframework.org',
-        'Twitter': 'https://twitter.com/robotframework',
     },
     download_url = 'https://pypi.org/project/robotframework',
     license      = 'Apache License 2.0',
