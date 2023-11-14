@@ -13,11 +13,9 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from ast import NodeVisitor
-
 from robot.errors import DataError
 from robot.output import LOGGER
-from robot.parsing import File, Token
+from robot.parsing import File, ModelVisitor, Token
 from robot.variables import VariableMatches
 
 from .settings import FileSettings
@@ -25,7 +23,7 @@ from ..model import (For, If, IfBranch, ResourceFile, TestSuite, TestCase, Try,
                      TryBranch, UserKeyword, While)
 
 
-class SettingsBuilder(NodeVisitor):
+class SettingsBuilder(ModelVisitor):
 
     def __init__(self, suite: TestSuite, settings: FileSettings):
         self.suite = suite
@@ -90,7 +88,7 @@ class SettingsBuilder(NodeVisitor):
         pass
 
 
-class SuiteBuilder(NodeVisitor):
+class SuiteBuilder(ModelVisitor):
 
     def __init__(self, suite: TestSuite, settings: FileSettings):
         self.suite = suite
@@ -128,7 +126,7 @@ class SuiteBuilder(NodeVisitor):
         KeywordBuilder(self.suite.resource, self.settings).build(node)
 
 
-class ResourceBuilder(NodeVisitor):
+class ResourceBuilder(ModelVisitor):
 
     def __init__(self, resource: ResourceFile):
         self.resource = resource
@@ -164,7 +162,7 @@ class ResourceBuilder(NodeVisitor):
         KeywordBuilder(self.resource, self.settings).build(node)
 
 
-class BodyBuilder(NodeVisitor):
+class BodyBuilder(ModelVisitor):
 
     def __init__(self, model: 'TestCase|UserKeyword|For|If|Try|While|None' = None):
         self.model = model
@@ -192,7 +190,7 @@ class BodyBuilder(NodeVisitor):
         self.model.body.create_var(node.name, node.value, node.scope, node.separator,
                                    lineno=node.lineno, error=format_error(node.errors))
 
-    def visit_ReturnStatement(self, node):
+    def visit_Return(self, node):
         self.model.body.create_return(node.values, lineno=node.lineno,
                                       error=format_error(node.errors))
 
@@ -205,8 +203,8 @@ class BodyBuilder(NodeVisitor):
                                      error=format_error(node.errors))
 
     def visit_Error(self, node):
-        self.model.body.create_error(lineno=node.lineno,
-                                     values=node.values, error=format_error(node.errors))
+        self.model.body.create_error(node.values, lineno=node.lineno,
+                                     error=format_error(node.errors))
 
 
 class TestCaseBuilder(BodyBuilder):
@@ -288,14 +286,17 @@ class KeywordBuilder(BodyBuilder):
 
     def __init__(self, resource: ResourceFile, settings: FileSettings):
         super().__init__(resource.keywords.create(tags=settings.keyword_tags))
+        self.return_setting = None
 
     def build(self, node):
         # Possible parsing errors aren't reported further because:
         # - We only validate that keyword body or name isn't empty.
-        # - That is validated again during execution.
+        # - Both of them are validated again during execution.
         # - This way e.g. model modifiers can add content to body.
         self.model.config(name=node.name, lineno=node.lineno)
         self.generic_visit(node)
+        if self.return_setting:
+            self.model.body.create_return(self.return_setting)
 
     def visit_Documentation(self, node):
         self.model.doc = node.value
@@ -313,9 +314,9 @@ class KeywordBuilder(BodyBuilder):
             else:
                 self.model.tags.add(tag)
 
-    def visit_Return(self, node):
+    def visit_ReturnSetting(self, node):
         ErrorReporter(self.model.source).visit(node)
-        self.model.return_ = node.values
+        self.return_setting = node.values
 
     def visit_Timeout(self, node):
         self.model.timeout = node.value
@@ -459,7 +460,7 @@ def format_error(errors):
     return '\n- '.join(('Multiple errors:',) + errors)
 
 
-class ErrorReporter(NodeVisitor):
+class ErrorReporter(ModelVisitor):
 
     def __init__(self, source, raise_on_invalid_header=False):
         self.source = source
@@ -471,9 +472,9 @@ class ErrorReporter(NodeVisitor):
     def visit_Keyword(self, node):
         pass
 
-    def visit_Return(self, node):
+    def visit_ReturnSetting(self, node):
         # Empty 'visit_Keyword' above prevents calling this when visiting the whole
-        # model, but 'KeywordBuilder.visit_Return' visits the node it gets.
+        # model, but 'KeywordBuilder.visit_ReturnSetting' visits the node it gets.
         LOGGER.warn(self._format_message(node.get_token(Token.RETURN_SETTING)))
 
     def visit_SectionHeader(self, node):

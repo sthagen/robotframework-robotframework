@@ -13,15 +13,13 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from enum import auto, Enum
 from collections.abc import Mapping, Sequence, Set
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Union
 
-from robot.conf import LanguagesLike
+from robot.conf import Languages, LanguagesLike
 from robot.errors import DataError
 from robot.utils import (has_args, is_union, NOT_SET, plural_or_not as s, setter,
                          SetterAwareType, type_repr, typeddict_types)
@@ -66,9 +64,15 @@ TYPE_NAMES = {
 
 
 class TypeInfo(metaclass=SetterAwareType):
-    """Represents argument type.
+    """Represents an argument type.
 
+    Normally created using the :meth:`from_type_hint` classmethod.
     With unions and parametrized types, :attr:`nested` contains nested types.
+
+    Values can be converted according to this type info by using the
+    :meth:`convert` method.
+
+    Part of the public API starting from Robot Framework 7.0.
     """
     is_typed_dict = False
     __slots__ = ('name', 'type')
@@ -84,6 +88,10 @@ class TypeInfo(metaclass=SetterAwareType):
 
     @setter
     def nested(self, nested: 'Sequence[TypeInfo]') -> 'tuple[TypeInfo, ...]':
+        """Nested types as a tuple of ``TypeInfo`` objects.
+
+        Used with parameterized types and unions.
+        """
         if self.is_union:
             if not nested:
                 raise DataError('Union used as a type hint cannot be empty.')
@@ -95,7 +103,7 @@ class TypeInfo(metaclass=SetterAwareType):
             self._report_nested_error(nested, 0)
         elif issubclass(typ, tuple):
             if nested[-1].type is Ellipsis and len(nested) != 2:
-                self._report_nested_error(nested, 1, 'Homogenous tuple', -1)
+                self._report_nested_error(nested, 1, 'Homogenous tuple', offset=-1)
         elif issubclass(typ, Sequence) and not issubclass(typ, (str, bytes, bytearray)):
             if len(nested) != 1:
                 self._report_nested_error(nested, 1)
@@ -113,9 +121,9 @@ class TypeInfo(metaclass=SetterAwareType):
         args = ', '.join(str(n) for n in nested)
         kind = kind or f"'{self.name}{'[]' if expected > 0 else ''}'"
         if expected == 0:
-            raise DataError(f"{kind} does not accept arguments, "
+            raise DataError(f"{kind} does not accept parameters, "
                             f"'{self.name}[{args}]' has {len(nested) + offset}.")
-        raise DataError(f"{kind} requires exactly {expected} argument{s(expected)}, "
+        raise DataError(f"{kind} requires exactly {expected} parameter{s(expected)}, "
                         f"'{self.name}[{args}]' has {len(nested) + offset}.")
 
     @property
@@ -124,6 +132,26 @@ class TypeInfo(metaclass=SetterAwareType):
 
     @classmethod
     def from_type_hint(cls, hint: Any) -> 'TypeInfo':
+        """Construct a ``TypeInfo`` based on a type hint.
+
+        The type hint can be in various different formats:
+
+        - an actual type such as ``int``
+        - a parameterized type such as ``list[int]``
+        - a union such as ``int | float``
+        - a string such as ``'int'``, ``'list[int]'`` or ``'int | float'``
+        - a ``TypedDict`` (represented as a :class:`TypedDictInfo`)
+        - a dictionary with a key ``name`` and optional keys ``type`` and ``nested``,
+          where ``nested`` is a sequence of dictionaries or other supported
+          type hints, such as ``{'name': 'int'}`` or
+          ``{'name': 'Union', 'nested': ['int', 'float']}``
+        - a sequence of supported type hints to create a union from such as
+          ``[int, float]`` or ``('int', 'list[int]')``
+
+        In special cases, for example with dictionaries or sequences, using the
+        more specialized methods like :meth:`from_dict` or :meth:`from_sequence`
+        may be more appropriate than using this generic method.
+        """
         if hint is NOT_SET:
             return cls()
         if isinstance(hint, typeddict_types):
@@ -137,17 +165,17 @@ class TypeInfo(metaclass=SetterAwareType):
             else:
                 nested = []
             return cls(type_repr(hint, nested=False), hint.__origin__, nested)
-        if isinstance(hint, type):
-            return cls(type_repr(hint), hint)
-        if hint is None:
-            return cls('None', type(None))
         if isinstance(hint, str):
             return cls.from_string(hint)
         if isinstance(hint, dict):
             return cls.from_dict(hint)
         if isinstance(hint, (tuple, list)):
             return cls.from_sequence(hint)
-        if hint is Union:
+        if isinstance(hint, type):
+            return cls(type_repr(hint), hint)
+        if hint is None:
+            return cls('None', type(None))
+        if hint is Union:    # Plain `Union` without params.
             return cls('Union')
         if hint is Any:
             return cls('Any', hint)
@@ -157,10 +185,26 @@ class TypeInfo(metaclass=SetterAwareType):
 
     @classmethod
     def from_type(cls, hint: type) -> 'TypeInfo':
+        """Construct a ``TypeInfo`` based on an actual type.
+
+        Use :meth:`from_type_hint` if the type hint can also be something else
+        than a concrete type such as a string.
+        """
         return cls(type_repr(hint), hint)
 
     @classmethod
     def from_string(cls, hint: str) -> 'TypeInfo':
+        """Construct a ``TypeInfo`` based on a string.
+
+        In addition to just types names or their aliases like ``int`` or ``integer``,
+        supports also parameterized types like ``list[int]`` as well as unions like
+        ``int | float``.
+
+        Use :meth:`from_type_hint` if the type hint can also be something else
+        than a string such as an actual type.
+        """
+        # Needs to be imported here due to cyclic dependency.
+        from .typeinfoparser import TypeInfoParser
         try:
             return TypeInfoParser(hint).parse()
         except ValueError as err:
@@ -168,13 +212,33 @@ class TypeInfo(metaclass=SetterAwareType):
 
     @classmethod
     def from_dict(cls, data: dict) -> 'TypeInfo':
+        """Construct a ``TypeInfo`` based on a dictionary.
+
+        The dictionary must have a key ``name`` and it can optionally have keys
+        ``type`` and ``nested``. ``nested`` is a sequence of nested types
+        as dictionaries or other types supported by :meth:`from_type_hint`.
+
+        Use :meth:`from_type_hint` if other types than dictionaries need to
+        supported.
+        """
         if not data:
             return cls()
-        nested = [cls.from_type_hint(n) for n in data['nested']]
-        return cls(data['name'], nested=nested)
+        nested = [cls.from_type_hint(n) for n in data.get('nested', ())]
+        return cls(data['name'], data.get('type'), nested=nested)
 
     @classmethod
     def from_sequence(cls, sequence: 'tuple|list') -> 'TypeInfo':
+        """Construct a ``TypeInfo`` based on a sequence of types.
+
+        Types can be actual types, strings, or anything else accepted by
+        :meth:`from_type_hint`. If the sequence contains just one type,
+        a ``TypeInfo`` created based on it is returned. If there are more
+        types, the returned ``TypeInfo`` represents a union. Using an empty
+        sequence is an error.
+
+        Use :meth:`from_type_hint` if other types than sequences need to
+        supported.
+        """
         infos = []
         for typ in sequence:
             info = cls.from_type_hint(typ)
@@ -191,8 +255,23 @@ class TypeInfo(metaclass=SetterAwareType):
                 custom_converters: 'CustomArgumentConverters|dict|None' = None,
                 languages: 'LanguagesLike' = None,
                 kind: str = 'Argument'):
+        """Convert ``value`` based on type information this ``TypeInfo`` contains.
+
+        :param value: Value to convert.
+        :param name: Name of the argument or other thing to convert.
+            Used only for error reporting.
+        :param custom_converters: Custom argument converters.
+        :param languages: Language configuration.
+        :param kind: Type of the thing to be converted.
+            Used only for error reporting.
+        :raises: ``TypeError`` if there is no converter for this type or
+            ``ValueError`` is conversion fails.
+        :return: Converted value.
+        """
         if isinstance(custom_converters, dict):
             custom_converters = CustomArgumentConverters.from_dict(custom_converters)
+        if not isinstance(languages, Languages):
+            languages = Languages(languages)
         converter = TypeConverter.converter_for(self, custom_converters, languages)
         if not converter:
             raise TypeError(f"No converter found for '{self}'.")
@@ -211,6 +290,8 @@ class TypeInfo(metaclass=SetterAwareType):
 
 
 class TypedDictInfo(TypeInfo):
+    """Represents ``TypedDict`` used as an argument."""
+
     is_typed_dict = True
     __slots__ = ('annotations', 'required')
 
@@ -220,148 +301,3 @@ class TypedDictInfo(TypeInfo):
                             for n, t in type.__annotations__.items()}
         # __required_keys__ is new in Python 3.9.
         self.required = getattr(type, '__required_keys__', frozenset())
-
-
-class TypeInfoTokenType(Enum):
-    NAME = auto()
-    LEFT_SQUARE = auto()
-    RIGHT_SQUARE = auto()
-    PIPE = auto()
-    COMMA = auto()
-
-    def __repr__(self):
-        return str(self)
-
-
-@dataclass
-class TypeInfoToken:
-    type: TypeInfoTokenType
-    value: str
-    position: int = -1
-
-
-class TypeInfoTokenizer:
-    markers = {
-        '[': TypeInfoTokenType.LEFT_SQUARE,
-        ']': TypeInfoTokenType.RIGHT_SQUARE,
-        '|': TypeInfoTokenType.PIPE,
-        ',': TypeInfoTokenType.COMMA,
-    }
-
-    def __init__(self, source: str):
-        self.source = source
-        self.tokens: 'list[TypeInfoToken]' = []
-        self.start = 0
-        self.current = 0
-
-    @property
-    def at_end(self) -> bool:
-        return self.current >= len(self.source)
-
-    def tokenize(self) -> 'list[TypeInfoToken]':
-        while not self.at_end:
-            self.start = self.current
-            char = self.advance()
-            if char in self.markers:
-                self.add_token(self.markers[char])
-            elif char.strip():
-                self.name()
-        return self.tokens
-
-    def advance(self) -> str:
-        char = self.source[self.current]
-        self.current += 1
-        return char
-
-    def peek(self) -> 'str|None':
-        try:
-            return self.source[self.current]
-        except IndexError:
-            return None
-
-    def name(self):
-        end_at = set(self.markers) | {None}
-        while self.peek() not in end_at:
-            self.current += 1
-        self.add_token(TypeInfoTokenType.NAME)
-
-    def add_token(self, type: TypeInfoTokenType):
-        value = self.source[self.start:self.current].strip()
-        self.tokens.append(TypeInfoToken(type, value, self.start))
-
-
-class TypeInfoParser:
-
-    def __init__(self, source: str):
-        self.source = source
-        self.tokens: 'list[TypeInfoToken]' = []
-        self.current = 0
-
-    @property
-    def at_end(self) -> bool:
-        return self.peek() is None
-
-    def parse(self) -> 'TypeInfo':
-        self.tokens = TypeInfoTokenizer(self.source).tokenize()
-        info = self.type()
-        if not self.at_end:
-            self.error(f"Extra content after '{info}'.")
-        return info
-
-    def type(self) -> 'TypeInfo':
-        if not self.check(TypeInfoTokenType.NAME):
-            self.error('Type name missing.')
-        info = TypeInfo(self.advance().value)
-        if self.match(TypeInfoTokenType.LEFT_SQUARE):
-            info.nested = self.params()
-        if self.match(TypeInfoTokenType.PIPE):
-            nested = [info] + self.union()
-            info = TypeInfo('Union', nested=nested)
-        return info
-
-    def params(self) -> 'list[TypeInfo]':
-        params = []
-        while not params or self.match(TypeInfoTokenType.COMMA):
-            params.append(self.type())
-        if not self.match(TypeInfoTokenType.RIGHT_SQUARE):
-            self.error("Closing ']' missing.")
-        return params
-
-    def union(self) -> 'list[TypeInfo]':
-        types = []
-        while not types or self.match(TypeInfoTokenType.PIPE):
-            info = self.type()
-            if info.is_union:
-                types.extend(info.nested)
-            else:
-                types.append(info)
-        return types
-
-    def match(self, *types: TypeInfoTokenType) -> bool:
-        for typ in types:
-            if self.check(typ):
-                self.advance()
-                return True
-        return False
-
-    def check(self, expected: TypeInfoTokenType) -> bool:
-        peeked = self.peek()
-        return peeked and peeked.type == expected
-
-    def advance(self) -> 'TypeInfoToken|None':
-        token = self.peek()
-        if token:
-            self.current += 1
-        return token
-
-    def peek(self) -> 'TypeInfoToken|None':
-        try:
-            return self.tokens[self.current]
-        except IndexError:
-            return None
-
-    def error(self, message: str):
-        token = self.peek()
-        position = f'index {token.position}' if token else 'end'
-        raise ValueError(f"Parsing type {self.source!r} failed: "
-                         f"Error at {position}: {message}")

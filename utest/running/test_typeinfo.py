@@ -5,15 +5,19 @@ from pathlib import Path
 from typing import Any, Dict, Generic, List, Mapping, Sequence, Set, Tuple, TypeVar, Union
 
 from robot.errors import DataError
-from robot.running.arguments.typeinfo import TypeInfo, TypeInfoParser, TYPE_NAMES
+from robot.running.arguments.typeinfo import TypeInfo, TYPE_NAMES
 from robot.utils.asserts import assert_equal, assert_raises_with_msg
 
 
-class TestTypeInfo(unittest.TestCase):
+def assert_info(info: TypeInfo, name, type=None, nested=()):
+    assert_equal(info.name, name)
+    assert_equal(info.type, type)
+    assert_equal(len(info.nested), len(nested))
+    for child, exp in zip(info.nested, nested):
+        assert_info(child, exp.name, exp.type, exp.nested)
 
-    def test_ellipsis_conversion(self):
-        assert_equal(TypeInfo('...').type, Ellipsis)
-        assert_equal(TypeInfo('...').name, '...')
+
+class TestTypeInfo(unittest.TestCase):
 
     def test_type_from_name(self):
         for name, expected in [('...', Ellipsis),
@@ -47,8 +51,7 @@ class TestTypeInfo(unittest.TestCase):
                                ('frozenset', frozenset),
                                ('union', Union)]:
             for name in name, name.upper():
-                assert_equal(TypeInfo(name).type, expected)
-                assert_equal(TypeInfo(name).name, name)
+                assert_info(TypeInfo(name), name, expected)
 
     def test_union(self):
         for union in [Union[int, str, float],
@@ -59,13 +62,10 @@ class TestTypeInfo(unittest.TestCase):
             info = TypeInfo.from_type_hint(union)
             assert_equal(info.name, 'Union')
             assert_equal(info.is_union, True)
-            assert_equal(info.nested[0].type, int)
-            assert_equal(info.nested[0].name, 'int')
-            assert_equal(info.nested[1].type, str)
-            assert_equal(info.nested[1].name, 'str')
-            assert_equal(info.nested[2].type, float)
-            assert_equal(info.nested[2].name, 'float')
             assert_equal(len(info.nested), 3)
+            assert_info(info.nested[0], 'int', int)
+            assert_info(info.nested[1], 'str', str)
+            assert_info(info.nested[2], 'float', float)
 
     def test_union_with_one_type_is_reduced_to_the_type(self):
         for union in Union[int], (int,):
@@ -81,6 +81,23 @@ class TestTypeInfo(unittest.TestCase):
                 DataError, 'Union used as a type hint cannot be empty.',
                 TypeInfo.from_type_hint, union
             )
+
+    def test_from_dict(self):
+        for data, expected in [
+            ({}, TypeInfo()),
+            ({'name': 'x'}, TypeInfo('x')),
+            ({'name': 'Integer'}, TypeInfo('Integer', int)),
+            ({'name': 'I', 'type': int}, TypeInfo('I', int)),
+            ({'name': 'List', 'nested': [int]},
+             TypeInfo('List', list, [TypeInfo('int')])),
+            ({'name': 'list', 'nested': ['Int | Float']},
+             TypeInfo('list', list, [TypeInfo('Union', nested=[TypeInfo('Int'),
+                                                               TypeInfo('Float')])])),
+            ({'name': 'Map', 'nested': [{'name': 'str'}, {'name': 'int'}]},
+             TypeInfo('Map', dict, [TypeInfo('str'), TypeInfo('int')])),
+        ]:
+            for info in TypeInfo.from_dict(data), TypeInfo.from_type_hint(data):
+                assert_info(info, expected.name, expected.type, expected.nested)
 
     def test_valid_params(self):
         for typ in (List[int], Sequence[int], Set[int], Tuple[int], 'list[int]',
@@ -99,31 +116,31 @@ class TestTypeInfo(unittest.TestCase):
             name = typ.split('[')[0]
             assert_raises_with_msg(
                 DataError,
-                f"'{name}[]' requires exactly 1 argument, '{typ}' has 2.",
+                f"'{name}[]' requires exactly 1 parameter, '{typ}' has 2.",
                 TypeInfo.from_type_hint, typ
             )
 
     def test_invalid_mapping_params(self):
         assert_raises_with_msg(
             DataError,
-            "'dict[]' requires exactly 2 arguments, 'dict[int]' has 1.",
+            "'dict[]' requires exactly 2 parameters, 'dict[int]' has 1.",
             TypeInfo.from_type_hint, 'dict[int]'
         )
         assert_raises_with_msg(
             DataError,
-            "'Mapping[]' requires exactly 2 arguments, 'Mapping[x, y, z]' has 3.",
+            "'Mapping[]' requires exactly 2 parameters, 'Mapping[x, y, z]' has 3.",
             TypeInfo.from_type_hint, 'Mapping[x,y,z]'
         )
 
     def test_invalid_tuple_params(self):
         assert_raises_with_msg(
             DataError,
-            "Homogenous tuple requires exactly 1 argument, 'tuple[int, str, ...]' has 2.",
+            "Homogenous tuple requires exactly 1 parameter, 'tuple[int, str, ...]' has 2.",
             TypeInfo.from_type_hint, 'tuple[int, str, ...]'
         )
         assert_raises_with_msg(
             DataError,
-            "Homogenous tuple requires exactly 1 argument, 'tuple[...]' has 0.",
+            "Homogenous tuple requires exactly 1 parameter, 'tuple[...]' has 0.",
             TypeInfo.from_type_hint, 'tuple[...]'
         )
 
@@ -132,7 +149,7 @@ class TestTypeInfo(unittest.TestCase):
             if TYPE_NAMES[name] not in (list, tuple, dict, set, frozenset):
                 assert_raises_with_msg(
                     DataError,
-                    f"'{name}' does not accept arguments, '{name}[int]' has 1.",
+                    f"'{name}' does not accept parameters, '{name}[int]' has 1.",
                     TypeInfo.from_type_hint, f'{name}[int]'
                 )
 
@@ -149,11 +166,14 @@ class TestTypeInfo(unittest.TestCase):
         assert_equal(TypeInfo.from_type_hint(Gen[int]).nested[0].type, int)
         assert_equal(TypeInfo.from_type_hint(Gen[str]).nested[0].type, str)
 
+    def test_special_type_hints(self):
+        assert_info(TypeInfo.from_type_hint(Any), 'Any', Any)
+        assert_info(TypeInfo.from_type_hint(Ellipsis), '...', Ellipsis)
+        assert_info(TypeInfo.from_type_hint(None), 'None', type(None))
+
     def test_non_type(self):
         for item in 42, object(), set(), b'hello':
-            info = TypeInfo.from_type_hint(item)
-            assert_equal(info.name, str(item))
-            assert_equal(info.type, None)
+            assert_info(TypeInfo.from_type_hint(item), str(item))
 
     def test_conversion(self):
         assert_equal(TypeInfo.from_type_hint(int).convert('42'), 42)
@@ -198,6 +218,11 @@ class TestTypeInfo(unittest.TestCase):
             info.convert, '42', custom_converters={Custom: 'bad'}
         )
 
+    def test_language_config(self):
+        info = TypeInfo.from_type_hint(bool)
+        assert_equal(info.convert('kyllä', languages='Finnish'), True)
+        assert_equal(info.convert('ei', languages=['de', 'fi']), False)
+
     def test_no_converter(self):
         assert_raises_with_msg(
             TypeError,
@@ -209,86 +234,6 @@ class TestTypeInfo(unittest.TestCase):
             "No converter found for 'unknown[int]'.",
             TypeInfo.from_type_hint('unknown[int]').convert, 'whatever'
         )
-
-
-class TestTypeInfoParser(unittest.TestCase):
-
-    def test_simple(self):
-        for name in 'str', 'Integer', 'whatever', 'two parts', 'non-alpha!?':
-            info = TypeInfoParser(name).parse()
-            assert_equal(info.name, name)
-
-    def test_parameterized(self):
-        info = TypeInfoParser('list[int]').parse()
-        assert_equal(info.name, 'list')
-        assert_equal(info.nested[0].name, 'int')
-
-    def test_multiple_parameters(self):
-        info = TypeInfoParser('Mapping[str, int]').parse()
-        assert_equal(info.name, 'Mapping')
-        assert_equal(info.nested[0].name, 'str')
-        assert_equal(info.nested[1].name, 'int')
-
-    def test_union(self):
-        info = TypeInfoParser('int | float').parse()
-        assert_equal(info.name, 'Union')
-        assert_equal(info.nested[0].name, 'int')
-        assert_equal(info.nested[1].name, 'float')
-
-    def test_union_with_multiple_types(self):
-        types = list('abcdefg')
-        info = TypeInfoParser('|'.join(types)).parse()
-        assert_equal(info.name, 'Union')
-        assert_equal(len(info.nested), len(types))
-        for nested, name in zip(info.nested, types):
-            assert_equal(nested.name, name)
-
-    def test_mixed(self):
-        info = TypeInfoParser('int | list[int] |tuple[int,int|tuple[int, int|str]]').parse()
-        assert_equal(info.name, 'Union')
-        assert_equal(info.nested[0].name, 'int')
-        assert_equal(info.nested[1].name, 'list')
-        assert_equal(info.nested[1].nested[0].name, 'int')
-        assert_equal(info.nested[2].name, 'tuple')
-        assert_equal(info.nested[2].nested[0].name, 'int')
-        assert_equal(info.nested[2].nested[1].name, 'Union')
-        assert_equal(info.nested[2].nested[1].nested[0].name, 'int')
-        assert_equal(info.nested[2].nested[1].nested[1].name, 'tuple')
-        assert_equal(info.nested[2].nested[1].nested[1].nested[0].name, 'int')
-        assert_equal(info.nested[2].nested[1].nested[1].nested[1].name, 'Union')
-        assert_equal(info.nested[2].nested[1].nested[1].nested[1].nested[0].name, 'int')
-        assert_equal(info.nested[2].nested[1].nested[1].nested[1].nested[1].name, 'str')
-
-    def test_errors(self):
-        for info, position, error in [
-                ('',       'end', 'Type name missing.'),
-                ('[',      0,     'Type name missing.'),
-                (']',      0,     'Type name missing.'),
-                (',',      0,     'Type name missing.'),
-                ('|',      0,     'Type name missing.'),
-                ('x[',     'end', 'Type name missing.'),
-                ('x]',     1,     "Extra content after 'x'."),
-                ('x,',     1,     "Extra content after 'x'."),
-                ('x|',     'end', 'Type name missing.'),
-                ('x[y][',  4,     "Extra content after 'x[y]'."),
-                ('x[y]]',  4,     "Extra content after 'x[y]'."),
-                ('x[y],',  4,     "Extra content after 'x[y]'."),
-                ('x[y]|',  'end', 'Type name missing.'),
-                ('x[y]z',  4,     "Extra content after 'x[y]'."),
-                ('x[y',    'end', "Closing ']' missing."),
-                ('x[y,',   'end', 'Type name missing.'),
-                ('x[y,z',  'end', "Closing ']' missing."),
-                ('x[,',    2,     'Type name missing.'),
-                ('x[[y]]', 2,     'Type name missing.'),
-                ('x | ,',  4,     'Type name missing.'),
-                ('x|||',   2,     'Type name missing.'),
-        ]:
-            position = f'index {position}' if isinstance(position, int) else position
-            assert_raises_with_msg(
-                ValueError,
-                f"Parsing type '{info}' failed: Error at {position}: {error}",
-                TypeInfoParser(info).parse
-            )
 
 
 if __name__ == '__main__':
