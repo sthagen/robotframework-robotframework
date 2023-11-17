@@ -2067,6 +2067,10 @@ More examples of functionality:
           manage the task and save a reference to avoid it being garbage collected. If the event loop
           closes and a task is still pending, a message will be printed to the console.
 
+.. note:: If execution of keyword cannot continue for some reason, for example a signal stop,
+          Robot Framework will cancel the async task and any of its children. Other async tasks will
+          continue running normally.
+
 Communicating with Robot Framework
 ----------------------------------
 
@@ -3369,6 +3373,9 @@ __ `Getting keyword source information`_
 
 A good example of using the dynamic API is Robot Framework's own
 `Remote library`_.
+
+.. note:: Starting from Robot Framework 7.0, dynamic libraries can have asynchronous
+          implementations of their special methods.
 
 Hybrid library API
 ------------------
