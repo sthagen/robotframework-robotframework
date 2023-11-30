@@ -17,9 +17,8 @@ import os
 
 from robot.errors import DataError
 from robot.output import LOGGER
-from robot.utils import getshortdoc
 
-from .arguments import EmbeddedArguments, UserKeywordArgumentParser
+from .arguments import EmbeddedArguments
 from .handlerstore import HandlerStore
 from .userkeywordrunner import UserKeywordRunner, EmbeddedArgumentsRunner
 from .usererrorhandler import UserErrorHandler
@@ -35,11 +34,7 @@ class UserLibrary:
         self.handlers = HandlerStore()
         self.source = source
         for kw in resource.keywords:
-            try:
-                handler = self._create_handler(kw)
-            except DataError as error:
-                handler = UserErrorHandler(error, kw.name, self.name, source, kw.lineno)
-                self._log_creating_failed(handler, error)
+            handler = self._create_handler(kw)
             embedded = isinstance(handler, EmbeddedArgumentsHandler)
             try:
                 self.handlers.add(handler, embedded)
@@ -47,16 +42,9 @@ class UserLibrary:
                 self._log_creating_failed(handler, error)
 
     def _create_handler(self, kw):
-        if kw.error:
-            raise DataError(kw.error)
-        if not kw.body:
-            raise DataError('User keyword cannot be empty.')
-        if not kw.name:
-            raise DataError('User keyword name cannot be empty.')
-        embedded = EmbeddedArguments.from_name(kw.name)
-        if not embedded:
-            return UserKeywordHandler(kw, self.name)
-        return EmbeddedArgumentsHandler(kw, self.name, embedded)
+        if kw.embedded_args:
+            return EmbeddedArgumentsHandler(kw, self.name, kw.embedded_args)
+        return UserKeywordHandler(kw, self.name)
 
     def _log_creating_failed(self, handler, error):
         LOGGER.error(f"Error in file '{self.source}' on line {handler.lineno}: "
@@ -73,29 +61,20 @@ class UserKeywordHandler:
 
     def __init__(self, keyword, owner):
         self.name = keyword.name
+        self.full_name = keyword.full_name
+        self.short_doc = keyword.short_doc
+        self.private = keyword.private
         self.owner = owner
         self.doc = keyword.doc
         self.source = keyword.source
         self.lineno = keyword.lineno
         self.tags = keyword.tags
-        self.arguments = UserKeywordArgumentParser().parse(tuple(keyword.args),
-                                                           self.full_name)
+        self.arguments = keyword.args
         self.timeout = keyword.timeout
         self.body = keyword.body
+        self.error = keyword.error
         self.setup = keyword.setup if keyword.has_setup else None
         self.teardown = keyword.teardown if keyword.has_teardown else None
-
-    @property
-    def full_name(self):
-        return f'{self.owner}.{self.name}' if self.owner else self.name
-
-    @property
-    def short_doc(self):
-        return getshortdoc(self.doc)
-
-    @property
-    def private(self):
-        return bool(self.tags and self.tags.robot('private'))
 
     def create_runner(self, name, languages=None):
         return UserKeywordRunner(self)

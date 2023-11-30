@@ -2,53 +2,16 @@ import sys
 import unittest
 
 from robot.errors import DataError
-from robot.model import Body
+from robot.running import UserKeyword
 from robot.running.userkeyword import EmbeddedArgumentsHandler
 from robot.running.arguments import EmbeddedArguments, UserKeywordArgumentParser
 from robot.utils.asserts import assert_equal, assert_true, assert_raises_with_msg
 
 
-class Fake:
-    value = ''
-    message = ''
-
-    def __iter__(self):
-        return iter([])
-
-
-class FakeArgs:
-
-    def __init__(self, args):
-        self.value = args
-
-    def __nonzero__(self):
-        return bool(self.value)
-
-    def __iter__(self):
-        return iter(self.value)
-
-
-class HandlerDataMock:
-
-    def __init__(self, name, args=[]):
-        self.name = name
-        self.args = FakeArgs(args)
-        self.body = Body()
-        self.source = None
-        self.lineno = -1
-        self.return_value = None
-        self.doc = Fake()
-        self.timeout = Fake()
-        self.return_ = Fake()
-        self.tags = ()
-        self.has_setup = False
-        self.has_teardown = False
-
-
-def EAT(name, args=[]):
-    handler = HandlerDataMock(name, args)
+def EAT(name, args=()):
+    kw = UserKeyword(name, args)
     embedded = EmbeddedArguments.from_name(name)
-    return EmbeddedArgumentsHandler(handler, 'resource', embedded)
+    return EmbeddedArgumentsHandler(kw, 'resource', embedded)
 
 
 class TestEmbeddedArgs(unittest.TestCase):
@@ -62,16 +25,16 @@ class TestEmbeddedArgs(unittest.TestCase):
         assert_true(not EmbeddedArguments.from_name('No embedded args here'))
 
     def test_get_embedded_arg_and_regexp(self):
-        assert_equal(self.tmp1.embedded.args, ['item'])
+        assert_equal(self.tmp1.embedded.args, ('item',))
         assert_equal(self.tmp1.embedded.name.pattern,
-                     '^User\\ selects\\ (.*?)\\ from\\ list$')
+                     'User\\ selects\\ (.*?)\\ from\\ list')
         assert_equal(self.tmp1.name, 'User selects ${item} from list')
 
     def test_get_multiple_embedded_args_and_regexp(self):
-        assert_equal(self.tmp2.embedded.args, ['x', 'y', 'z'])
+        assert_equal(self.tmp2.embedded.args, ('x', 'y', 'z'))
         quote = '"' if sys.version_info[:2] >= (3, 7) else '\\"'
         assert_equal(self.tmp2.embedded.name.pattern,
-                     '^(.*?)\\ \\*\\ (.*?)\\ from\\ {0}(.*?){0}$'.format(quote))
+                     '(.*?)\\ \\*\\ (.*?)\\ from\\ {0}(.*?){0}'.format(quote))
 
     def test_create_runner_with_one_embedded_arg(self):
         runner = self.tmp1.create_runner('User selects book from list')
