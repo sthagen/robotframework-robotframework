@@ -840,7 +840,7 @@ class ResourceFile(ModelObject):
 class UserKeyword(ModelObject):
     repr_args = ('name', 'args')
     fixture_class = Keyword
-    __slots__ = ['embedded', 'doc', 'timeout', 'lineno', 'owner', 'error',
+    __slots__ = ['embedded', 'doc', 'timeout', 'lineno', 'owner', 'parent', 'error',
                  '_setup', '_teardown']
 
     def __init__(self, name: str = '',
@@ -850,6 +850,7 @@ class UserKeyword(ModelObject):
                  timeout: 'str|None' = None,
                  lineno: 'int|None' = None,
                  owner: 'ResourceFile|None' = None,
+                 parent: 'BodyItemParent|None' = None,
                  error: 'str|None' = None):
         self.embedded: EmbeddedArguments | None = None
         self.name = name
@@ -859,6 +860,7 @@ class UserKeyword(ModelObject):
         self.timeout = timeout
         self.lineno = lineno
         self.owner = owner
+        self.parent = parent
         self.error = error
         self.body = []
         self._setup = None
@@ -882,7 +884,10 @@ class UserKeyword(ModelObject):
 
     @setter
     def args(self, spec: 'ArgumentSpec|Sequence[str]') -> ArgumentSpec:
-        if not isinstance(spec, ArgumentSpec):
+        if isinstance(spec, ArgumentSpec):
+            # FIXME: ArgumentSpec should be copied here!
+            pass
+        else:
             spec = UserKeywordArgumentParser().parse(spec)
         spec.name = lambda: self.full_name
         return spec
@@ -963,6 +968,20 @@ class UserKeyword(ModelObject):
             return EmbeddedArgumentsRunner(self, name)
         return UserKeywordRunner(self)
 
+    def bind(self, data: Keyword) -> 'UserKeyword':
+        kw = UserKeyword('', self.args, self.doc, self.tags, self.timeout,
+                         self.lineno, self.owner, data.parent, self.error)
+        # Avoid possible errors setting name with invalid embedded args.
+        # FIXME: `self.embedded` should be copied.
+        kw._setter__name = self.name
+        kw.embedded = self.embedded
+        if self.has_setup:
+            kw.setup = self.setup.to_dict()
+        if self.has_teardown:
+            kw.teardown = self.teardown.to_dict()
+        kw.body = self.body.to_dicts()
+        return kw
+
     def to_dict(self) -> DataDict:
         data: DataDict = {'name': self.name}
         for name, value in [('args', tuple(self._decorate_args())),
@@ -981,6 +1000,7 @@ class UserKeyword(ModelObject):
         return data
 
     def _decorate_args(self):
+        args = []
         for info in self.args:
             if info.kind == info.VAR_NAMED:
                 deco = '&'
@@ -991,14 +1011,15 @@ class UserKeyword(ModelObject):
             arg = f'{deco}{{{info.name}}}'
             if info.default is not NOT_SET:
                 arg = f'{arg}={info.default}'
-            yield arg
+            args.append(arg)
+        return args
 
     def _include_in_repr(self, name: str, value: Any) -> bool:
         return name == 'name' or value
 
     def _repr_format(self, name: str, value: Any) -> str:
         if name == 'args':
-            return repr(list(self._decorate_args()))
+            return repr(self._decorate_args())
         return super()._repr_format(name, value)
 
 
