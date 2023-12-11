@@ -154,6 +154,7 @@ class ResourceFile(ModelObject):
 
 
 class UserKeyword(KeywordImplementation):
+    type = KeywordImplementation.USER_KEYWORD
     fixture_class = Keyword
     __slots__ = ['timeout', '_setup', '_teardown']
 
@@ -234,7 +235,8 @@ class UserKeyword(KeywordImplementation):
         """
         return bool(self._teardown)
 
-    def create_runner(self, name, languages=None) -> UserKeywordRunner:
+    def create_runner(self, name, languages=None) \
+                -> 'UserKeywordRunner|EmbeddedArgumentsRunner':
         if self.embedded:
             return EmbeddedArgumentsRunner(self, name)
         return UserKeywordRunner(self)
