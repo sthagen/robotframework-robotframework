@@ -13,6 +13,9 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+from contextlib import contextmanager
+from typing import TYPE_CHECKING
+
 from robot.errors import DataError
 from robot.output import LOGGER
 from robot.result import Keyword as KeywordResult
@@ -20,41 +23,47 @@ from robot.utils import prepr, safe_str
 from robot.variables import contains_variable, is_list_variable, VariableAssignment
 
 from .bodyrunner import BodyRunner
-from .model import Keyword
+from .model import Keyword as KeywordData
+from .resourcemodel import UserKeyword
 from .outputcapture import OutputCapturer
 from .signalhandler import STOP_SIGNAL_MONITOR
 from .statusreporter import StatusReporter
 
+if TYPE_CHECKING:
+    from .librarykeyword import LibraryKeyword
+
 
 class LibraryKeywordRunner:
 
-    def __init__(self, keyword, name=None, languages=None):
+    def __init__(self, keyword: 'LibraryKeyword', name: 'str|None' = None,
+                 languages=None):
         self.keyword = keyword
         self.name = name or keyword.name
         self.pre_run_messages = ()
         self.languages = languages
 
-    def run(self, data, context, run=True):
+    def run(self, data: KeywordData, result: KeywordResult, context, run=True):
         kw = self.keyword.bind(data)
         assignment = VariableAssignment(data.assign)
-        result = self._get_result(kw, data, assignment)
+        self._config_result(result, data, kw, assignment)
         with StatusReporter(data, result, context, run, implementation=kw):
             if run:
                 with assignment.assigner(context) as assigner:
-                    return_value = self._run(kw, data.args, context)
+                    return_value = self._run(kw, data.args, result, context)
                     assigner.assign(return_value)
                     return return_value
 
-    def _get_result(self, kw, data, assignment):
-        return KeywordResult(name=self.name,
-                             owner=kw.owner.name,
-                             doc=kw.short_doc,
-                             args=data.args,
-                             assign=tuple(assignment),
-                             tags=kw.tags,
-                             type=data.type)
+    def _config_result(self, result: KeywordResult, data: KeywordData,
+                       kw: 'LibraryKeyword', assignment):
+        result.config(name=self.name,
+                      owner=kw.owner.name,
+                      doc=kw.short_doc,
+                      args=data.args,
+                      assign=tuple(assignment),
+                      tags=kw.tags,
+                      type=data.type)
 
-    def _run(self, kw, args, context):
+    def _run(self, kw: 'LibraryKeyword', args, result: KeywordResult, context):
         if self.pre_run_messages:
             for message in self.pre_run_messages:
                 context.output.message(message)
@@ -64,56 +73,69 @@ class LibraryKeywordRunner:
                              write_if_flat=False)
         if kw.error:
             raise DataError(kw.error)
-        runner = self._runner_for(context, kw.method, positional, dict(named))
-        return self._run_with_output_captured_and_signal_monitor(runner, context)
+        return self._execute(kw.method, positional, named, context)
 
     def _trace_log_args(self, positional, named):
         args = [prepr(arg) for arg in positional]
         args += ['%s=%s' % (safe_str(n), prepr(v)) for n, v in named]
         return 'Arguments: [ %s ]' % ' | '.join(args)
 
-    def _runner_for(self, context, keyword, positional, named):
+    def _runner_for(self, method, positional, named, context):
         timeout = self._get_timeout(context)
         if timeout and timeout.active:
             def runner():
                 with LOGGER.delayed_logging:
                     context.output.debug(timeout.get_message)
-                    return timeout.run(keyword, args=positional, kwargs=named)
+                    return timeout.run(method, args=positional, kwargs=named)
             return runner
-        return lambda: keyword(*positional, **named)
+        return lambda: method(*positional, **named)
 
     def _get_timeout(self, context):
         return min(context.timeouts) if context.timeouts else None
 
-    def _run_with_output_captured_and_signal_monitor(self, runner, context):
-        with OutputCapturer():
-            return self._run_with_signal_monitoring(runner, context)
+    def _execute(self, method, positional, named, context):
+        timeout = self._get_timeout(context)
+        if timeout and timeout.active:
+            method = self._wrap_with_timeout(method, timeout, context.output)
+        with self._monitor(context):
+            result = method(*positional, **dict(named))
+            if context.asynchronous.is_loop_required(result):
+                return context.asynchronous.run_until_complete(result)
+            return result
 
-    def _run_with_signal_monitoring(self, runner, context):
+    def _wrap_with_timeout(self, method, timeout, output):
+        def wrapper(*args, **kwargs):
+            with output.delayed_logging:
+                output.debug(timeout.get_message)
+                return timeout.run(method, args=args, kwargs=kwargs)
+        return wrapper
+
+    @contextmanager
+    def _monitor(self, context):
+        STOP_SIGNAL_MONITOR.start_running_keyword(context.in_teardown)
+        capturer = OutputCapturer()
+        capturer.start()
         try:
-            STOP_SIGNAL_MONITOR.start_running_keyword(context.in_teardown)
-            runner_result = runner()
-            if context.asynchronous.is_loop_required(runner_result):
-                return context.asynchronous.run_until_complete(runner_result)
-            return runner_result
+            yield
         finally:
+            capturer.stop()
             STOP_SIGNAL_MONITOR.stop_running_keyword()
 
-    def dry_run(self, data, context):
+    def dry_run(self, data: KeywordData, result: KeywordResult, context):
         kw = self.keyword.bind(data)
         assignment = VariableAssignment(data.assign)
-        result = self._get_result(kw, data, assignment)
+        self._config_result(result, data, kw, assignment)
         with StatusReporter(data, result, context, run=False, implementation=kw):
             assignment.validate_assignment()
-            self._dry_run(kw, data.args, context)
+            self._dry_run(kw, data.args, result, context)
 
-    def _dry_run(self, kw, args, context):
+    def _dry_run(self, kw: 'LibraryKeyword', args, result: KeywordResult, context):
         if self._executed_in_dry_run(kw):
-            self._run(kw, args, context)
+            self._run(kw, args, result, context)
         else:
             kw.resolve_arguments(args, languages=self.languages)
 
-    def _executed_in_dry_run(self, kw):
+    def _executed_in_dry_run(self, kw: 'LibraryKeyword'):
         return (kw.owner.name == 'BuiltIn'
                 and kw.name in ('Import Library', 'Set Library Search Order',
                                 'Set Tags', 'Remove Tags'))
@@ -121,25 +143,25 @@ class LibraryKeywordRunner:
 
 class EmbeddedArgumentsRunner(LibraryKeywordRunner):
 
-    def __init__(self, keyword, name):
+    def __init__(self, keyword: 'LibraryKeyword', name: 'str'):
         super().__init__(keyword, name)
         self.embedded_args = keyword.embedded.match(name).groups()
 
-    def _run(self, kw, args, context):
-        return super()._run(kw, self.embedded_args + args, context)
+    def _run(self, kw: 'LibraryKeyword', args, result: KeywordResult, context):
+        return super()._run(kw, self.embedded_args + args, result, context)
 
-    def _dry_run(self, kw, args, context):
-        return super()._dry_run(kw, self.embedded_args + args, context)
+    def _dry_run(self, kw: 'LibraryKeyword', args, result: KeywordResult, context):
+        return super()._dry_run(kw, self.embedded_args + args, result, context)
 
-    def _get_result(self, kw, data, assignment):
-        result = super()._get_result(kw, data, assignment)
+    def _config_result(self, result: KeywordResult, data: KeywordData,
+                       kw: 'LibraryKeyword', assignment):
+        super()._config_result(result, data, kw, assignment)
         result.source_name = kw.name
-        return result
 
 
 class RunKeywordRunner(LibraryKeywordRunner):
 
-    def __init__(self, keyword, execute_in_dry_run=False):
+    def __init__(self, keyword: 'LibraryKeyword', execute_in_dry_run=False):
         super().__init__(keyword)
         self.execute_in_dry_run = execute_in_dry_run
 
@@ -147,28 +169,36 @@ class RunKeywordRunner(LibraryKeywordRunner):
         # These keywords are not affected by timeouts. Keywords they execute are.
         return None
 
-    def _run_with_output_captured_and_signal_monitor(self, runner, context):
-        return self._run_with_signal_monitoring(runner, context)
+    @contextmanager
+    def _monitor(self, context):
+        STOP_SIGNAL_MONITOR.start_running_keyword(context.in_teardown)
+        try:
+            yield
+        finally:
+            STOP_SIGNAL_MONITOR.stop_running_keyword()
 
-    def _dry_run(self, kw, args, context):
-        super()._dry_run(kw, args, context)
-        keywords = [k for k in self._get_dry_run_keywords(kw, args)
-                    if not contains_variable(k.name)]
-        BodyRunner(context).run(keywords)
+    def _dry_run(self, kw: 'LibraryKeyword', args, result: KeywordResult, context):
+        super()._dry_run(kw, args, result, context)
+        wrapper = UserKeyword(name=kw.name,
+                              doc="Wraps keywords executed by '{kw.name}' in dry-run.",
+                              parent=kw.parent)
+        wrapper.body = [k for k in self._get_dry_run_keywords(kw, args)
+                        if not contains_variable(k.name)]
+        BodyRunner(context).run(wrapper, result)
 
-    def _get_dry_run_keywords(self, kw, args):
+    def _get_dry_run_keywords(self, kw: 'LibraryKeyword', args):
         if not self.execute_in_dry_run:
             return []
         if kw.name == 'Run Keyword If':
             return self._get_dry_run_keywords_for_run_keyword_if(args)
         if kw.name == 'Run Keywords':
             return self._get_dry_run_keywords_for_run_keyword(args)
-        return self._get_dry_run_keywords_based_on_name_argument(kw, args)
+        return self._get_dry_run_keywords_based_on_name(kw, args)
 
     def _get_dry_run_keywords_for_run_keyword_if(self, given_args):
         for kw_call in self._get_run_kw_if_calls(given_args):
             if kw_call:
-                yield Keyword(name=kw_call[0], args=kw_call[1:])
+                yield KeywordData(name=kw_call[0], args=kw_call[1:])
 
     def _get_run_kw_if_calls(self, given_args):
         while 'ELSE IF' in given_args:
@@ -201,7 +231,7 @@ class RunKeywordRunner(LibraryKeywordRunner):
 
     def _get_dry_run_keywords_for_run_keyword(self, given_args):
         for kw_call in self._get_run_kws_calls(given_args):
-            yield Keyword(name=kw_call[0], args=kw_call[1:])
+            yield KeywordData(name=kw_call[0], args=kw_call[1:])
 
     def _get_run_kws_calls(self, given_args):
         if 'AND' not in given_args:
@@ -215,6 +245,6 @@ class RunKeywordRunner(LibraryKeywordRunner):
             if given_args:
                 yield given_args
 
-    def _get_dry_run_keywords_based_on_name_argument(self, kw, given_args):
+    def _get_dry_run_keywords_based_on_name(self, kw: 'LibraryKeyword', given_args):
         index = kw.args.positional.index('name')
-        return [Keyword(name=given_args[index], args=given_args[index+1:])]
+        return [KeywordData(name=given_args[index], args=given_args[index+1:])]

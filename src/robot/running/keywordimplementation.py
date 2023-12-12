@@ -30,15 +30,15 @@ if TYPE_CHECKING:
 
 
 class KeywordImplementation(ModelObject):
-    """Base class for library and user keyword model objects."""
+    """Base class for different keyword implementations."""
     USER_KEYWORD = 'USER KEYWORD'
     LIBRARY_KEYWORD = 'LIBRARY KEYWORD'
     INVALID_KEYWORD = 'INVALID KEYWORD'
     repr_args = ('name', 'args')
-    __slots__ = ['embedded', '_doc', '_lineno', 'owner', 'parent', 'error']
+    __slots__ = ['embedded', '_name', '_doc', '_lineno', 'owner', 'parent', 'error']
     type: Literal['USER KEYWORD', 'LIBRARY KEYWORD', 'INVALID KEYWORD']
     source: 'Path|None'
-    lineno: 'int|None'    # FIXME: This always be positive int.
+    lineno: 'int|None'    # FIXME: This should always be positive int.
 
     def __init__(self, name: str = '',
                  args: 'ArgumentSpec|None' = None,
@@ -48,8 +48,8 @@ class KeywordImplementation(ModelObject):
                  owner: 'ResourceFile|TestLibrary|None' = None,
                  parent: 'BodyItemParent|None' = None,
                  error: 'str|None' = None):
-        self.embedded: EmbeddedArguments | None = None
-        self.name = name
+        self._name = name
+        self.embedded = self._get_embedded(name)
         self.args = args
         self._doc = doc
         self.tags = tags
@@ -58,10 +58,19 @@ class KeywordImplementation(ModelObject):
         self.parent = parent
         self.error = error
 
-    @setter
-    def name(self, name: str) -> str:
-        self.embedded = EmbeddedArguments.from_name(name)
-        return name
+    def _get_embedded(self, name) -> 'EmbeddedArguments|None':
+        return EmbeddedArguments.from_name(name)
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @name.setter
+    def name(self, name: str):
+        self.embedded = self._get_embedded(name)
+        if self.owner and self._name:
+            self.owner.keyword_finder.invalidate_cache()
+        self._name = name
 
     @property
     def full_name(self) -> str:
@@ -71,10 +80,25 @@ class KeywordImplementation(ModelObject):
 
     @setter
     def args(self, spec: 'ArgumentSpec|None') -> ArgumentSpec:
+        """Information about accepted arguments.
+
+        It would be more correct to use term *parameter* instead of
+        *argument* in this context, and this attribute may be renamed
+        accordingly in the future. A forward compatible :attr:`params`
+        attribute exists already now.
+        """
         if spec is None:
             spec = ArgumentSpec()
         spec.name = lambda: self.full_name
         return spec
+
+    @property
+    def params(self) -> ArgumentSpec:
+        """Keyword parameter information.
+
+        This is a forward compatible alias for :attr:`args`.
+        """
+        return self.args
 
     @property
     def doc(self) -> str:
@@ -112,6 +136,10 @@ class KeywordImplementation(ModelObject):
         if self.embedded:
             return self.embedded.match(name)
         return eq(self.name, name, ignore='_')
+
+    def resolve_arguments(self, args, variables=None, languages=None) \
+            -> 'tuple[list, list]':
+        return self.args.resolve(args, variables, languages=languages)
 
     def create_runner(self, name, languages=None) \
             -> 'LibraryKeywordRunner|UserKeywordRunner':
