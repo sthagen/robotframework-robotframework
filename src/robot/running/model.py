@@ -36,7 +36,7 @@ __ http://robotframework.org/robotframework/latest/RobotFrameworkUserGuide.html#
 
 import warnings
 from pathlib import Path
-from typing import Literal, Sequence, TYPE_CHECKING, Union
+from typing import Literal, Mapping, Sequence, TYPE_CHECKING, TypeVar, Union
 
 from robot import model
 from robot.conf import RobotSettings
@@ -56,13 +56,19 @@ if TYPE_CHECKING:
     from .resourcemodel import ResourceFile
 
 
+IT = TypeVar('IT', bound='IfBranch|TryBranch')
 BodyItemParent = Union['TestSuite', 'TestCase', 'UserKeyword', 'For', 'If', 'IfBranch',
                        'Try', 'TryBranch', 'While', None]
 
 
 class Body(model.BaseBody['Keyword', 'For', 'While', 'If', 'Try', 'Var', 'Return',
                           'Continue', 'Break', 'model.Message', 'Error']):
-    __slots__ = []
+    __slots__ = ()
+
+
+class Branches(model.BaseBranches['Keyword', 'For', 'While', 'If', 'Try', 'Var', 'Return',
+                                  'Continue', 'Break', 'Message', 'Error', IT]):
+    __slots__ = ()
 
 
 class WithSource:
@@ -108,6 +114,19 @@ class Keyword(model.Keyword, WithSource):
         return KeywordRunner(context, run).run(self, result.body.create_keyword())
 
 
+class ForIteration(model.ForIteration, WithSource):
+    __slots__ = ('lineno', 'error')
+    body_class = Body
+
+    def __init__(self, assign: 'Mapping[str, str]|None' = None,
+                 parent: BodyItemParent = None,
+                 lineno: 'int|None' = None,
+                 error: 'str|None' = None):
+        super().__init__(assign, parent)
+        self.lineno = lineno
+        self.error = error
+
+
 @Body.register
 class For(model.For, WithSource):
     __slots__ = ['lineno', 'error']
@@ -146,6 +165,23 @@ class For(model.For, WithSource):
                                         self.start, self.mode, self.fill)
         return ForRunner(context, self.flavor, run, templated).run(self, result)
 
+    def get_iteration(self, assign: 'Mapping[str, str]|None' = None) -> ForIteration:
+        iteration = ForIteration(assign, self, self.lineno, self.error)
+        iteration.body = [item.to_dict() for item in self.body]
+        return iteration
+
+
+class WhileIteration(model.WhileIteration, WithSource):
+    __slots__ = ('lineno', 'error')
+    body_class = Body
+
+    def __init__(self, parent: BodyItemParent = None,
+                 lineno: 'int|None' = None,
+                 error: 'str|None' = None):
+        super().__init__(parent)
+        self.lineno = lineno
+        self.error = error
+
 
 @Body.register
 class While(model.While, WithSource):
@@ -176,10 +212,15 @@ class While(model.While, WithSource):
                                           self.on_limit_message)
         return WhileRunner(context, run, templated).run(self, result)
 
+    def get_iteration(self) -> WhileIteration:
+        iteration = WhileIteration(self, self.lineno, self.error)
+        iteration.body = [item.to_dict() for item in self.body]
+        return iteration
+
 
 class IfBranch(model.IfBranch, WithSource):
-    __slots__ = ['lineno']
     body_class = Body
+    __slots__ = ['lineno']
 
     def __init__(self, type: str = BodyItem.IF,
                  condition: 'str|None' = None,
@@ -197,8 +238,9 @@ class IfBranch(model.IfBranch, WithSource):
 
 @Body.register
 class If(model.If, WithSource):
-    __slots__ = ['lineno', 'error']
     branch_class = IfBranch
+    branches_class = Branches[branch_class]
+    __slots__ = ['lineno', 'error']
 
     def __init__(self, parent: BodyItemParent = None,
                  lineno: 'int|None' = None,
@@ -220,8 +262,8 @@ class If(model.If, WithSource):
 
 
 class TryBranch(model.TryBranch, WithSource):
-    __slots__ = ['lineno']
     body_class = Body
+    __slots__ = ['lineno']
 
     def __init__(self, type: str = BodyItem.TRY,
                  patterns: Sequence[str] = (),
@@ -248,8 +290,9 @@ class TryBranch(model.TryBranch, WithSource):
 
 @Body.register
 class Try(model.Try, WithSource):
-    __slots__ = ['lineno', 'error']
     branch_class = TryBranch
+    branches_class = Branches[branch_class]
+    __slots__ = ['lineno', 'error']
 
     def __init__(self, parent: BodyItemParent = None,
                  lineno: 'int|None' = None,
