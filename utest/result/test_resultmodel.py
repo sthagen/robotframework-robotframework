@@ -1,12 +1,19 @@
+import json
 import unittest
 import warnings
 from datetime import datetime, timedelta
+from pathlib import Path
 
-from robot.model import Tags
+from jsonschema import Draft202012Validator
+
+from robot.model import Tags, BodyItem
 from robot.result import (Break, Continue, Error, For, If, IfBranch, Keyword, Message,
                           Return, TestCase, TestSuite, Try, TryBranch, Var, While)
 from robot.utils.asserts import (assert_equal, assert_false, assert_raises,
                                  assert_raises_with_msg, assert_true)
+
+
+CURDIR = Path(__file__).resolve().parent
 
 
 class TestSuiteStats(unittest.TestCase):
@@ -593,6 +600,210 @@ class TestBranches(unittest.TestCase):
                             branches.create_try,
                             branches.create_return):
                 assert_raises_with_msg(TypeError, msg.format(creator.__name__), creator)
+
+
+class TestToFromDictAndJson(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        with open(CURDIR / '../../doc/schema/result.json') as file:
+            schema = json.load(file)
+        cls.validator = Draft202012Validator(schema=schema)
+        cls.maxDiff = 2000
+
+    def test_keyword(self):
+        self._verify(Keyword(), name='', status='FAIL', elapsed_time=0)
+        self._verify(Keyword('Name'), name='Name', status='FAIL', elapsed_time=0)
+        now = datetime.now()
+        keyword = Keyword('N', 'BuiltIn', 'N', 'some doc', ('args',),
+                          ('${result}',), ('t1', 't2'), "1s",
+                          BodyItem.KEYWORD, "PASS", 'a msg', now, None, 1.2)
+        keyword.setup.config(name='Setup', status='PASS')
+        keyword.teardown.config(name='Teardown', args='a')
+        keyword.body.create_keyword("K1", status='PASS')
+        self._verify(
+            keyword,
+            name='N',
+            status='PASS',
+            owner='BuiltIn',
+            source_name='N',
+            doc='some doc',
+            args=('args', ),
+            assign=('${result}',),
+            tags=['t1', 't2'],
+            timeout="1s",
+            message='a msg',
+            start_time=now.isoformat(),
+            elapsed_time=1.2,
+            setup={'name': 'Setup', 'status': 'PASS', 'elapsed_time': 0},
+            teardown={'name': 'Teardown', 'status': 'FAIL', 'args': ('a', ), 'elapsed_time': 0},
+            body=[{'name': 'K1', 'status': 'PASS', 'elapsed_time': 0}]
+        )
+
+    def test_for(self):
+        self._verify(For(), type='FOR', assign=(), flavor='IN', values=(), body=[], status='FAIL', elapsed_time=0)
+        self._verify(For(['${i}'], 'IN RANGE', ['10']),
+                     type='FOR', assign=('${i}',), flavor='IN RANGE', values=('10',),
+                     body=[], status='FAIL', elapsed_time=0)
+        root = For(['${i}', '${a}'], 'IN ENUMERATE', ['cat', 'dog'], start='1')
+        iter_ = root.body.create_iteration({"${x}": "1"})
+        iter_.body.create_keyword('K1')
+        self._verify(root,
+                     type='FOR', assign=('${i}', '${a}'), flavor='IN ENUMERATE',
+                     values=('cat', 'dog'), start='1', status='FAIL', elapsed_time=0,
+                     body=[{'type': 'ITERATION', 'assign': {'${x}': '1'}, 'status': 'FAIL', 'elapsed_time': 0,
+                            'body': [{'name': 'K1', 'status': 'FAIL', 'elapsed_time': 0}]}])
+
+    def test_while(self):
+        self._verify(While(limit='1', on_limit_message='Ooops!', status='PASS'),
+                     type='WHILE', limit='1', on_limit_message='Ooops!', status='PASS', elapsed_time=0, body=[])
+        root = While('True')
+        iter_ = root.body.create_iteration()
+        iter_.body.create_keyword('K')
+        self._verify(root, type='WHILE', condition='True', status='FAIL', elapsed_time=0,
+                     body=[{'type': 'ITERATION', 'status': 'FAIL', 'elapsed_time': 0,
+                           'body': [{'name': 'K', 'status': 'FAIL', 'elapsed_time': 0}]}
+                           ])
+
+    def test_if(self):
+        now = datetime.now()
+        if_ = If('FAIL', 'I failed', start_time=now, elapsed_time=0.1)
+        if_.body.create_branch(condition='0 > 1', status='FAIL', message='I failed', start_time=now, elapsed_time=0.01)
+        exp_branch = {
+            'condition': '0 > 1',
+            'elapsed_time': 0.01,
+            'message': 'I failed',
+            'start_time': now.isoformat(),
+            'status': 'FAIL',
+            'type': BodyItem.IF,
+            'body': []
+        }
+        self._verify(if_, type=BodyItem.IF_ELSE_ROOT, status="FAIL", message="I failed", start_time=now.isoformat(),
+                     elapsed_time=0.1, body=[exp_branch])
+
+    def test_try_structure(self):
+        root = Try()
+        root.body.create_branch(Try.TRY).body.create_keyword('K1')
+        root.body.create_branch(Try.EXCEPT).body.create_keyword('K2')
+        root.body.create_branch(Try.ELSE).body.create_keyword('K3')
+        root.body.create_branch(Try.FINALLY).body.create_keyword('K4')
+        self._verify(root,
+                     status='FAIL',
+                     elapsed_time=0,
+                     type='TRY/EXCEPT ROOT',
+                     body=[{'type': 'TRY', 'status': 'FAIL', 'elapsed_time': 0,
+                            'body': [{'name': 'K1', 'status': 'FAIL', 'elapsed_time': 0}]},
+                           {'type': 'EXCEPT', 'patterns': (), 'status': 'FAIL', 'elapsed_time': 0,
+                            'body': [{'name': 'K2', 'status': 'FAIL', 'elapsed_time': 0}]},
+                           {'type': 'ELSE', 'status': 'FAIL', 'elapsed_time': 0,
+                            'body': [{'name': 'K3', 'status': 'FAIL', 'elapsed_time': 0}]},
+                           {'type': 'FINALLY', 'status': 'FAIL', 'elapsed_time': 0,
+                            'body': [{'name': 'K4', 'status': 'FAIL', 'elapsed_time': 0}]}])
+
+    def test_return_continue_break(self):
+        self._verify(Return(('x', 'y')),
+                     type='RETURN', values=('x', 'y'), status='FAIL', elapsed_time=0)
+        self._verify(Continue(), type='CONTINUE', status='FAIL', elapsed_time=0)
+        self._verify(Break(), type='BREAK', status='FAIL', elapsed_time=0)
+        ret = Return()
+        ret.body.create_message('something', 'WARN', True)
+        self._verify(ret, type='RETURN', status='FAIL', elapsed_time=0,
+                     body=[{'message': 'something', 'level': 'WARN', 'html': True,
+                            'type': BodyItem.MESSAGE}])
+
+    def test_message(self):
+        now = datetime.now()
+        self._verify(Message('a msg', 'DEBUG', False, now),
+                     type=BodyItem.MESSAGE, message='a msg', level='DEBUG', html=False,
+                     timestamp=now.isoformat())
+
+    def test_test(self):
+        self._verify(TestCase(), name='', status='FAIL', body=[], elapsed_time=0)
+
+    def test_testcase_structure(self):
+        test = TestCase('TC', 'my doc', ['T1', 'T2'], '1 minute', 42)
+        test.setup.config(name='Setup', status='PASS')
+        test.teardown.config(name='Teardown', args='a')
+        test.body.create_keyword('K1', 'suite')
+        test.body.create_if(status='PASS').\
+            body.create_branch(condition='$c', status='PASS').\
+            body.create_keyword('K2', status='PASS')
+        self._verify(test,
+                     name='TC',
+                     status='FAIL',
+                     doc='my doc',
+                     tags=('T1', 'T2'),
+                     timeout='1 minute',
+                     lineno=42,
+                     elapsed_time=0,
+                     setup={'name': 'Setup', 'status': 'PASS', 'elapsed_time': 0},
+                     teardown={'name': 'Teardown', 'status': 'FAIL', 'args': ('a', ),
+                               'elapsed_time': 0},
+                     body=[{'name': 'K1', 'owner': 'suite', 'status': 'FAIL',
+                            'elapsed_time': 0},
+                           {'type': 'IF/ELSE ROOT', 'status': 'PASS', 'elapsed_time': 0,
+                            'body': [{'type': 'IF', 'condition': '$c', 'status': 'PASS', 'elapsed_time': 0,
+                                      'body': [{'name': 'K2', 'status': 'PASS', 'elapsed_time': 0}]
+                                      }]}
+                           ])
+
+    def test_suite_structure(self):
+        suite = TestSuite('Root')
+        suite.setup.config(name='Setup', status='PASS')
+        suite.teardown.config(name='Teardown', args='a', status='PASS')
+        suite.tests.create('T1', status='PASS').body.create_keyword('K', status='PASS')
+        suite.suites.create('Child').tests.create('T2')
+        self._verify(suite,
+                     status='FAIL',
+                     name='Root',
+                     elapsed_time=0,
+                     setup={'name': 'Setup', 'status': 'PASS', 'elapsed_time': 0},
+                     teardown={'name': 'Teardown', 'args': ('a',), 'status': 'PASS',
+                               'elapsed_time': 0},
+                     tests=[{'name': 'T1', 'status': 'PASS', 'elapsed_time': 0,
+                             'body': [{'name': 'K', 'status': 'PASS', 'elapsed_time': 0}]}],
+                     suites=[{'name': 'Child', 'status': 'FAIL', 'elapsed_time': 0,
+                              'tests': [{'name': 'T2', 'status': 'FAIL', 'elapsed_time': 0, 'body': []}]
+                            }],
+                     )
+
+    def _verify(self, obj, **expected):
+        data = obj.to_dict()
+        self.assertListEqual(sorted(list(data)), sorted(list(expected)))
+        self.assertDictEqual(data, expected)
+        roundtrip = type(obj).from_dict(data).to_dict()
+        self.assertDictEqual(roundtrip, expected)
+        roundtrip = type(obj).from_json(obj.to_json()).to_dict()
+        self.assertDictEqual(roundtrip, expected)
+        self._validate(obj)
+
+    def _validate(self, obj):
+        suite = self._create_suite_structure(obj)
+        self.validator.validate(instance=json.loads(suite.to_json()))
+        # Validating `suite.to_dict` directly doesn't work due to tuples not
+        # being accepted as arrays:
+        # https://github.com/python-jsonschema/jsonschema/issues/148
+        #self.validator.validate(instance=suite.to_dict())
+
+    def _create_suite_structure(self, obj):
+        suite = TestSuite()
+        test = suite.tests.create()
+        if isinstance(obj, TestSuite):
+            suite = obj
+        elif isinstance(obj, TestCase):
+            suite.tests = [obj]
+        elif isinstance(obj, (Keyword, For, While, If, Try, Var, Error, Message)):
+            test.body.append(obj)
+        elif isinstance(obj, (IfBranch, TryBranch)):
+            item = If() if isinstance(obj, IfBranch) else Try()
+            item.body.append(obj)
+            test.body.append(item)
+        elif isinstance(obj, (Break, Continue, Return)):
+            branch = test.body.create_if().body.create_branch()
+            branch.body.append(obj)
+        else:
+            raise ValueError(obj)
+        return suite
 
 
 class TestDeprecatedKeywordSpecificAttributes(unittest.TestCase):
