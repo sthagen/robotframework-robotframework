@@ -34,7 +34,7 @@ else:
 from robot.api import logger
 from robot.api.deco import keyword
 from robot.libraries.BuiltIn import BuiltIn
-from robot.utils import asserts, ET, ETSource, is_falsy, is_truthy, plural_or_not as s
+from robot.utils import asserts, ET, ETSource, plural_or_not as s
 from robot.version import get_version
 
 
@@ -469,7 +469,6 @@ class XML:
         If lxml mode is enabled but the module is not installed, this library
         emits a warning and reverts back to using the standard ElementTree.
         """
-        use_lxml = is_truthy(use_lxml)
         if use_lxml and lxml_etree:
             self.etree = lxml_etree
             self.modern_etree = True
@@ -522,8 +521,8 @@ class XML:
             strip = (lxml_etree.Comment, lxml_etree.ProcessingInstruction)
             lxml_etree.strip_elements(tree, *strip, **dict(with_tail=False))
         root = tree.getroot()
-        if not is_truthy(keep_clark_notation):
-            self._ns_stripper.strip(root, preserve=is_falsy(strip_namespaces))
+        if not keep_clark_notation:
+            self._ns_stripper.strip(root, preserve=not strip_namespaces)
         return root
 
     def get_element(self, source, xpath='.'):
@@ -564,10 +563,10 @@ class XML:
 
     def _wrong_number_of_matches(self, count, xpath):
         if not count:
-            return "No element matching '%s' found." % xpath
+            return f"No element matching '{xpath}' found."
         if count == 1:
-            return "One element matching '%s' found." % xpath
-        return "Multiple elements (%d) matching '%s' found." % (count, xpath)
+            return f"One element matching '{xpath}' found."
+        return f"Multiple elements ({count}) matching '{xpath}' found."
 
     def get_elements(self, source, xpath):
         """Returns a list of elements in the ``source`` matching the ``xpath``.
@@ -618,7 +617,7 @@ class XML:
         See also `Element Should Exist` and `Element Should Not Exist`.
         """
         count = len(self.get_elements(source, xpath))
-        logger.info("%d element%s matched '%s'." % (count, s(count), xpath))
+        logger.info(f"{count} element{s(count)} matched '{xpath}'.")
         return count
 
     def element_should_exist(self, source, xpath='.', message=None):
@@ -684,7 +683,7 @@ class XML:
         """
         element = self.get_element(source, xpath)
         text = ''.join(self._yield_texts(element))
-        if is_truthy(normalize_whitespace):
+        if normalize_whitespace:
             text = self._normalize_whitespace(text)
         return text
 
@@ -853,7 +852,7 @@ class XML:
         """
         attr = self.get_element_attribute(source, name, xpath)
         if attr is None:
-            raise AssertionError("Attribute '%s' does not exist." % name)
+            raise AssertionError(f"Attribute '{name}' does not exist.")
         should_match(attr, pattern, message, values=False)
 
     def element_should_not_have_attribute(self, source, name, xpath='.', message=None):
@@ -875,11 +874,11 @@ class XML:
         """
         attr = self.get_element_attribute(source, name, xpath)
         if attr is not None:
-            raise AssertionError(message or "Attribute '%s' exists and "
-                                            "has value '%s'." % (name, attr))
+            raise AssertionError(message or
+                                 f"Attribute '{name}' exists and has value '{attr}'.")
 
     def elements_should_be_equal(self, source, expected, exclude_children=False,
-                                 normalize_whitespace=False):
+                                 normalize_whitespace=False, sort_children=False):
         """Verifies that the given ``source`` element is equal to ``expected``.
 
         Both ``source`` and ``expected`` can be given as a path to an XML file,
@@ -889,12 +888,14 @@ class XML:
 
         The keyword passes if the ``source`` element and ``expected`` element
         are equal. This includes testing the tag names, texts, and attributes
-        of the elements. By default also child elements are verified the same
+        of the elements. By default, also child elements are verified the same
         way, but this can be disabled by setting ``exclude_children`` to a
-        true value (see `Boolean arguments`).
+        true value (see `Boolean arguments`). Child elements are expected to
+        be in the same order, but that can be changed by giving ``sort_children``
+        a true value. Notice that elements are sorted solely based on tag names.
 
         All texts inside the given elements are verified, but possible text
-        outside them is not. By default texts must match exactly, but setting
+        outside them is not. By default, texts must match exactly, but setting
         ``normalize_whitespace`` to a true value makes text verification
         independent on newlines, tabs, and the amount of spaces. For more
         details about handling text see `Get Element Text` keyword and
@@ -914,12 +915,14 @@ class XML:
         the ``.`` at the end that is the `tail` text of the ``<i>`` element.
 
         See also `Elements Should Match`.
+
+        ``sort_children`` is new in Robot Framework 7.0.
         """
-        self._compare_elements(source, expected, should_be_equal,
-                               exclude_children, normalize_whitespace)
+        self._compare_elements(source, expected, should_be_equal, exclude_children,
+                               sort_children, normalize_whitespace)
 
     def elements_should_match(self, source, expected, exclude_children=False,
-                              normalize_whitespace=False):
+                              normalize_whitespace=False, sort_children=False):
         """Verifies that the given ``source`` element matches ``expected``.
 
         This keyword works exactly like `Elements Should Be Equal` except that
@@ -936,15 +939,21 @@ class XML:
 
         See `Elements Should Be Equal` for more examples.
         """
-        self._compare_elements(source, expected, should_match,
-                               exclude_children, normalize_whitespace)
+        self._compare_elements(source, expected, should_match, exclude_children,
+                               sort_children, normalize_whitespace)
 
     def _compare_elements(self, source, expected, comparator, exclude_children,
-                          normalize_whitespace):
-        normalizer = self._normalize_whitespace \
-            if is_truthy(normalize_whitespace) else None
-        comparator = ElementComparator(comparator, normalizer, exclude_children)
+                          sort_children, normalize_whitespace):
+        normalizer = self._normalize_whitespace if normalize_whitespace else None
+        sorter = self._sort_children if sort_children else None
+        comparator = ElementComparator(comparator, normalizer, sorter, exclude_children)
         comparator.compare(self.get_element(source), self.get_element(expected))
+
+    def _sort_children(self, element):
+        tails = [child.tail for child in element]
+        element[:] = sorted(element, key=lambda child: child.tag)
+        for child, tail in zip(element, tails):
+            child.tail = tail
 
     def set_element_tag(self, source, tag, xpath='.'):
         """Sets the tag of the specified element.
@@ -1218,7 +1227,7 @@ class XML:
 
     def _remove_element(self, root, element, remove_tail=False):
         parent = self._find_parent(root, element)
-        if not is_truthy(remove_tail):
+        if not remove_tail:
             self._preserve_tail(element, parent)
         parent.remove(element)
 
@@ -1268,7 +1277,7 @@ class XML:
         element = self.get_element(source, xpath)
         tail = element.tail
         element.clear()
-        if not is_truthy(clear_tail):
+        if not clear_tail:
             element.tail = tail
         return source
 
@@ -1364,8 +1373,7 @@ class XML:
                 output.write(self.etree.tostring(tree, **config))
             else:
                 tree.write(output, **config)
-        logger.info('XML saved to <a href="file://%s">%s</a>.' % (path, path),
-                    html=True)
+        logger.info(f'XML saved to <a href="file://{path}">{path}</a>.', html=True)
 
     def evaluate_xpath(self, source, expression, context='.'):
         """Evaluates the given xpath expression and returns results.
@@ -1419,7 +1427,7 @@ class NameSpaceStripper:
             elem = copy.deepcopy(elem)
         ns = elem.attrib.pop('xmlns', current_ns)
         if ns:
-            elem.tag = '{%s}%s' % (ns, elem.tag)
+            elem.tag = f'{{{ns}}}{elem.tag}'
         for child in elem:
             self.unstrip(child, ns, copied=True)
         return elem
@@ -1459,10 +1467,12 @@ class ElementFinder:
 
 class ElementComparator:
 
-    def __init__(self, comparator, normalizer=None, exclude_children=False):
-        self._comparator = comparator
-        self._normalizer = normalizer or (lambda text: text)
-        self._exclude_children = is_truthy(exclude_children)
+    def __init__(self, comparator, normalizer=None, child_sorter=None,
+                 exclude_children=False):
+        self.comparator = comparator
+        self.normalizer = normalizer or (lambda text: text)
+        self.child_sorter = child_sorter
+        self.exclude_children = exclude_children
 
     def compare(self, actual, expected, location=None):
         if not location:
@@ -1472,7 +1482,7 @@ class ElementComparator:
         self._compare_texts(actual, expected, location)
         if location.is_not_root:
             self._compare_tails(actual, expected, location)
-        if not self._exclude_children:
+        if not self.exclude_children:
             self._compare_children(actual, expected, location)
 
     def _compare_tags(self, actual, expected, location):
@@ -1481,9 +1491,9 @@ class ElementComparator:
 
     def _compare(self, actual, expected, message, location, comparator=None):
         if location.is_not_root:
-            message = "%s at '%s'" % (message, location.path)
+            message = f"{message} at '{location.path}'"
         if not comparator:
-            comparator = self._comparator
+            comparator = self.comparator
         comparator(actual, expected, message)
 
     def _compare_attributes(self, actual, expected, location):
@@ -1491,14 +1501,14 @@ class ElementComparator:
                       'Different attribute names', location, should_be_equal)
         for key in actual.attrib:
             self._compare(actual.attrib[key], expected.attrib[key],
-                          "Different value for attribute '%s'" % key, location)
+                          f"Different value for attribute '{key}'", location)
 
     def _compare_texts(self, actual, expected, location):
         self._compare(self._text(actual.text), self._text(expected.text),
                       'Different text', location)
 
     def _text(self, text):
-        return self._normalizer(text or '')
+        return self.normalizer(text or '')
 
     def _compare_tails(self, actual, expected, location):
         self._compare(self._text(actual.tail), self._text(expected.tail),
@@ -1507,6 +1517,9 @@ class ElementComparator:
     def _compare_children(self, actual, expected, location):
         self._compare(len(actual), len(expected), 'Different number of child elements',
                       location, should_be_equal)
+        if self.child_sorter:
+            self.child_sorter(actual)
+            self.child_sorter(expected)
         for act, exp in zip(actual, expected):
             self.compare(act, exp, location.child(act.tag))
 
@@ -1516,12 +1529,12 @@ class Location:
     def __init__(self, path, is_root=True):
         self.path = path
         self.is_not_root = not is_root
-        self._children = {}
+        self.children = {}
 
     def child(self, tag):
-        if tag not in self._children:
-            self._children[tag] = 1
+        if tag not in self.children:
+            self.children[tag] = 1
         else:
-            self._children[tag] += 1
-            tag += '[%d]' % self._children[tag]
-        return Location('%s/%s' % (self.path, tag), is_root=False)
+            self.children[tag] += 1
+            tag += f'[{self.children[tag]}]'
+        return Location(f'{self.path}/{tag}', is_root=False)
