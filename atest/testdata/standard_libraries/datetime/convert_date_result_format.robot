@@ -11,6 +11,7 @@ ${DATE w/ MICRO}      ${datetime(2018, 11, 22, 13, 13, 42, 123456)}
 *** Test Cases ***    INPUT                      FORMAT               OUTPUT                     INPUT FORMAT
 Should convert to timestamp
                       2014-04-24 21:45:12.123    timeSTAMP            2014-04-24 21:45:12.123
+                      3014-04-24 21:45:12.123    timeSTAMP            3014-04-24 21:45:12.123
                       2014-04-24 21:45:12.123    tImestamp            2014-04-24 21:45:12.123    %Y-%m-%d %H:%M:%S.%f
                       20140424 21:45:12.12399    tImestamp            2014-04-24 21:45:12.124    %Y%m%d %H:%M:%S.%f
                       ${EPOCH}                   TIMEstamp            2018-11-22 13:13:42.000
@@ -34,6 +35,7 @@ Should convert to timestamp with format
                       2014-04-24 21:45:12.123    %H:%M:%S %Y-%m-%d    21:45:12 2014-04-24
                       2014-04-24 21:45:12.999    %H:%M:%S %Y-%m-%d    21:45:12 2014-04-24
                       20140424 21:45:12.123456   %Y%m%d %H:%M:%S.%f   20140424 21:45:12.123456
+                      2014-04-24 21:45:12.123    %H:%M:%S.%f %Y-%m-%d  21:45:12.123000 2014-04-24
                       20140424 21:45:12.123456   %H:%M:%S.%f          21:45:12.123456
                       20140424 21:45:12.123      %H:%M:%S.%f          21:45:12.123000
                       20140424 21:45             %H:%M:%S.%f          21:45:00.000000
@@ -76,14 +78,6 @@ Epoch time is float regardless are millis included or not
                       ${1000000.123}             1000000.0            true
                       ${1000000}                 1000000.0            no millis
 
-Formatted with %f in middle
-    [Template]    NONE
-    Run Keyword If    sys.platform == 'cli'
-    ...   Run Keyword And Expect Error    ValueError: %f directive is supported only at the end of the format string on this Python interpreter.
-    ...   Date Conversion Should Succeed    2014-04-24 21:45:12.123    %H:%M:%S.%f %Y-%m-%d    21:45:12.123000 2014-04-24
-    ...   ELSE
-    ...   Date Conversion Should Succeed    2014-04-24 21:45:12.123    %H:%M:%S.%f %Y-%m-%d    21:45:12.123000 2014-04-24
-
 *** Keywords ***
 Date Conversion Should Succeed
     [Arguments]    ${input}    ${output_format}    ${expected}    ${input_format}=${NONE}
@@ -98,4 +92,4 @@ Date Conversion Should Succeed Without Milliseconds
 Epoch time format should be
     [Arguments]    ${input}    ${expected}    ${millis}
     ${result} =    Convert Date    ${input}    result_format=epoch    exclude_millis=${millis}
-    Should Be Equal As Strings    ${result}    ${expected}
+    Should Be Equal As Numbers    ${result}    ${expected}
