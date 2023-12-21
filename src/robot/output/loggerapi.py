@@ -13,7 +13,8 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from typing import TYPE_CHECKING
+from pathlib import Path
+from typing import Literal, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from robot import running, result, model
@@ -163,20 +164,48 @@ class LoggerApi:
     def message(self, message: 'model.Message'):
         pass
 
-    # FIXME: This should probably be removed?
-    def output_file(self, type_: str, path: str):
-        pass
+    def output_file(self, path: Path):
+        """Called when XML output file is closed.
 
-    def log_file(self, path: str):
-        pass
+        Calls :meth:`result_file` by default.
+        """
+        self.result_file('Output', path)
 
-    def report_file(self, path: str):
-        pass
+    def report_file(self, path: Path):
+        """Called when report file is closed.
 
-    def xunit_file(self, path: str):
-        pass
+        Calls :meth:`result_file` by default.
+        """
+        self.result_file('Report', path)
 
-    def debug_file(self, path: str):
+    def log_file(self, path: Path):
+        """Called when log file is closed.
+
+        Calls :meth:`result_file` by default.
+        """
+        self.result_file('Log', path)
+
+    def xunit_file(self, path: Path):
+        """Called when xunit file is closed.
+
+        Calls :meth:`result_file` by default.
+        """
+        self.result_file('XUnit', path)
+
+    def debug_file(self, path: Path):
+        """Called when debug file is closed.
+
+        Calls :meth:`result_file` by default.
+        """
+        self.result_file('Debug', path)
+
+    def result_file(self, kind: Literal['Output', 'Report', 'Log', 'XUnit', 'Debug'],
+                    path: Path):
+        """Called when any result file is closed by default.
+
+        ``kind`` specifies the file type. This method is not called if a result
+        file specific method like :meth:`output_file` is implemented.
+        """
         pass
 
     def imported(self, import_type: str, name: str, attrs):
