@@ -22,10 +22,11 @@
 <script type="text/javascript" src="util.js"></script>
 <script type="text/javascript" src="testdata.js"></script>
 <script type="text/javascript" src="view.js"></script>
+<script type="text/javascript" src="../common/storage.js"></script>
 <!-- JS MODEL --><script type="text/javascript" src="../testdata/data.js"></script>
 <title></title>
 </head>
-<body>
+<body data-theme="dark">
 <div id="javascript-disabled">
   <h1>Opening Robot Framework log failed</h1>
   <ul>
@@ -35,12 +36,13 @@
   </ul>
 </div>
 <script type="text/javascript">removeJavaScriptDisabledWarning();</script>
-
 <div id="header"></div>
 <div id="statistics-container"></div>
 
 <script type="text/javascript">
 $(document).ready(function() {
+    storage.init();
+    theme.init(storage);
     try {
         var topsuite = window.testdata.suite();
     } catch (error) {
@@ -48,6 +50,7 @@ $(document).ready(function() {
         return;
     }
     initLayout(topsuite.name, 'Log');
+    theme.reflectPreference();
     addStatistics();
     addErrors();
     addExecutionLog(topsuite);
@@ -100,16 +103,16 @@ function highlightLinkTarget() {
 }
 
 function highlight(element, color) {
-    var darkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var darkMode = theme.getPreference() === 'dark';
     var startingColor = darkMode ? 52 : 242;
     var endingColor = darkMode ? 39 : 255;
 
     if (color === undefined)
         color = startingColor;
 
-    if (color != endingColor) {
+    if (color > endingColor) {
         element.css({'background-color': 'rgb('+color+','+color+','+color+')'});
-        color = darkMode ? color - 1 : color + 1;
+        color = darkMode ? color - 2 : color + 2;
         setTimeout(function () { highlight(element, color); }, 300);
     } else {
         element.css({'background-color': ''});

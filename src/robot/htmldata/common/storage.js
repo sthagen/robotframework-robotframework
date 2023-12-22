@@ -1,10 +1,11 @@
 storage = function () {
 
-    var prefix = 'robot-framework-';
+    const prefix = 'robot-framework-';
     var storage;
 
     function init(user) {
-        prefix += user + '-';
+        if (user)
+            prefix += user + '-';
         storage = getStorage();
     }
 
@@ -31,5 +32,5 @@ storage = function () {
         storage[prefix + name] = value;
     }
 
-    return {init: init, get: get, set: set};
+    return {init: init, get: get, set: set, prefix: prefix};
 }();

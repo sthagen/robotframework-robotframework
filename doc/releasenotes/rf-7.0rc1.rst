@@ -10,11 +10,12 @@ mixing embedded and normal arguments with library keywords (`#4710`_), JSON
 result format (`#4847`_) and various other enhancements and bug fixes.
 Robot Framework 7.0 requires Python 3.8 or newer (`#4294`_).
 
-Robot Framework 7.0 release candidate 1 was released on Thursday December 21, 2023.
-It contains all planned features and fixes and it is targeted for anyone interested
-to see how they can use the `interesting new features`__ and how `backwards
-incompatible changes`_ and deprecations_ possibly affect their tests,
-tasks, tools and libraries.
+Robot Framework 7.0 rc 1 was released on Thursday December 21, 2023, with all
+features and fixes planned to be included in the final release. It is targeted
+for anyone interested to see how they can use the `interesting new features`__
+and how `backwards incompatible changes`_ and deprecations_ possibly affect
+their tests, tasks, tools and libraries. The target date for the final release
+is Monday January 8, 2024.
 
 __ `Most important enhancements`_
 
@@ -66,10 +67,12 @@ Most important enhancements
   If you are interested to learn more about the new features in Robot Framework 7.0,
   join the `RoboCon conference`__ in February, 2024. `Pekka Klärck`_, Robot Framework
   lead developer, will go through the key features briefly in the `onsite conference`__
-  in Helsinki and more thoroughly in the `online edition`__. The conference has
-  also dozens of other great talks, workshops and lot of possibilities to
-  meet other community members as well as developers of various tools and libraries
-  in the ecosystem.
+  in Helsinki and more thoroughly in the `online edition`__.
+
+  The conference has also dozens of other great talks, workshops and a lot of
+  possibilities to meet other community members as well as developers of various
+  tools and libraries in the ecosystem. All profits from the conference will be
+  used for future Robot Framework development.
 
 __ https://robocon.io
 __ https://robocon.io/#live-opening-the-conference
@@ -94,7 +97,7 @@ listener API version 3 has only supported suites and tests/tasks.
 
 The biggest enhancement in the whole Robot Framework 7.0 is that the listener
 version 3 has been extended to support also keywords and control structures (`#3296`_).
-For example, a listener having the following methods would print information
+For example, a listener having the following methods prints information
 about started keywords and ended WHILE loops:
 
 .. sourcecode:: python
@@ -131,18 +134,17 @@ about the executed keyword and the library it belongs to:
               f"{implementation.lineno}. The library has {library.scope.name} "
               f"scope and the current instance is {library.instance}.")
 
-As the above example already illustrated, it is possible to get an access to
+As the above example already illustrated, it is even possible to get an access to
 the actual library instance. This means that listeners can inspect the library
 state and also modify it. With user keywords it is even possible to modify
 the keyword itself or, via the `owner` resource file, any other keyword in
 the resource file.
 
 Listeners can also modify results if needed. Possible use cases include hiding
-sensitive information and adding more details to results based on some
-external sources.
+sensitive information and adding more details to results based on external sources.
 
 Notice that although listener can change status of any executed keyword or control
-structure, that does not directly affect the status of executed tests. In general
+structure, that does not directly affect the status of the executed test. In general
 listeners cannot directly fail keywords so that execution would stop or handle
 failures so that execution would continue. This kind of functionality may be
 added in the future if there are needs.
@@ -172,7 +174,7 @@ Libraries can register themselves as listeners by using string `SELF`
 
 Listeners are typically enabled  from the command line, but libraries
 can register listeners as well. Often libraries themselves want to act
-as listeners, and that has earlier required using `ROBOT_LIBRARY_LISTENER = self`
+as listeners, and that has earlier required using `self.ROBOT_LIBRARY_LISTENER = self`
 in the `__init__` method. Robot Framework 7.0 makes it possible to use string
 `SELF` (case-insensitive) for this purpose as well (`#4910`_), which means
 that a listener can be specified as a class attribute and not only in `__init__`.
@@ -218,10 +220,10 @@ Variables section. The syntax is best explained with examples:
 
     *** Test Cases ***
     Example
-        # Create a local variable `${local}` with value `value`.
+        # Create a local variable `${local}` with a value `value`.
         VAR    ${local}    value
 
-        # Create a suite-scoped variable, visible throughout the whole suite.
+        # Create a variable that is available throughout the whole suite.
         # Supported scopes are GLOBAL, SUITE, TEST, TASK and LOCAL (default).
         VAR    ${suite}    value    scope=SUITE
 
@@ -261,7 +263,7 @@ using IF/ELSE structures:
         VAR    @{list}    a    b    c
 
     Dictionary
-        # Creates a dict with two items.
+        # Creates a dictionary with two items.
         VAR    &{dict}    key=value    second=item
 
     Normal IF
@@ -348,8 +350,8 @@ Support for `Literal`
 ~~~~~~~~~~~~~~~~~~~~~
 
 In Python, the Literal__ type makes it possible to type arguments so that type
-checkers accept only certain values. For example, a function like below
-only accepts strings `x`, `y` and `z`.
+checkers accept only certain values. For example, this function only accepts
+strings `x`, `y` and `z`:
 
 .. sourcecode:: python
 
@@ -396,7 +398,7 @@ the following typing now also works with Python 3.8:
         ...
 
 These stringified types are also compatible with the Remote library API and other
-scenarios where using actual types is not feasible.
+scenarios where using actual types is not possible.
 
 __ https://peps.python.org/pep-0585/
 __ https://peps.python.org/pep-0604/
@@ -404,10 +406,11 @@ __ https://peps.python.org/pep-0604/
 Tags set globally can be removed using `-tag` syntax
 ----------------------------------------------------
 
-Individual tests and keywords can nowadays remove tags set in the Settings
-section with `Test Tags` or `Keyword Tags` settings by using the `-tag` syntax
-(`#4374`_). For example, tests `T1` and `T3` below are given tags `all` and
-`most`, and test `T2` gets tags `all` and `one`:
+Individual tests and keywords can nowadays remove tags that have been set in
+the Settings section with `Test Tags` or `Keyword Tags` settings by using
+the `-tag` syntax with their own `[Tags]` setting (`#4374`_). For example,
+tests `T1` and `T3` below get tags `all` and `most`, and test `T2` gets
+tags `all` and `one`:
 
 .. sourcecode:: robotframework
 
@@ -446,8 +449,8 @@ is stopped gracefully has also been fixed (`#4808`_).
 Timestamps in result model and output.xml use standard format
 -------------------------------------------------------------
 
-Timestamps used in the result model and stored to the output.xml file earlier
-used custom format like `20231107 19:57:01.123`. Non-standard formats are seldom
+Timestamps used in the result model and stored to the output.xml file used custom
+format like `20231107 19:57:01.123` earlier. Non-standard formats are seldom
 a good idea, and in this case parsing the custom format turned out to be slow
 as well.
 
@@ -475,7 +478,7 @@ Storing start and elapsed times also takes less space than storing start and end
 
 As the result of these changes, times are available in the result model and in
 output.xml in higher precision than earlier. Earlier times were stored in millisecond
-granularity, but nowadays we use microseconds. Logs and reports still use milliseconds,
+granularity, but nowadays they use microseconds. Logs and reports still use milliseconds,
 but that can be changed in the future if there are needs.
 
 Changes to output.xml are backwards incompatible and affect all external tools
@@ -600,8 +603,6 @@ There have been some changes to the result model that unfortunately affect
 external tools using it. The main motivation for these changes has been
 cleaning up the model before creating a JSON representation for it (`#4847`_).
 
-.. _#4847: https://github.com/robotframework/robotframework/issues/4847
-
 Changes related to keyword names
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -620,12 +621,13 @@ in Robot Framework 7.0:
 - New `full_name` is introduced to replace the old `name`.
 - `sourcename` is renamed to `source_name`.
 - `kwname`, `libname` and `sourcename` are preserved as properties. They are considered
-  deprecated, but accessing them will not cause a deprecation in this release yet.
+  deprecated, but accessing them does not cause a deprecation warning yet.
 
 The backwards incompatible part of this change is changing the meaning of the
 `name` attribute. It used to be a read-only property yielding the full name
 like `BuiltIn.Log`, but now it is a normal attribute that contains just the actual
-keyword name like `Log`. All other old attributes have been preserved as properties.
+keyword name like `Log`. All other old attributes have been preserved as properties
+and code using them does not need to be updated immediately.
 
 Deprecated attributes have been removed
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -729,7 +731,7 @@ Other backwards incompatible changes
   stays exactly the same.
 
 - Paths passed to listener version 3 methods like `output_file` and `log_file` have
-  been changed from strings to `pathlib.Path` instances (`#4988`_). Most of the time
+  been changed from strings to `pathlib.Path` objects (`#4988`_). Most of the time
   both kinds of paths work interchangeably, so this change is unlikely to cause issues.
   If you need to handle these paths as strings, they can be converted by using
   `str(path)`.
@@ -805,8 +807,8 @@ Other deprecated features
   using `mode=SHORTEST` has been deprecated (`#4685`_). The strict mode where lengths
   must match will be the default mode in the future.
 
-- Various utility functions in the `robot.utils` package, including the whole
-  Python 2/3 compatibility layer, that are no longer used by Robot Framework itself
+- Various utility functions in the `robot.utils` package that are no longer used
+  by Robot Framework itself, including the whole Python 2/3 compatibility layer,
   have been deprecated (`#4501`_). If you need some of these utils, you can copy
   their code to your own tool or library. This change may affect existing
   libraries and tools in the ecosystem.
@@ -841,8 +843,8 @@ In addition to work done by them, the community has provided some great contribu
   when using `Run Keyword` so that the name of the executed keyword contains a variable
   (`#4659`_).
 
-- `Pasi Saikkonen <https://github.com/psaikkonen>`__ added dark mode to report
-  and log (`#3725`_).
+- `Pasi Saikkonen <https://github.com/psaikkonen>`__ added dark mode to reports
+  and logs (`#3725`_).
 
 - `René <https://github.com/Snooz82>`__ added return type information to Libdoc's
   HTML output (`#3017`_), fixed `DotDict` equality comparisons (`#4956`_) and
@@ -941,11 +943,6 @@ Full list of fixes and enhancements
       - high
       - Async support to dynamic and hybrid library APIs
       - alpha 2
-    * - `#4244`_
-      - bug
-      - medium
-      - DateTime suffers from "Year 2038" problem with epoch conversion on 32 bit systems
-      - rc 1
     * - `#4808`_
       - bug
       - medium
@@ -1307,7 +1304,7 @@ Full list of fixes and enhancements
       - Change paths passed to listener v3 methods to `pathlib.Path` instances
       - rc 1
 
-Altogether 86 issues. View on the `issue tracker <https://github.com/robotframework/robotframework/issues?q=milestone%3Av7.0>`__.
+Altogether 85 issues. View on the `issue tracker <https://github.com/robotframework/robotframework/issues?q=milestone%3Av7.0>`__.
 
 .. _#3296: https://github.com/robotframework/robotframework/issues/3296
 .. _#3761: https://github.com/robotframework/robotframework/issues/3761
@@ -1322,7 +1319,6 @@ Altogether 86 issues. View on the `issue tracker <https://github.com/robotframew
 .. _#4633: https://github.com/robotframework/robotframework/issues/4633
 .. _#4711: https://github.com/robotframework/robotframework/issues/4711
 .. _#4803: https://github.com/robotframework/robotframework/issues/4803
-.. _#4244: https://github.com/robotframework/robotframework/issues/4244
 .. _#4808: https://github.com/robotframework/robotframework/issues/4808
 .. _#4859: https://github.com/robotframework/robotframework/issues/4859
 .. _#4880: https://github.com/robotframework/robotframework/issues/4880
