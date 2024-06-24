@@ -1,6 +1,6 @@
 *** Settings ***
-Suite Setup      VAR in suite setup and teardown    suite setup
-Suite Teardown   VAR in suite setup and teardown    suite teardown
+Suite Setup      VAR in suite setup and teardown    suite1 setup
+Suite Teardown   VAR in suite setup and teardown    suite1 teardown
 
 *** Test Cases ***
 Scalar
@@ -50,20 +50,26 @@ Equals is accepted
     VAR    &{name}=    k1=v1    k2=v2
     Should Be Equal    ${name}    ${{{'k1': 'v1', 'k2': 'v2'}}}
 
+In root suite setup
+    Should Be Equal    ${ROOT}      set in root suite setup
+
 In suite setup
-    Should Be Equal    ${SUITE}      set in suite setup
-    Should Be Equal    ${GLOBAL}     set in suite setup
+    Should Be Equal    ${SUITE}     set in suite1 setup
+    Should Be Equal    ${SUITES}    set in suite1 setup
+    Should Be Equal    ${GLOBAL}    set in suite1 setup
 
 Scopes 1
     VAR   ${local1}    local1
     VAR   ${local2}    scope=local2    scope=LOCAL
     VAR   @{TEST}      scope=value     scope=test
     VAR   &{SUITE}     scope=value     scope=${{'suite'}}
+    VAR   ${SUITES}    children too    scope=Suites
     VAR   ${GLOBAL}    global          scope=GLOBAL
     Should Be Equal    ${local1}    local1
     Should Be Equal    ${local2}    scope=local2
     Should Be Equal    ${TEST}      ${{['scope=value']}}
     Should Be Equal    ${SUITE}     ${{{'scope': 'value'}}}
+    Should Be Equal    ${SUITES}    children too
     Should Be Equal    ${GLOBAL}    global
     Scopes
     Should Be Equal    ${TEST}      new-test
@@ -73,14 +79,16 @@ Scopes 2
     Variable Should Not Exist    ${local1}
     Variable Should Not Exist    ${local2}
     Should Be Equal    ${SUITE}     ${{{'scope': 'value'}}}
+    Should Be Equal    ${SUITES}    children too
     Should Be Equal    ${GLOBAL}    global
+    Should Be Equal    ${ROOT}      set in root suite setup
 
 Invalid scope
-    [Documentation]    FAIL    VAR option 'scope' does not accept value 'invalid'. Valid values are 'GLOBAL', 'SUITE', 'TEST', 'TASK' and 'LOCAL'.
+    [Documentation]    FAIL    VAR option 'scope' does not accept value 'invalid'. Valid values are 'LOCAL', 'TEST', 'TASK', 'SUITE', 'SUITES' and 'GLOBAL'.
     VAR    ${x}    x    scope=invalid
 
 Invalid scope from variable
-    [Documentation]    FAIL    Invalid VAR scope: Value 'invalid' is not accepted. Valid values are 'GLOBAL', 'SUITE', 'TEST', 'TASK' and 'LOCAL'.
+    [Documentation]    FAIL    Invalid VAR scope: Value 'invalid' is not accepted. Valid values are 'LOCAL', 'TEST', 'TASK', 'SUITE', 'SUITES' and 'GLOBAL'.
     VAR    ${x}    x    scope=${{'invalid'}}
 
 Non-existing variable as scope
@@ -181,6 +189,7 @@ With TRY
 
 *** Keywords ***
 Scopes
+    Variable Should Not Exist    ${local}
     Variable Should Not Exist    ${local1}
     Variable Should Not Exist    ${local2}
     Should Be Equal    ${TEST}      ${{['scope=value']}}
@@ -193,11 +202,24 @@ Scopes
 
 VAR in suite setup and teardown
     [Arguments]    ${where}
+    Variable Should Not Exist    ${local}
+    Should Be Equal    ${ROOT}      set in root suite setup
+    IF    'setup' in $where
+        Variable Should Not Exist    ${SUITE}
+        Should Be Equal    ${SUITES}    set in root suite setup
+        Should Be Equal    ${GLOBAL}    set in root suite setup
+    ELSE
+        Should Be Equal    ${SUITE}     ${{{'scope': 'value'}}}
+        Should Be Equal    ${SUITES}    children too
+        Should Be Equal    ${GLOBAL}    global
+    END
     VAR    ${local}     value
     VAR    ${SUITE}     set in ${where}    scope=suite
+    VAR    ${SUITES}    set in ${where}    scope=suites
     VAR    ${GLOBAL}    set in ${where}    scope=global
     Should Be Equal    ${local}     value
     Should Be Equal    ${SUITE}     set in ${where}
+    Should Be Equal    ${SUITES}    set in ${where}
     Should Be Equal    ${GLOBAL}    set in ${where}
     TRY
         VAR    ${TEST}    this fails    scope=test
