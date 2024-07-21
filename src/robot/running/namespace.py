@@ -281,30 +281,30 @@ class KeywordStore:
         else:
             raise KeywordError(message)
 
-    def _get_runner(self, name):
+    def _get_runner(self, name, strip_bdd_prefix=True):
         if not name:
             raise DataError('Keyword name cannot be empty.')
         if not is_string(name):
             raise DataError('Keyword name must be a string.')
-        runner = self._get_runner_from_suite_file(name)
+        runner = None
+        if strip_bdd_prefix:
+            runner = self._get_bdd_style_runner(name)
+        if not runner:
+            runner = self._get_runner_from_suite_file(name)
         if not runner and '.' in name:
             runner = self._get_explicit_runner(name)
         if not runner:
             runner = self._get_implicit_runner(name)
-        if not runner:
-            runner = self._get_bdd_style_runner(name, self.languages.bdd_prefixes)
         return runner
 
-    def _get_bdd_style_runner(self, name, prefixes):
-        parts = name.split()
-        for index in range(1, len(parts)):
-            prefix = ' '.join(parts[:index]).title()
-            if prefix in prefixes:
-                runner = self._get_runner(' '.join(parts[index:]))
-                if runner:
-                    runner = copy.copy(runner)
-                    runner.name = name
-                    return runner
+    def _get_bdd_style_runner(self, name):
+        match = self.languages.bdd_prefix_regexp.match(name)
+        if match:
+            runner = self._get_runner(name[match.end():], strip_bdd_prefix=False)
+            if runner:
+                runner = copy.copy(runner)
+                runner.name = name
+                return runner
         return None
 
     def _get_implicit_runner(self, name):
