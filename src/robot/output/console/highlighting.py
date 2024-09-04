@@ -19,6 +19,7 @@
 
 import errno
 import os
+import socket
 import sys
 from contextlib import contextmanager
 try:
@@ -42,11 +43,11 @@ from robot.utils import console_encode, isatty, WINDOWS
 
 class HighlightingStream:
 
-    def __init__(self, stream, colors='AUTO'):
+    def __init__(self, stream, colors='AUTO', links='AUTO'):
         self.stream = stream
-        self._highlighter = self._get_highlighter(stream, colors)
+        self._highlighter = self._get_highlighter(stream, colors, links)
 
-    def _get_highlighter(self, stream, colors):
+    def _get_highlighter(self, stream, colors, links):
         options = {'AUTO': Highlighter if isatty(stream) else NoHighlighting,
                    'ON': Highlighter,
                    'OFF': NoHighlighting,
@@ -54,9 +55,12 @@ class HighlightingStream:
         try:
             highlighter = options[colors.upper()]
         except KeyError:
-            raise DataError("Invalid console color value '%s'. Available "
-                            "'AUTO', 'ON', 'OFF' and 'ANSI'." % colors)
-        return highlighter(stream)
+            raise DataError(f"Invalid console color value '{colors}'. "
+                            f"Available 'AUTO', 'ON', 'OFF' and 'ANSI'.")
+        if links.upper() not in ('AUTO', 'OFF'):
+            raise DataError(f"Invalid console link value '{links}. "
+                            f"Available 'AUTO' and 'OFF'.")
+        return highlighter(stream, links.upper() == 'AUTO')
 
     def write(self, text, flush=True):
         self._write(console_encode(text, stream=self.stream))
@@ -120,13 +124,13 @@ class HighlightingStream:
         self.write(f"{kind + ':':8} {path}\n")
 
 
-def Highlighter(stream):
+def Highlighter(stream, links=True):
     if os.sep == '/':
-        return AnsiHighlighter(stream)
+        return AnsiHighlighter(stream, links)
     if not windll:
         return NoHighlighting(stream)
     if virtual_terminal_enabled(stream):
-        return AnsiHighlighter(stream)
+        return AnsiHighlighter(stream, links)
     return DosHighlighter(stream)
 
 
@@ -136,8 +140,9 @@ class AnsiHighlighter:
     YELLOW = '\033[33m'
     RESET = '\033[0m'
 
-    def __init__(self, stream):
+    def __init__(self, stream, links=True):
         self._stream = stream
+        self._links = links
 
     def green(self):
         self._set_color(self.GREEN)
@@ -152,7 +157,20 @@ class AnsiHighlighter:
         self._set_color(self.RESET)
 
     def link(self, path):
-        return f'\033]8;;{path.as_uri()}\033\\{path}\033]8;;\033\\'
+        if not self._links:
+            return path
+        try:
+            uri = path.as_uri()
+        except ValueError:
+            return path
+        # Add the host name to the URI to support opening links remotely.
+        # Windows Terminal doesn't yet support the host component, though:
+        # https://github.com/microsoft/terminal/issues/14116
+        if uri[:8] == 'file:///' and not WINDOWS:
+            uri = f'file://{socket.getfqdn()}/{uri[8:]}'
+        # The hyperlink format is documented here:
+        # https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda
+        return f'\033]8;;{uri}\033\\{path}\033]8;;\033\\'
 
     def _set_color(self, color):
         self._stream.write(color)
