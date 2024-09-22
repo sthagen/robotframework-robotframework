@@ -69,6 +69,15 @@ class Message(BodyItem):
         """:mod:`Visitor interface <robot.model.visitor>` entry-point."""
         visitor.visit_message(self)
 
+    def to_dict(self):
+        data = {'message': self.message,
+                'level': self.level}
+        if self.html:
+            data['html'] = True
+        if self.timestamp:
+            data['timestamp'] = self.timestamp.isoformat()
+        return data
+
     def __str__(self):
         return self.message
 
