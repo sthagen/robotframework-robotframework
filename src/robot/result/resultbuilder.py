@@ -21,7 +21,6 @@ from .executionresult import CombinedResult, is_json_source, Result
 from .flattenkeywordmatcher import (create_flatten_message, FlattenByNameMatcher,
                                     FlattenByTypeMatcher, FlattenByTags)
 from .merger import Merger
-from .model import TestSuite
 from .xmlelementhandlers import XmlElementHandler
 
 
@@ -79,13 +78,15 @@ def _single_result(source, options):
 
 def _json_result(source, options):
     try:
-        suite = TestSuite.from_json(source)
+        result = Result.from_json(source)
     except IOError as err:
         error = err.strerror
     except Exception:
         error = get_error_message()
     else:
-        return Result(source, suite, rpa=options.pop('rpa', None))
+        if 'rpa' in options:
+            result.rpa = options['rpa']
+        return result
     raise DataError(f"Reading JSON source '{source}' failed: {error}")
 
 
@@ -102,7 +103,7 @@ def _xml_result(source, options):
 
 
 class ExecutionResultBuilder:
-    """Builds :class:`~.executionresult.Result` objects based on output files.
+    """Builds :class:`~.executionresult.Result` objects based on XML output files.
 
     Instead of using this builder directly, it is recommended to use the
     :func:`ExecutionResult` factory method.

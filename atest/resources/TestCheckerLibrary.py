@@ -6,10 +6,11 @@ from xmlschema import XMLSchema
 from robot import utils
 from robot.api import logger
 from robot.libraries.BuiltIn import BuiltIn
-from robot.result import (Break, Continue, Error, ExecutionResultBuilder, For,
-                          ForIteration, If, IfBranch, Keyword, Result, ResultVisitor,
-                          Return, TestCase, TestSuite, Try, TryBranch, Var, While,
-                          WhileIteration)
+from robot.result import (
+    Break, Continue, Error, ExecutionResult, ExecutionResultBuilder, For,
+    ForIteration, If, IfBranch, Keyword, Result, ResultVisitor, Return,
+    TestCase, TestSuite, Try, TryBranch, Var, While, WhileIteration
+)
 from robot.result.model import Body, Iterations
 from robot.utils.asserts import assert_equal
 
@@ -111,7 +112,7 @@ class TestCheckerLibrary:
     ROBOT_LIBRARY_SCOPE = 'GLOBAL'
 
     def __init__(self):
-        self.schema = XMLSchema('doc/schema/robot.xsd')
+        self.schema = XMLSchema('doc/schema/result.xsd')
 
     def process_output(self, path, validate=None):
         set_suite_variable = BuiltIn().set_suite_variable
@@ -126,7 +127,7 @@ class TestCheckerLibrary:
             self._validate_output(path)
         try:
             logger.info("Processing output '%s'." % path)
-            result = Result(root_suite=NoSlotsTestSuite())
+            result = Result(suite=NoSlotsTestSuite())
             ExecutionResultBuilder(path).build(result)
         except:
             set_suite_variable('$SUITE', None)
@@ -139,18 +140,18 @@ class TestCheckerLibrary:
         set_suite_variable('$ERRORS', result.errors)
 
     def _validate_output(self, path):
-        schema_version = self._get_schema_version(path)
-        if schema_version != self.schema.version:
-            raise AssertionError(
-                'Incompatible schema versions. Schema has `version="%s"` '
-                'but output file has `schemaversion="%s"`.'
-                % (self.schema.version, schema_version)
-        )
+        version = self._get_schema_version(path)
+        if not version:
+            raise ValueError('Schema version not found from XML output.')
+        if version != self.schema.version:
+            raise ValueError(f'Incompatible schema versions. '
+                             f'Schema has `version="{self.schema.version}"` but '
+                             f'output file has `schemaversion="{version}"`.')
         self.schema.validate(path)
 
     def _get_schema_version(self, path):
-        with open(path, encoding='UTF-8') as f:
-            for line in f:
+        with open(path, encoding='UTF-8') as file:
+            for line in file:
                 if line.startswith('<robot'):
                     return re.search(r'schemaversion="(\d+)"', line).group(1)
 
@@ -342,14 +343,15 @@ class TestCheckerLibrary:
         b.should_be_equal(str(item.html), str(html or level == 'HTML'), 'Wrong HTML status')
 
     def outputs_should_be_equal(self, output1, output2):
-        suite1 = self._parse_output(output1)
-        suite2 = self._parse_output(output2)
-        assert suite1.to_dict() == suite2.to_dict()
-
-    def _parse_output(self, output) -> TestSuite:
-        from_source = {'xml': TestSuite.from_xml,
-                       'json': TestSuite.from_json}[output.rsplit('.')[-1].lower()]
-        return from_source(output)
+        result1 = ExecutionResult(output1)
+        result2 = ExecutionResult(output2)
+        should_be_equal = BuiltIn().should_be_equal
+        should_be_equal(result1.suite.to_dict(),
+                        result2.suite.to_dict())
+        should_be_equal(result1.statistics.to_dict(),
+                        result2.statistics.to_dict())
+        should_be_equal(result1.errors.messages.to_dicts(),
+                        result2.errors.messages.to_dicts())
 
 
 class ProcessResults(ResultVisitor):

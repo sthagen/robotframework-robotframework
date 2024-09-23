@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 
-"""JSON schema for ``robot.running.TestSuite`` model structure.
+"""JSON schemas for the full JSON result and for `robot.result.TestSuite`.
 
 The schema is modeled using Pydantic in this file. After updating the model,
-execute this file to regenerate the actual schema file in ``running.json``.
+execute this file to regenerate the actual JSON schemas. Separate schema files
+are generated for the full JSON result (`result.json`) and for the
+`robot.result.TestSuite` structure (`result_suite.json`).
 
 Requires Pydantic 1.10. https://docs.pydantic.dev/1.10/
 """
 
 from collections.abc import Sequence
+from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
@@ -25,7 +28,7 @@ class BaseModel(PydanticBaseModel):
 class WithStatus(BaseModel):
     elapsed_time: float
     status: str
-    start_time: str | None
+    start_time: datetime | None
     message: str | None
 
 
@@ -65,7 +68,14 @@ class Message(BaseModel):
     message: str
     level: Literal['TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'FAIL', 'SKIP']
     html: bool | None
-    timestamp: str | None
+    timestamp: datetime
+
+
+class ErrorMessage(BaseModel):
+    message: str
+    level: Literal['ERROR', 'WARN']
+    html: bool | None
+    timestamp: datetime
 
 
 class Keyword(WithStatus):
@@ -151,10 +161,6 @@ class TestCase(WithStatus):
 
 
 class TestSuite(WithStatus):
-    """JSON schema for `robot.running.TestSuite`.
-
-    Compatible with JSON Schema Draft 2020-12.
-    """
     name: str
     doc: str | None
     metadata: dict[str, str] | None
@@ -164,6 +170,65 @@ class TestSuite(WithStatus):
     teardown: Keyword | None
     tests: list[TestCase] | None
     suites: list['TestSuite'] | None
+
+
+class RootSuite(TestSuite):
+    """JSON schema for `robot.result.TestSuite`.
+
+    The whole result model with, for example, errors and statistics has its
+    own schema.
+
+    Compatible with JSON Schema Draft 2020-12.
+    """
+
+    class Config:
+        title = 'robot.result.TestSuite'
+        # pydantic doesn't add schema version automatically.
+        # https://github.com/samuelcolvin/pydantic/issues/1478
+        schema_extra = {
+            '$schema': 'https://json-schema.org/draft/2020-12/schema'
+        }
+
+
+class Stat(BaseModel):
+    label: str
+    pass_: int = Field(alias='pass')
+    fail: int
+    skip: int
+
+
+class SuiteStat(Stat):
+    name: str
+    id: str
+
+
+class TagStat(Stat):
+    doc: str | None
+    combined: str | None
+    info: str | None
+    links: str | None
+
+
+class Statistics(BaseModel):
+    total: Stat
+    suites: list[SuiteStat]
+    tags: list[TagStat]
+
+
+class Result(BaseModel):
+    """Schema for JSON output files.
+
+    `robot.result.TestSuite` has a separate schema that can be used when not
+    working with the full result model.
+
+    Compatible with JSON Schema Draft 2020-12.
+    """
+    generated: datetime
+    generator: str
+    rpa: bool
+    suite: TestSuite
+    statistics: Statistics
+    errors: list[ErrorMessage]
 
     class Config:
         # pydantic doesn't add schema version automatically.
@@ -178,8 +243,13 @@ for cls in [Keyword, For, ForIteration, While, WhileIteration, IfBranch, TryBran
     cls.update_forward_refs()
 
 
-if __name__ == '__main__':
-    path = Path(__file__).parent / 'result.json'
+def generate(model, file_name):
+    path = Path(__file__).parent / file_name
     with open(path, 'w') as f:
-        f.write(TestSuite.schema_json(indent=2))
+        f.write(model.schema_json(indent=2))
     print(path.absolute())
+
+
+if __name__ == '__main__':
+    generate(Result, 'result.json')
+    generate(RootSuite, 'result_suite.json')
