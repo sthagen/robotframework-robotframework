@@ -1720,8 +1720,12 @@ class _Variables(_BuiltInBase):
         variable in a user keyword, it is available both in the test case level
         and also in all other user keywords used in the current test. Other
         test cases will not see variables set with this keyword.
-        It is an error to call `Set Test Variable` outside the
-        scope of a test (e.g. in a Suite Setup or Teardown).
+
+        If `Set Test Variable` is used in suite setup, the variable is available
+        everywhere within that suite setup as well as in the corresponding suite
+        teardown, but it is not seen by tests or possible child suites. If the
+        keyword is used in a suite teardown, the variable is available only in that
+        teardown.
 
         See `Set Suite Variable` for more information and usage examples. See
         also the `Using variables with keywords creating or accessing variables`
@@ -1734,6 +1738,9 @@ class _Variables(_BuiltInBase):
 
         *NOTE:* The ``VAR`` syntax introduced in Robot Framework 7.0 is recommended
         over this keyword.
+
+        *NOTE:* Prior to Robot Framework 7.2, using `Set Test Variable` in a suite
+        setup or teardown was an error.
         """
         name = self._get_var_name(name)
         value = self._get_var_value(name, values)
@@ -2425,6 +2432,7 @@ class _RunKeyword(_BuiltInBase):
             try:
                 return self.run_keyword(name, *args)
             except ExecutionFailed as err:
+                self._reset_keyword_timeout_in_teardown(err, self._context)
                 if err.dont_continue or err.skip:
                     raise
                 count -= 1
@@ -2443,6 +2451,17 @@ class _RunKeyword(_BuiltInBase):
                             f"{secs_to_timestr(retry_interval)}."
                         )
             self._sleep_in_parts(sleep_time)
+
+    def _reset_keyword_timeout_in_teardown(self, err, context):
+        # Keyword timeouts in teardowns have been converted to normal failures
+        # to allow execution to continue on higher level:
+        # https://github.com/robotframework/robotframework/issues/3398
+        # We need to reset it here to not continue unnecessarily:
+        # https://github.com/robotframework/robotframework/issues/5237
+        if context.in_teardown:
+            timeouts = [t for t in context.timeouts if t.type == 'Keyword']
+            if timeouts and min(timeouts).timed_out():
+                err.keyword_timeout = True
 
     @run_keyword_variant(resolve=1)
     def set_variable_if(self, condition, *values):
