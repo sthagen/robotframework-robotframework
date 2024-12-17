@@ -1313,8 +1313,7 @@ __ `User keyword teardown`_
 `GROUP` syntax
 --------------
 
-Robot Framework 7.2 introduced the `GROUP` syntax that allows grouping related
-keywords and control structures together:
+The `GROUP` syntax allows grouping related keywords and control structures together:
 
 .. sourcecode:: robotframework
 
@@ -1327,25 +1326,46 @@ keywords and control structures together:
         GROUP    Submit credentials
             Input Username    username_field    demo
             Input Password    password_field    mode
+            Click Button    login_button
         END
         GROUP    Login should have succeeded
             Title Should Be    Welcome Page
         END
 
-As the above example demonstrates, groups can have a name, but the name is
-optional. Groups can be nested freely with each others and also with other control
-structures.
+    Anonymous group
+        GROUP
+            Log    Group name is optional.
+        END
 
-Notice that reusable `user keywords`_ are in general recommended over the `GROUP`
-syntax, but if there are no reusing possibilities, named groups give similar benefits.
-For example, in the log file the end result is exactly the same except that there is
-a `GROUP` label instead of a `KEYWORD` label.
+    Nesting
+        GROUP
+            GROUP    Nested group
+                Log    Groups can be nested.
+            END
+            IF    True
+                GROUP
+                    Log    Groups can also be nested with other control structures.
+                END
+            END
+        END
 
-All groups within a test or a user keyword share the same variable namespace.
+As the above examples demonstrates, groups can have a name, but the name is
+optional. Groups can also be nested freely with each others and with other
+control structures.
+
+`User keywords`_ are in general recommended over the `GROUP` syntax, because
+they are reusable and they simplify tests or keywords where they are used by
+hiding and encapsulating lower level details. In the log file user keywords
+and groups look the same, though, except that instead of a `KEYWORD` label
+there is a `GROUP` label.
+
+All groups within a test or a keyword share the same variable namespace.
 This means that, unlike when using keywords, there is no need to use arguments
 or return values for sharing values. This can be a benefit in simple cases,
-but if there are lot of variables, the benefit can turn into a problem and cause
-a huge mess.
+but if there are lot of variables, the benefit can turn into a problem and
+cause a huge mess.
+
+.. note:: The `GROUP` syntax is new in Robot Framework 7.2.
 
 `GROUP` with templates
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -1384,11 +1404,11 @@ Programmatic usage
 
 One of the primary usages for groups is making it possible to create structured
 tests and user keywords programmatically. For example, the following
-`pre-run modifier`_ adds a group at the end of each modified test. Groups can
-be added similarly also by `listeners`_ that use the `listener API version 3`__.
+`pre-run modifier`_ adds a group with two keywords at the end of each modified
+test. Groups can be added also by `listeners`_ that use the
+`listener API version 3`__.
 
 .. sourcecode:: python
-
 
     from robot.api import SuiteVisitor
 
