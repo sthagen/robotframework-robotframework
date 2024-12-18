@@ -4,7 +4,7 @@ Resource                  listener_resource.robot
 
 *** Test Cases ***
 In start_suite when suite has no setup
-    Check Keyword Data    ${SUITE.setup}              Implicit setup    type=SETUP         children=1
+    Check Keyword Data    ${SUITE.setup}              Implicit setup       type=SETUP            children=1
     Validate Log          ${SUITE.setup[0]}           start_suite
 
 In end_suite when suite has no teardown
@@ -51,10 +51,10 @@ In start_test and end_test when test has no setup or teardown
     Validate Log          ${tc[0]}                    start_test
     Validate Log          ${tc[1]}                    Test 1
     Validate Log          ${tc[2]}                    Logging with debug level    DEBUG
-    Check Keyword Data    ${tc[3]}                    logs on trace    tags=kw, tags                   children=3
-    Check Keyword Data    ${tc[3, 0]}                 BuiltIn.Log  args=start_keyword                  children=1
-    Check Keyword Data    ${tc[3, 1]}                 BuiltIn.Log  args=Log on \${TEST NAME}, TRACE    children=3
-    Check Keyword Data    ${tc[3, 2]}                 BuiltIn.Log  args=end_keyword                    children=1
+    Check Keyword Data    ${tc[3]}                    logs on trace        tags=kw, tags                       children=3
+    Check Keyword Data    ${tc[3, 0]}                 BuiltIn.Log          args=start_keyword                  children=1
+    Check Keyword Data    ${tc[3, 1]}                 BuiltIn.Log          args=Log on \${TEST NAME}, TRACE    children=3
+    Check Keyword Data    ${tc[3, 2]}                 BuiltIn.Log          args=end_keyword                    children=1
     Validate Log          ${tc[4]}                    end_test
 
 In start_test and end_test when test has setup and teardown
@@ -160,6 +160,45 @@ In start_keyword and end_keyword with RETURN
     Should Be Equal       ${tc[3, 1, 1, 2, 1].full_name}       BuiltIn.Log
     Check Log Message     ${tc[3, 1, 1, 2, 1, 1]}              end_keyword
 
+With JSON output
+    [Documentation]    Mainly test that executed keywords don't cause problems.
+    ...
+    ...                Some data, such as keywords and messages on suite level,
+    ...                are discarded and thus the exact output isn't the same as
+    ...                with XML.
+    ...
+    ...                Cannot validate output, because it doesn't match the schema.
+    Run Tests With Keyword Running Listener    format=json    validate=False
+    Should Contain Tests    ${SUITE}
+    ...    First One
+    ...    Second One
+    ...    Test with setup and teardown
+    ...    Test with failing setup
+    ...    Test with failing teardown
+    ...    Failing test with failing teardown
+    ...    FOR
+    ...    FOR IN RANGE
+    ...    FOR IN ENUMERATE
+    ...    FOR IN ZIP
+    ...    WHILE loop executed multiple times
+    ...    WHILE loop in keyword
+    ...    IF structure
+    ...    Everything
+    ...    Library keyword
+    ...    User keyword and RETURN
+    ...    Test documentation, tags and timeout
+    ...    Test setup and teardown
+    ...    Keyword Keyword documentation, tags and timeout
+    ...    Keyword setup and teardown
+    ...    Failure
+    ...    VAR
+    ...    IF
+    ...    TRY
+    ...    FOR and CONTINUE
+    ...    WHILE and BREAK
+    ...    GROUP
+    ...    Syntax error
+
 In dry-run
     Run Tests With Keyword Running Listener    --dry-run
     Should Contain Tests    ${SUITE}
@@ -172,25 +211,41 @@ In dry-run
     ...    WHILE loop in keyword
     ...    IF structure
     ...    Everything
+    ...    Library keyword
+    ...    User keyword and RETURN
+    ...    Test documentation, tags and timeout
+    ...    Test setup and teardown
+    ...    Keyword Keyword documentation, tags and timeout
+    ...    Keyword setup and teardown
+    ...    VAR
+    ...    IF
+    ...    TRY
+    ...    FOR and CONTINUE
+    ...    WHILE and BREAK
+    ...    GROUP
     ...    Second One=FAIL:Several failures occurred:\n\n1) No keyword with name 'Not executed' found.\n\n2) No keyword with name 'Not executed' found.
     ...    Test with failing setup=PASS
     ...    Test with failing teardown=PASS
     ...    Failing test with failing teardown=PASS
     ...    FOR IN RANGE=FAIL:No keyword with name 'Not executed!' found.
+    ...    Failure=PASS
+    ...    Syntax error=FAIL:Several failures occurred:\n\n1) Non-existing setting 'Bad'.\n\n2) Non-existing setting 'Ooops'.
 
 *** Keywords ***
 Run Tests With Keyword Running Listener
-    [Arguments]    ${options}=
-    ${path} =    Normalize Path    ${LISTENER DIR}/keyword_running_listener.py
-    ${files} =    Catenate
+    [Arguments]    ${options}=    ${format}=xml    ${validate}=True
+    VAR    ${listener}    ${LISTENER DIR}/keyword_running_listener.py
+    VAR    ${output}      ${OUTDIR}/output.${format}
+    VAR    ${files}
     ...    misc/normal.robot
     ...    misc/setups_and_teardowns.robot
     ...    misc/for_loops.robot
     ...    misc/while.robot
     ...    misc/if_else.robot
     ...    misc/try_except.robot
-    Run Tests    --listener ${path} ${options} -L debug    ${files}    validate output=True
-    Should Be Empty    ${ERRORS}
+    ...    misc/everything.robot
+    Run Tests    --listener ${listener} ${options} -L debug -o ${output}    ${files}    output=${output}    validate output=${validate}
+    Length Should Be    ${ERRORS}    1
 
 Validate Log
     [Arguments]    ${kw}    ${message}    ${level}=INFO
