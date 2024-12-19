@@ -183,18 +183,18 @@ class JsonLogger:
         self._end(values=item.values, **self._status(item))
 
     def message(self, msg):
-        self._start(**msg.to_dict())
-        self._end()
+        self._dict(**msg.to_dict())
 
     def errors(self, messages):
-        self.writer.start_list('errors')
-        for msg in messages:
-            self._start(None, **msg.to_dict(include_type=False))
-            self._end()
-        self.writer.end_list()
+        self._list('errors', [m.to_dict(include_type=False) for m in messages])
 
     def statistics(self, stats):
-        self.writer.items(statistics=stats.to_dict())
+        data = stats.to_dict()
+        self._start(None, 'statistics')
+        self._dict(None, 'total', **data['total'])
+        self._list('suites', data['suites'])
+        self._list('tags', data['tags'])
+        self._end()
 
     def close(self):
         self.writer.end_dict()
@@ -205,6 +205,17 @@ class JsonLogger:
                 'message': item.message,
                 'start_time': item.start_time.isoformat() if item.start_time else None,
                 'elapsed_time': Raw(format(item.elapsed_time.total_seconds(), 'f'))}
+
+    def _dict(self, container: 'str|None' = 'body', name: 'str|None' = None, /,
+              **items):
+        self._start(container, name, **items)
+        self._end()
+
+    def _list(self, name: 'str|None', items: list):
+        self.writer.start_list(name)
+        for item in items:
+            self._dict(None, None, **item)
+        self.writer.end_list()
 
     def _start(self, container: 'str|None' = 'body', name: 'str|None' = None, /,
                **items):
@@ -296,7 +307,7 @@ class JsonWriter:
     def _item(self, value, name=None):
         if isinstance(value, UnlessNone) and value:
             value = value.value
-        elif not value:
+        elif not (value or value == 0 and not isinstance(value, bool)):
             return
         if isinstance(value, Raw):
             value = value.value
