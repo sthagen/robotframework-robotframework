@@ -189,16 +189,16 @@ Creating distributions
 
       invoke clean
 
-3. Build libdoc distribution. This step can be skipped if there are
-   no changes to libdoc. Prequisites are listed in `<src/web/README.md>`_.
-   The distribution is created by running::
+3. Build `libdoc.html`::
 
-     npm run build --prefix src/web/
+      npm run build --prefix src/web/
 
-4. Create and validate source distribution in zip format and
-   `wheel <https://pythonwheels.com>`_::
+   This step can be skipped if there are no changes to Libdoc. Prerequisites
+   are listed in `<src/web/README.md>`_.
 
-      python setup.py sdist --formats zip bdist_wheel
+4. Create and validate source distribution and `wheel <https://pythonwheels.com>`_::
+
+      python setup.py sdist bdist_wheel
       ls -l dist
       twine check dist/*
 
