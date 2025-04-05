@@ -41,10 +41,10 @@ if __name__ == '__main__' and 'robot' not in sys.modules:
 
 from robot.utils import Application, seq2str
 from robot.errors import DataError
-from robot.libdocpkg import LibraryDocumentation, ConsoleViewer
+from robot.libdocpkg import LibraryDocumentation, ConsoleViewer, LANGUAGES, format_languages
 
 
-USAGE = """Libdoc -- Robot Framework library documentation generator
+USAGE = f"""Libdoc -- Robot Framework library documentation generator
 
 Version:  <VERSION>
 
@@ -95,7 +95,7 @@ Options
                           based on the browser color scheme. New in RF 6.0.
     --language lang       Set the default language in documentation. `lang`
                           must be a code of a built-in language, which are
-                          `en`, `fi`, `fr`, `it`, `nl`, `pt-BR`, and `pt-PT`.
+{format_languages()}
                           New in RF 7.2.
  -n --name name           Sets the name of the documented library or resource.
  -v --version version     Sets the version of the documented library or
@@ -196,7 +196,7 @@ class LibDoc(Application):
                 or format in ('JSON', 'LIBSPEC') and specdocformat != 'RAW'):
             libdoc.convert_docs_to_html()
         libdoc.save(output, format, self._validate_theme(theme, format),
-                    self._validate_lang(language, format))
+                    self._validate_lang(language))
         if not quiet:
             self.console(Path(output).absolute())
 
@@ -231,14 +231,9 @@ class LibDoc(Application):
             raise DataError("The --theme option is only applicable with HTML outputs.")
         return theme
 
-    def _validate_lang(self, lang, format):
-        theme = self._validate('Language', lang,
-                               'FI', 'EN', 'FR', 'IT', 'NL', 'PT-BR', 'PT-PT', 'NONE')
-        if not theme or theme == 'NONE':
-            return None
-        if format != 'HTML':
-            raise DataError("The --theme option is only applicable with HTML outputs.")
-        return theme
+    def _validate_lang(self, lang):
+        valid = LANGUAGES + ['NONE']
+        return self._validate('Language', lang, *valid)
 
 
 def libdoc_cli(arguments=None, exit=True):
