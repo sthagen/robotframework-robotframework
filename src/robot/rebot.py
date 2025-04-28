@@ -33,7 +33,8 @@ that can be used programmatically. Other code is for internal usage.
 import sys
 
 if __name__ == '__main__' and 'robot' not in sys.modules:
-    import pythonpathsetter
+    from pythonpathsetter import set_pythonpath
+    set_pythonpath()
 
 from robot.conf import RebotSettings
 from robot.errors import DataError
@@ -340,7 +341,7 @@ class Rebot(RobotFramework):
     def main(self, datasources, **options):
         try:
             settings = RebotSettings(options)
-        except:
+        except DataError:
             LOGGER.register_console_logger(stdout=options.get('stdout'),
                                            stderr=options.get('stderr'))
             raise
