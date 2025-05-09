@@ -334,7 +334,7 @@ community has provided some great contributions:
 - `Olivier Renault <https://github.com/orenault>`__ fixed a bug with BDD prefixes
   having same beginning (`#5340`_) and enhanced French BDD prefixes (`#5150`_).
 
-- `Gad Hassine <https://github.com/hassineabd>`__ provided Arabic localization (`#5357`).
+- `Gad Hassine <https://github.com/hassineabd>`__ provided Arabic localization (`#5357`_).
 
 - `Lucian D. Crainic <https://github.com/LucianCrainic>`__ added Italian Libdoc UI
   translation (`#5351`_)
@@ -390,7 +390,7 @@ Full list of fixes and enhancements
       - Dialogs: Enhance look and feel
       - rc 1
     * - `#5387`_
-      - ---
+      - enhancement
       - high
       - Automatic code formatting
       - rc 1
