@@ -61,6 +61,13 @@ class TestTimer(unittest.TestCase):
         assert_true(tout.time_left() < 0)
         assert_true(tout.timed_out())
 
+    def test_not_started(self):
+        assert_raises_with_msg(
+            ValueError,
+            "Timeout is not started.",
+            TestTimeout(1).time_left,
+        )
+
     def test_cannot_start_inactive_timeout(self):
         assert_raises_with_msg(
             ValueError,
@@ -131,10 +138,12 @@ class TestRun(unittest.TestCase):
 
     def test_timeout_exceeded(self):
         os.environ["ROBOT_THREAD_TESTING"] = "initial value"
+        timeout = TestTimeout(0.05)
+        timeout.start()
         assert_raises_with_msg(
             TimeoutExceeded,
             "Test timeout 50 milliseconds exceeded.",
-            TestTimeout(0.05).run,
+            timeout.run,
             sleeping,
             (5,),
         )
@@ -144,6 +153,40 @@ class TestRun(unittest.TestCase):
         for tout in [0, 0.0, -0.01, -1, -1000]:
             self.timeout.time_left = lambda: tout
             assert_raises(TimeoutExceeded, self.timeout.run, sleeping, (10,))
+
+    def test_pause_runner(self):
+        def pauser():
+            runner.pause()
+            time.sleep(0.043)  # Timeout is not raised yet because runner is paused.
+            assert_raises_with_msg(
+                TimeoutExceeded,
+                "Test timeout 42 milliseconds exceeded.",
+                runner.resume,  # Timeout is raised on resume.
+            )
+
+        timeout = TestTimeout(0.042)
+        timeout.start()
+        runner = timeout.get_runner()
+        runner.run(pauser)
+
+    def test_pause_nested(self):
+        def pauser():
+            for i in range(7):
+                runner.pause()
+            runner.resume()
+            time.sleep(0.101)  # Runner is still paused so no timeout yet.
+            for i in range(5):
+                runner.resume()  # Not fully resumed so still no timeout.
+            assert_raises_with_msg(
+                TimeoutExceeded,
+                "Test timeout 100 milliseconds exceeded.",
+                runner.resume,  # Timeout is raised when fully resumed.
+            )
+
+        timeout = TestTimeout(0.1)
+        timeout.start()
+        runner = timeout.get_runner()
+        runner.run(pauser)
 
     def test_no_support(self):
         from robot.running.timeouts.nosupport import NoSupportRunner
