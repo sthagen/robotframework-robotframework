@@ -47,16 +47,14 @@ class TestInit(unittest.TestCase):
 class TestTimer(unittest.TestCase):
 
     def test_time_left(self):
-        tout = TestTimeout("1s")
-        tout.start()
+        tout = TestTimeout("1s", start=True)
         assert_true(tout.time_left() > 0.9)
         time.sleep(0.1)
         assert_true(tout.time_left() <= 0.9)
         assert_false(tout.timed_out())
 
     def test_exceeded(self):
-        tout = TestTimeout("1ms")
-        tout.start()
+        tout = TestTimeout("1ms", start=True)
         time.sleep(0.02)
         assert_true(tout.time_left() < 0)
         assert_true(tout.timed_out())
@@ -74,6 +72,12 @@ class TestTimer(unittest.TestCase):
             "Cannot start inactive timeout.",
             TestTimeout().start,
         )
+        assert_raises_with_msg(
+            ValueError,
+            "Cannot start inactive timeout.",
+            TestTimeout,
+            start=True,
+        )
 
 
 class TestComparison(unittest.TestCase):
@@ -81,9 +85,7 @@ class TestComparison(unittest.TestCase):
     def setUp(self):
         self.timeouts = []
         for string in ["1 min", "42 s", "45", "1 h 1 min", "99"]:
-            timeout = TestTimeout(string)
-            timeout.start()
-            self.timeouts.append(timeout)
+            self.timeouts.append(TestTimeout(string, start=True))
 
     def test_compare(self):
         assert_equal(min(self.timeouts).string, "42 seconds")
@@ -108,8 +110,7 @@ class TestComparison(unittest.TestCase):
 class TestRun(unittest.TestCase):
 
     def setUp(self):
-        self.timeout = TestTimeout("1s")
-        self.timeout.start()
+        self.timeout = TestTimeout("1s", start=True)
 
     def test_passing(self):
         assert_equal(self.timeout.run(passing), None)
@@ -128,65 +129,60 @@ class TestRun(unittest.TestCase):
             ("hello world",),
         )
 
-    def test_sleeping(self):
-        assert_equal(self.timeout.run(sleeping, args=(0.01,)), 0.01)
-
     def test_timeout_not_exceeded(self):
         os.environ["ROBOT_THREAD_TESTING"] = "initial value"
-        self.timeout.run(sleeping, (0.05,))
+        assert_equal(self.timeout.run(sleeping, [0.05]), 0.05)
         assert_equal(os.environ["ROBOT_THREAD_TESTING"], "0.05")
 
     def test_timeout_exceeded(self):
         os.environ["ROBOT_THREAD_TESTING"] = "initial value"
-        timeout = TestTimeout(0.05)
-        timeout.start()
         assert_raises_with_msg(
             TimeoutExceeded,
-            "Test timeout 50 milliseconds exceeded.",
-            timeout.run,
+            "Test timeout 10 milliseconds exceeded.",
+            TestTimeout(0.01, start=True).run,
             sleeping,
-            (5,),
         )
         assert_equal(os.environ["ROBOT_THREAD_TESTING"], "initial value")
 
     def test_zero_and_negative_timeout(self):
         for tout in [0, 0.0, -0.01, -1, -1000]:
             self.timeout.time_left = lambda: tout
-            assert_raises(TimeoutExceeded, self.timeout.run, sleeping, (10,))
+            assert_raises(TimeoutExceeded, self.timeout.run, sleeping)
 
     def test_pause_runner(self):
-        def pauser():
-            runner.pause()
-            time.sleep(0.043)  # Timeout is not raised yet because runner is paused.
-            assert_raises_with_msg(
-                TimeoutExceeded,
-                "Test timeout 42 milliseconds exceeded.",
-                runner.resume,  # Timeout is raised on resume.
-            )
-
-        timeout = TestTimeout(0.042)
-        timeout.start()
-        runner = timeout.get_runner()
-        runner.run(pauser)
+        runner = TestTimeout(0.01, start=True).get_runner()
+        runner.pause()
+        runner.run(sleeping, [0.05])  # No timeout because runner is paused.
+        assert_raises_with_msg(
+            TimeoutExceeded,
+            "Test timeout 10 milliseconds exceeded.",
+            runner.resume,  # Timeout is raised on resume.
+        )
 
     def test_pause_nested(self):
-        def pauser():
-            for i in range(7):
-                runner.pause()
-            runner.resume()
-            time.sleep(0.101)  # Runner is still paused so no timeout yet.
-            for i in range(5):
-                runner.resume()  # Not fully resumed so still no timeout.
-            assert_raises_with_msg(
-                TimeoutExceeded,
-                "Test timeout 100 milliseconds exceeded.",
-                runner.resume,  # Timeout is raised when fully resumed.
-            )
+        runner = TestTimeout(0.01, start=True).get_runner()
+        for i in range(7):
+            runner.pause()
+        runner.resume()
+        runner.run(sleeping, [0.05])
+        for i in range(5):
+            runner.resume()  # Not fully resumed so still no timeout.
+        assert_raises_with_msg(
+            TimeoutExceeded,
+            "Test timeout 10 milliseconds exceeded.",
+            runner.resume,  # Timeout is raised when fully resumed.
+        )
 
-        timeout = TestTimeout(0.1)
-        timeout.start()
-        runner = timeout.get_runner()
-        runner.run(pauser)
+    def test_timeout_close_to_function_end(self):
+        delay = 0.05
+        while delay < 0.15:
+            try:
+                result = TestTimeout(0.1, start=True).run(sleeping, [delay])
+            except TimeoutExceeded as err:
+                assert_equal(str(err), "Test timeout 100 milliseconds exceeded.")
+            else:
+                assert_equal(result, delay)
+            delay += 0.02
 
     def test_no_support(self):
         from robot.running.timeouts.nosupport import NoSupportRunner
@@ -211,9 +207,7 @@ class TestMessage(unittest.TestCase):
         assert_equal(TestTimeout().get_message(), "Test timeout not active.")
 
     def test_active(self):
-        tout = KeywordTimeout("42s")
-        tout.start()
-        msg = tout.get_message()
+        msg = KeywordTimeout("42s", start=True).get_message()
         assert_true(msg.startswith("Keyword timeout 42 seconds active."), msg)
         assert_true(msg.endswith("seconds left."), msg)
 
