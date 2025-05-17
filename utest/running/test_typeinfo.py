@@ -118,7 +118,13 @@ class TestTypeInfo(unittest.TestCase):
             info = TypeInfo.from_type_hint(typ)
             assert_equal(len(info.nested), 1)
             assert_equal(info.nested[0].type, int)
-        for typ in Dict[int, str], Mapping[int, str], "dict[int, str]", "MAP[INT,STR]":
+
+        for typ in (
+            Dict[int, str],
+            Mapping[int, str],
+            "dict[int, str]",
+            "MAP[INTEGER, STRING]",
+        ):
             info = TypeInfo.from_type_hint(typ)
             assert_equal(len(info.nested), 2)
             assert_equal(info.nested[0].type, int)
@@ -287,6 +293,7 @@ class TestTypeInfo(unittest.TestCase):
             (TypeInfo(nested=[TypeInfo("int"), TypeInfo("str")]), "[int, str]"),
         ]:
             assert_equal(str(info), expected)
+
         for hint in [
             "int",
             "x",
@@ -305,8 +312,7 @@ class TestTypeInfo(unittest.TestCase):
         assert_equal(TypeInfo.from_type_hint(int).convert("42"), 42)
         assert_equal(TypeInfo.from_type_hint("list[int]").convert("[4, 2]"), [4, 2])
         assert_equal(
-            TypeInfo.from_type_hint('Literal["Dog", "Cat"]').convert("dog"),
-            "Dog",
+            TypeInfo.from_type_hint('Literal["Dog", "Cat"]').convert("dog"), "Dog"
         )
 
     def test_no_conversion_needed_with_literal(self):
@@ -324,11 +330,20 @@ class TestTypeInfo(unittest.TestCase):
         )
         assert_raises_with_msg(
             ValueError,
-            "Thingy 't' got value 'bad' that cannot be converted to list[int]: Invalid expression.",
+            "Thingy 't' got value 'bad' that cannot be converted to list[int]: "
+            "Invalid expression.",
             TypeInfo.from_type_hint("list[int]").convert,
             "bad",
             "t",
-            kind="Thingy",
+            kind="thingy",
+        )
+        assert_raises_with_msg(
+            ValueError,
+            "FOR var '${i: int}' got value 'bad' that cannot be converted to integer.",
+            TypeInfo.from_variable("${i: int}").convert,
+            "bad",
+            "${i: int}",
+            kind="FOR var",
         )
 
     def test_custom_converter(self):
@@ -383,6 +398,8 @@ class TestTypeInfo(unittest.TestCase):
             error = "Unrecognized type 'Unknown'."
             assert_raises_with_msg(TypeError, error, info.convert, "whatever")
             assert_raises_with_msg(TypeError, error, info.get_converter)
+            converter = info.get_converter(allow_unknown=True)
+            assert_raises_with_msg(TypeError, error, converter.validate)
 
     def test_unknown_converter_can_be_accepted(self):
         for hint in "Unknown", "Unknown[int]", Unknown:
