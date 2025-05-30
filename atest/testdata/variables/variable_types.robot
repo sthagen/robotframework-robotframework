@@ -235,15 +235,16 @@ User keyword: Default value
     Default as string
     Default as string    ${42}
 
-User keyword: Wrong default value 1
+User keyword: Invalid default value 1
     [Documentation]    FAIL
-    ...    ValueError: Argument default value 'arg' got value 'wrong' that cannot be converted to integer.
-    Wrong default
+    ...    ValueError: Default value for argument 'arg' got value 'invalid' that cannot be converted to integer.
+    Invalid default
 
-User keyword: Wrong default value 2
+User keyword: Invalid default value 2
     [Documentation]    FAIL
-    ...    ValueError: Argument 'arg' got value 'yyy' that cannot be converted to integer.
-    Wrong default    yyy
+    ...    ValueError: Argument 'arg' got value 'bad' that cannot be converted to integer.
+    Invalid default    42
+    Invalid default    bad
 
 User keyword: Invalid value
     [Documentation]    FAIL
@@ -268,7 +269,11 @@ User keyword: Invalid assignment with kwargs k_type=v_type declaration
 Embedded arguments
     Embedded 1 and 2
     Embedded type 1 and no type 2
+
+Embedded arguments: With custom regexp
+    [Documentation]    FAIL    No keyword with name 'Embedded type with custom regular expression 1.1' found.
     Embedded type with custom regular expression 111
+    Embedded type with custom regular expression 1.1
 
 Embedded arguments: With variables
     VAR    ${x}    1
@@ -276,11 +281,11 @@ Embedded arguments: With variables
     Embedded ${x} and ${y}
 
 Embedded arguments: Invalid value
-    [Documentation]    FAIL    ValueError: Argument 'kala' cannot be converted to integer.
+    [Documentation]    FAIL    ValueError: Argument 'y' got value 'kala' that cannot be converted to integer.
     Embedded 1 and kala
 
 Embedded arguments: Invalid value from variable
-    [Documentation]    FAIL    ValueError: Argument '[2, 3]' (list) cannot be converted to integer.
+    [Documentation]    FAIL    ValueError: Argument 'y' got value '[2, 3]' (list) that cannot be converted to integer.
     Embedded 1 and ${{[2, 3]}}
 
 Embedded arguments: Invalid type
@@ -468,9 +473,9 @@ Default as string
     Should be equal    ${arg}    42    type=str
     RETURN    ${arg}
 
-Wrong default
-    [Arguments]    ${arg: int}=wrong
-    Fail    This shuld not be run
+Invalid default
+    [Arguments]    ${arg: int}=invalid
+    Should Be Equal    ${arg}    42    type=int
 
 Bad type
     [Arguments]    ${arg: bad}
@@ -494,7 +499,7 @@ Embedded type ${x: int} and no type ${y}
     Should be equal    ${x}    1    type=int
     Should be equal    ${y}    2    type=str
 
-Embedded type with custom regular expression ${x:.+: int}
+Embedded type with custom regular expression ${x: int:\d+}
     Should be equal    ${x}    111    type=int
 
 Embedded invalid type ${x: invalid}
