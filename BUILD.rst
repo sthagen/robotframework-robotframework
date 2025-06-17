@@ -146,6 +146,7 @@ Release notes
 
 6. Commit and push changes::
 
+      git add doc/releasenotes/rf-$VERSION.rst
       git commit -m "Release notes for $VERSION" doc/releasenotes/rf-$VERSION.rst
       git push
 
@@ -158,11 +159,11 @@ __ https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-gith
 Update Libdoc templates
 -----------------------
 
-1  Prerequisites are listed in `<src/web/README.md>`_. This step can be skipped
+1. Prerequisites are listed in `<src/web/README.md>`_. This step can be skipped
    if there are no changes to Libdoc.
 
-2. Regenerate HTML template and update the list of supported localizations
-   in `--help`::
+2. Regenerate HTML template and update the list of supported localizations in
+   the ``--help`` text::
 
       invoke build-libdoc
 
@@ -281,6 +282,6 @@ Announcements
 2. `Forum <https://forum.robotframework.org/>`_.
 
 3. `LinkedIn group <https://www.linkedin.com/groups/3710899/>`_. A personal
-    LinkedIn post is a good idea at least with bigger releases.
+   LinkedIn post is a good idea at least with bigger releases.
 
 4. `robotframework-users <https://groups.google.com/group/robotframework-users>`_
