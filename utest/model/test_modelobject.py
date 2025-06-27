@@ -92,6 +92,13 @@ class TestFromDictAndJson(unittest.TestCase):
         assert_equal(obj.b, 42)
         assert_equal(obj.c, True)
 
+    def test_duplicate_keys_in_json(self):
+        obj = Example.from_json(
+            '{"a": "replace", "b": ["extend"], "a": "new", "b": ["new", "items"]}'
+        )
+        assert_equal(obj.a, "new")
+        assert_equal(obj.b, ["extend", "new", "items"])
+
     def test_non_existing_attribute(self):
         assert_raises_with_msg(
             DataError,
@@ -116,10 +123,12 @@ class TestFromDictAndJson(unittest.TestCase):
         assert_equal(obj.b, 42)
 
     def test_json_as_open_file(self):
-        obj = Example.from_json(io.StringIO('{"a": null, "b": 42, "c": "åäö"}'))
+        file = io.StringIO('{"a": null, "b": 42, "c": "åäö"}')
+        obj = Example.from_json(file)
         assert_equal(obj.a, None)
         assert_equal(obj.b, 42)
         assert_equal(obj.c, "åäö")
+        assert_equal(file.closed, False)
 
     def test_json_as_path(self):
         with tempfile.NamedTemporaryFile("w", encoding="UTF-8", delete=False) as file:
@@ -161,9 +170,13 @@ class TestFromDictAndJson(unittest.TestCase):
 
     def _get_json_load_error(self, value):
         try:
-            json.loads(value)
+            # `object_pairs_hook` needed because it strangely changes the error
+            # slightly when using PyPy and JsonLoader uses it.
+            json.loads(value, object_pairs_hook=dict)
         except Exception:
             return get_error_message()
+        else:
+            raise ValueError("Expected failure not raised")
 
 
 class TestToJson(unittest.TestCase):
