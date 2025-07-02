@@ -16,6 +16,8 @@ ${ERROR}        [ ERROR ] Invalid value for option '--flattenkeywords': Expected
 Non-matching keyword is not flattened
     Should Be Equal      ${TC[0].message}     ${EMPTY}
     Should Be Equal      ${TC[0].doc}         Doc of keyword 2
+    Should Have Tags     ${TC[0]}             kw2
+    Should Be Equal      ${TC[0].timeout}     2 minutes
     Check Counts         ${TC[0]}             0    2
     Check Log Message    ${TC[0, 0, 0]}       2
     Check Log Message    ${TC[0, 1, 1, 0]}    1
@@ -23,6 +25,8 @@ Non-matching keyword is not flattened
 Exact match
     Should Be Equal      ${TC[1].message}     *HTML* ${FLATTENED}
     Should Be Equal      ${TC[1].doc}         Doc of keyword 3
+    Should Have Tags     ${TC[1]}             kw3
+    Should Be Equal      ${TC[1].timeout}     3 minutes
     Check Counts         ${TC[1]}             3
     Check Log Message    ${TC[1, 0]}          3
     Check Log Message    ${TC[1, 1]}          2
@@ -31,6 +35,8 @@ Exact match
 Pattern match
     Should Be Equal      ${TC[2].message}     *HTML* ${FLATTENED}
     Should Be Equal      ${TC[2].doc}         ${EMPTY}
+    Should Have Tags     ${TC[2]}
+    Should Be Equal      ${TC[2].timeout}     ${NONE}
     Check Counts         ${TC[2]}             6
     Check Log Message    ${TC[2, 0]}          3
     Check Log Message    ${TC[2, 1]}          2
@@ -42,11 +48,13 @@ Pattern match
 Tag match when keyword has no message
     Should Be Equal      ${TC[5].message}     *HTML* ${FLATTENED}
     Should Be Equal      ${TC[5].doc}         ${EMPTY}
+    Should Have Tags     ${TC[5]}             flatten    hi
     Check Counts         ${TC[5]}             1
 
 Tag match when keyword has message
     Should Be Equal      ${TC[6].message}     *HTML* Expected e&amp;&lt;aped failure!<hr>${FLATTENED}
     Should Be Equal      ${TC[6].doc}         Doc of flat keyword.
+    Should Have Tags     ${TC[6]}             flatten    hello
     Check Counts         ${TC[6]}             1
 
 Match full name
@@ -60,14 +68,14 @@ Flattened in log after execution
 
 Flatten controls in keyword
     ${tc} =    Check Test Case    ${TEST NAME}
-    Check Counts        ${tc[0]}              23
     @{expected} =    Create List
     ...    Outside IF    Inside IF    1    Nested IF
     ...    3    2    1    BANG!
     ...    FOR: 0    1    FOR: 1    1    FOR: 2    1
     ...    WHILE: 2    1    \${i} = 1    WHILE: 1    1    \${i} = 0
     ...    AssertionError    1    finally
-    FOR    ${msg}    ${exp}    IN ZIP    ${tc[0].body}    ${expected}
+    ...    Inside GROUP    \${x} = Using VAR
+    FOR    ${msg}    ${exp}    IN ZIP    ${tc[0].body}    ${expected}    mode=STRICT
         Check Log Message    ${msg}    ${exp}    level=IGNORE
     END
 
