@@ -16,7 +16,7 @@
 from typing import Any, Callable, Sequence, TYPE_CHECKING
 
 from robot.errors import DataError
-from robot.utils import DotDict, safe_str, Secret, split_from_equals, type_name
+from robot.utils import DotDict, safe_str, Secret, split_from_equals, type_name, unescape
 
 from .resolvable import Resolvable
 from .search import is_dict_variable, is_list_variable, search_variable
@@ -114,30 +114,23 @@ class VariableResolver(Resolvable):
     def _handle_secrets(self, value, replace_scalar):
         match = search_variable(value, identifiers="$%")
         if match.is_variable():
-            secret = replace_scalar(match.match)
-            if match.identifier == "%":
-                secret = Secret(secret)
-        else:
-            secret = self._handle_embedded_secrets(match, replace_scalar)
-        if not isinstance(secret, Secret):
-            raise DataError(
-                f"Value '{value}' must have type 'Secret', got {type_name(value)}."
-            )
-        return secret
+            value = replace_scalar(match.match)
+            return Secret(value) if match.identifier == "%" else value
+        return self._handle_embedded_secrets(match, replace_scalar)
 
     def _handle_embedded_secrets(self, match, replace_scalar):
         parts = []
         secret_seen = False
         while match:
-            secret = replace_scalar(match.match)
+            value = replace_scalar(match.match)
             if match.identifier == "%":
                 secret_seen = True
-            elif isinstance(secret, Secret):
+            elif isinstance(value, Secret):
+                value = value.value
                 secret_seen = True
-                secret = secret.value
-            parts.extend([match.before, secret])
+            parts.extend([unescape(match.before), value])
             match = search_variable(match.after, identifiers="$%")
-        parts.append(match.string)
+        parts.append(unescape(match.string))
         value = "".join(safe_str(p) for p in parts)
         return Secret(value) if secret_seen else value
 
@@ -203,12 +196,15 @@ class ScalarVariableResolver(VariableResolver):
 class ListVariableResolver(VariableResolver):
 
     def _replace_variables(self, variables):
-        if self._is_secret_type():
-            return [
-                self._handle_secrets(value, variables.replace_scalar)
-                for value in self.value
-            ]
-        return variables.replace_list(self.value)
+        if not self._is_secret_type():
+            return variables.replace_list(self.value)
+        secrets = []
+        for value in self.value:
+            if is_list_variable(value):
+                secrets.extend(variables.replace_scalar(value))
+            else:
+                secrets.append(self._handle_secrets(value, variables.replace_scalar))
+        return secrets
 
     def _convert(self, value, type_):
         return super()._convert(value, f"list[{type_}]")
