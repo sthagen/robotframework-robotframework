@@ -18,10 +18,10 @@ import glob
 import os
 import re
 import shlex
-import string
 import sys
 import warnings
 from pathlib import Path
+from string import ascii_letters
 
 from robot.errors import DataError, FrameworkError, Information
 from robot.version import get_full_version
@@ -29,14 +29,15 @@ from robot.version import get_full_version
 from .encoding import console_decode, system_decode
 from .filereader import FileReader
 from .misc import plural_or_not as s
-from .robottypes import is_falsy
+from .robottypes import is_truthy
+from .text import expand_variables
 
 
 def cmdline2list(args, escaping=False):
     if isinstance(args, Path):
         return [str(args)]
     lexer = shlex.shlex(args, posix=True)
-    if is_falsy(escaping):
+    if not escaping:
         lexer.escape = ""
     lexer.escapedquotes = "\"'"
     lexer.commenters = ""
@@ -306,7 +307,7 @@ class ArgumentParser:
             if drive:
                 ret.append(drive)
                 drive = ""
-            if len(item) == 1 and item in string.ascii_letters:
+            if len(item) == 1 and item in ascii_letters:
                 drive = item
             else:
                 ret.append(item)
@@ -360,8 +361,9 @@ class ArgLimitValidator:
 
 
 class ArgFileParser:
-    def __init__(self, options):
-        self._options = options
+
+    def __init__(self, config):
+        self.config = config
 
     def process(self, args):
         while True:
@@ -372,26 +374,33 @@ class ArgFileParser:
         return args
 
     def _get_index(self, args):
-        for opt in self._options:
-            start = opt + "=" if opt.startswith("--") else opt
+        for conf in self.config:
+            long = conf.startswith("--")
             for index, arg in enumerate(args):
-                normalized_arg = (
-                    "--" + arg.lower().replace("-", "") if opt.startswith("--") else arg
-                )
+                normalized = "--" + arg.lower().replace("-", "") if long else arg
                 # Handles `--argumentfile foo` and `-A foo`
-                if normalized_arg == opt and index + 1 < len(args):
+                if normalized == conf and index + 1 < len(args):
                     return args[index + 1], slice(index, index + 2)
-                # Handles `--argumentfile=foo` and `-Afoo`
-                if normalized_arg.startswith(start):
-                    return arg[len(start) :], slice(index, index + 1)
+                # Handles `--argumentfile=foo`
+                elif long and normalized.startswith(conf + "="):
+                    return arg[len(conf) + 1 :], slice(index, index + 1)
+                # Handles `-Afoo`
+                elif not long and normalized.startswith(conf):
+                    return arg[len(conf) :], slice(index, index + 1)
         return None, -1
 
     def _get_args(self, path):
-        if path.upper() != "STDIN":
-            content = self._read_from_file(path)
-        else:
+        if path.upper() == "STDIN":
             content = self._read_from_stdin()
-        return self._process_file(content)
+        else:
+            content = self._read_from_file(path)
+        try:
+            return self._process_file(content)
+        except ValueError as err:
+            raise DataError(f"Processing argument file '{path}' failed: {err}")
+
+    def _read_from_stdin(self):
+        return console_decode(sys.__stdin__.read())
 
     def _read_from_file(self, path):
         try:
@@ -400,11 +409,10 @@ class ArgFileParser:
         except (IOError, UnicodeError) as err:
             raise DataError(f"Opening argument file '{path}' failed: {err}")
 
-    def _read_from_stdin(self):
-        return console_decode(sys.__stdin__.read())
-
     def _process_file(self, content):
         args = []
+        if self._parse_expandvars_pragma(content):
+            content = expand_variables(content)
         for line in content.splitlines():
             line = line.strip()
             if line.startswith("-"):
@@ -413,20 +421,24 @@ class ArgFileParser:
                 args.append(line)
         return args
 
-    def _split_option(self, line):
-        separator = self._get_option_separator(line)
+    def _parse_expandvars_pragma(self, content):
+        match = re.match(r"#\s*expandvars:\s*(.*)\s*\n", content, flags=re.IGNORECASE)
+        return is_truthy(match.group(1)) if match else False
+
+    def _split_option(self, option):
+        separator = self._get_option_separator(option)
         if not separator:
-            return [line]
-        option, value = line.split(separator, 1)
+            return [option]
+        name, value = option.split(separator, 1)
         if separator == " ":
             value = value.strip()
-        return [option, value]
+        return [name, value]
 
-    def _get_option_separator(self, line):
-        if " " not in line and "=" not in line:
+    def _get_option_separator(self, option):
+        if " " not in option and "=" not in option:
             return None
-        if "=" not in line:
+        if "=" not in option:
             return " "
-        if " " not in line:
+        if " " not in option:
             return "="
-        return " " if line.index(" ") < line.index("=") else "="
+        return " " if option.index(" ") < option.index("=") else "="

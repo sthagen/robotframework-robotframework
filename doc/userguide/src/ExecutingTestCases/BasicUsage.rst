@@ -398,16 +398,16 @@ __ `Short and long options`_
 Argument file syntax
 ~~~~~~~~~~~~~~~~~~~~
 
-Argument files can contain both command line options and paths to the test data,
-one option or data source per line. Both short and long options are supported,
-but the latter are recommended because they are easier to understand.
+Argument files can contain both command line options and paths to the executed data,
+one option or a data source per line. Both short and long options are supported,
+but the latter are recommended in this context because they are easier to understand.
 Argument files can contain any characters without escaping, but spaces in
 the beginning and end of lines are ignored. Additionally, empty lines and
-lines starting with a hash mark (#) are ignored::
+lines starting with a hash mark (`#`) are ignored::
 
    --doc This is an example (where "special characters" are ok!)
    --metadata X:Value with spaces
-   --variable VAR:Hello, world!
+   --variable NAME:Hello, world!
    # This is a comment
    path/to/my/tests
 
@@ -421,7 +421,43 @@ identical::
     --name       An Example
 
 If argument files contain non-ASCII characters, they must be saved using
-UTF-8 encoding.
+the UTF-8 encoding. Argument files can use any extension. Typically :file:`.txt`
+works fine, but a custom extension like :file:`.args` can be used to separate
+argument files from normal text files.
+
+Expanding environment variables
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Starting from Robot Framework 7.4, it is possible to use environment variables
+in argument files and get them replaced *before* files are processed otherwise.
+For backwards compatibility reasons, this functionality is not enabled by default,
+but it is easy to opt-in by starting an argument file with a line `# expandvars: true`.
+The functionality may be enabled by default in the future, and it is possible
+to opt-out already now by using `# expandvars: false`.
+
+Environment variables can be used in format `$NAME` and `${NAME}`. In addition to
+that, default values are supported like `${NAME=default}`. If a literal dollar sign
+is needed, it can be escaped by doubling it like `$$not_var`::
+
+    # expandvars: true
+    --name $NAME
+    --doc ${NAME}v${VERSION}
+    --metadata Default:${META=default value}
+    --metadata Escape:$$100
+
+Environment variables are not limited to option values. They can also contain
+option names, both names and values, and using the comment character even enables
+conditional options::
+
+    # expandvars: true
+    --${NAME} ${VALUE}
+    ${NAME_AND_VALUE}
+    ${COND1=}  --metadata COND1:This is enabled by default. Set 'COND1' to '#' to disable.
+    ${COND2=#} --metadata COND2:This is disabled by default. Set 'COND2' to '' to enable.
+
+Environment variable names are case-sensitive, limited to ASCII letters, numbers
+and underscores, and they cannot start with a number. Using a non-existing variable
+or an invalid variable name causes an error.
 
 Using argument files
 ~~~~~~~~~~~~~~~~~~~~
@@ -434,9 +470,8 @@ option was. This means that options in argument files can override options
 before it, and its options can be overridden by options after it. It is possible
 to use :option:`--argumentfile` option multiple times or even recursively::
 
-   robot --argumentfile all_arguments.robot
-   robot --name Example --argumentfile other_options_and_paths.robot
-   robot --argumentfile default_options.txt --name Example my_tests.robot
+   robot --argumentfile all_options_and_arguments.txt
+   robot --argumentfile defaults.args --name Example tests.robot
    robot -A first.txt -A second.txt -A third.txt tests.robot
 
 Reading argument files from standard input
