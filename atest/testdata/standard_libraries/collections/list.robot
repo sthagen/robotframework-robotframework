@@ -97,8 +97,11 @@ Get Index From List
     Get Index From List    ${LONG}    ${2}    3              expected=8     type=int
     Get Index From List    ${LONG}    43    4    7           expected=5     type=int
     Get Index From List    ${LONG}    43   end=8             expected=5     type=int
-    Get Index From List    ${LONG}    43    ${EMPTY}    8    expected=5     type=int
     Get Index From List    ${LONG}    nonex                  expected=-1    type=int
+
+Get Index From List with empty string as start index is deprecated
+    [Template]    Verify Result
+    Get Index From List    ${LONG}    43    ${EMPTY}    8    expected=5     type=int
 
 Get Index From List with invalid index
     [Template]    Verify Error
@@ -156,9 +159,12 @@ Get Slice From List
     Get Slice From List    ${L4}    1                expected=[42, '43', '44']
     Get Slice From List    ${L4}    1    2           expected=[42]
     Get Slice From List    ${L4}    end=2            expected=['41', 42]
-    Get Slice From List    ${L4}    ${EMPTY}    2    expected=['41', 42]
     Get Slice From List    ${L4}    100              expected=[]
     Get Slice From List    ${L4}    2    100         expected=['43', '44']
+
+Get Slice From List with empty string as start index is deprecated
+    [Template]    Verify Result
+    Get Slice From List    ${L4}    ${EMPTY}    2    expected=['41', 42]
 
 Get Slice From List with invalid index
     [Template]    Verify Error
@@ -306,12 +312,17 @@ List Should Contain Sub List When The Only Missing Value Is Empty String
 
 List Should Contain Sub List With Missing Values And Own Error Message
     [Documentation]    FAIL My error message!
-    List Should Contain Sub List    ${L4}    ${LONG}    My error message!    No Values
+    List Should Contain Sub List    ${L4}    ${LONG}    My error message!    values=no
 
 List Should Contain Sub List With Missing Values And Own And Default Error Messages
     [Documentation]    FAIL My error message!
     ...    Following values are missing: 'x' and 'y'
     List Should Contain Sub List    ${L4}    ${{'x', 'y'}}    My error message!    values=please
+
+'NO VALUES' is deprecated
+    [Documentation]    FAIL Message
+    Lists Should Be Equal    ${L4}    ${L4}    values=NO VALUES
+    List Should Contain Sub List    ${L4}    ${LONG}    Message    no values
 
 Log List
     Log List    ${L0}
