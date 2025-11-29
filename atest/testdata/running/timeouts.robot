@@ -73,19 +73,19 @@ Looping Forever And Timeouting
 
 Stopped After Test Timeout
     [Documentation]    Keyword that is stopped after test timeout should not write to a file.
-    ...    FAIL Test timeout 200 milliseconds exceeded.
-    [Timeout]    0.2s
+    ...    FAIL Test timeout 100 milliseconds exceeded.
+    [Timeout]    0.1s
     Write To File After Sleeping    ${TEST STOPPED}    2
 
 Stopped After Keyword Timeout
     [Documentation]    Keyword that is stopped after keyword timeout should not write to a file.
-    ...    FAIL Keyword timeout 200 milliseconds exceeded.
+    ...    FAIL Keyword timeout 100 milliseconds exceeded.
     [Timeout]    1 minute
     Timeouted Write To File After Sleeping    ${KW STOPPED}    2
 
 Timout Defined For One Test
-    [Documentation]    FAIL Test timeout 42 milliseconds exceeded.
-    [Timeout]    42 milliseconds
+    [Documentation]    FAIL Test timeout 11 milliseconds exceeded.
+    [Timeout]    11 milliseconds
     Sleep    3
 
 Timeouted Keyword Passes
@@ -99,7 +99,7 @@ Timeouted Keyword Fails Before Timeout
     Timeouted Keyword Fails Before Timeout
 
 Timeouted Keyword Timeouts
-    [Documentation]    FAIL Keyword timeout 99 milliseconds exceeded.
+    [Documentation]    FAIL Keyword timeout 11 milliseconds exceeded.
     [Timeout]    2 seconds
     Timeouted Keyword Timeouts
 
@@ -180,7 +180,7 @@ Timeouted Setup Passes
 
 Timeouted Setup Timeouts
     [Documentation]    FAIL Setup failed:
-    ...    Keyword timeout 99 milliseconds exceeded.
+    ...    Keyword timeout 11 milliseconds exceeded.
     [Setup]    Timeouted Keyword Timeouts
     [Timeout]
     Fail    This should not be executed
@@ -192,19 +192,50 @@ Timeouted Teardown Passes
 
 Timeouted Teardown Timeouts
     [Documentation]    FAIL Teardown failed:
-    ...    Keyword timeout 99 milliseconds exceeded.
+    ...    Keyword timeout 11 milliseconds exceeded.
     [Setup]    Timeouted Keyword Passes
     [Timeout]
     Timeouted Keyword Passes
     [Teardown]    Timeouted Keyword Timeouts
 
+Keyword teardown after test timeout
+    [Documentation]    FAIL Test timeout 101 milliseconds exceeded.
+    [Timeout]    0.101s
+    Keyword with teardown
+
+Keyword teardown after keyword timeout
+    [Documentation]    FAIL Keyword timeout 102 milliseconds exceeded.
+    Keyword with timeout and teardown
+
+Keyword teardown fails due to total time
+    [Documentation]    FAIL Keyword teardown failed:
+    ...    Keyword timeout 103 milliseconds exceeded.
+    Keyword teardown fails due to total time
+
+Keyword teardown fails for own timeout
+    [Documentation]    FAIL Keyword teardown failed:
+    ...    Keyword timeout 204 milliseconds exceeded.
+    Keyword teardown fails for own timeout
+
+Keyword in teardown fails for timeout
+    [Documentation]    FAIL Keyword teardown failed:
+    ...    Several failures occurred:
+    ...
+    ...    1) Keyword timeout 11 milliseconds exceeded.
+    ...
+    ...    2) I'm still run!
+    ...
+    ...    Also keyword teardown failed:
+    ...    Keyword timeout 10 milliseconds exceeded.
+    Keyword in teardown fails for timeout
+
 Timeouted UK Using Non Timeouted UK
-    [Documentation]    FAIL Keyword timeout 222 milliseconds exceeded.
+    [Documentation]    FAIL Keyword timeout 111 milliseconds exceeded.
     [Timeout]
     Timeouted UK Using Non Timeouted UK
 
 Shortest UK Timeout Should Be Applied
-    [Documentation]    FAIL Keyword timeout 200 milliseconds exceeded.
+    [Documentation]    FAIL Keyword timeout 100 milliseconds exceeded.
     [Timeout]
     Timeouted UK Using Timeouted UK
 
@@ -214,7 +245,7 @@ Shortest Test Or UK Timeout Should Be Applied
     Timeouted UK Using Timeouted UK
 
 Timeouted Set Keyword
-    [Documentation]    FAIL Keyword timeout 99 milliseconds exceeded.
+    [Documentation]    FAIL Keyword timeout 11 milliseconds exceeded.
     ${msg} =    Timeouted Keyword Passes    0.01
     Should Be Equal    ${msg}    Slept 0.01s
     ${msg} =    Timeouted Keyword Timeouts
@@ -226,7 +257,7 @@ Test Timeout Should Not Be Active For Run Keyword Variants But To Keywords They 
     Run Keyword    Sleep Without Logging    2
 
 Keyword Timeout Should Not Be Active For Run Keyword Variants But To Keywords They Execute
-    [Documentation]    FAIL Keyword timeout 200 milliseconds exceeded.
+    [Documentation]    FAIL Keyword timeout 100 milliseconds exceeded.
     Run Keyword With Timeout
 
 Timeouted Keyword Called With Wrong Number of Arguments
@@ -273,7 +304,7 @@ Timeouted Keyword Fails Before Timeout
     Fail    Failure before keyword timeout
 
 Timeouted Keyword Timeouts
-    [Timeout]    99 milliseconds
+    [Timeout]    11 milliseconds
     Sleep Without Logging    2
     RETURN    Nothing, really
 
@@ -287,7 +318,7 @@ Timeouted Keyword Timeouts Due To Total Time
 
 Timeouted Write To File After Sleeping
     [Arguments]    ${path}    ${secs}
-    [Timeout]    200 milliseconds
+    [Timeout]    100 milliseconds
     Write To File After Sleeping    ${path}    ${secs}
     Fail    This should not be executed
 
@@ -301,7 +332,7 @@ Sleep And Log
     Log    ${msg}
 
 Timeouted UK Using Non Timeouted UK
-    [Timeout]    0.222
+    [Timeout]    0.111
     Non Timeouted UK
 
 Timeouted UK Using Non Timeouted UK 2
@@ -312,11 +343,11 @@ Non Timeouted UK
     Sleep    10
 
 Timeouted UK Using Timeouted UK
-    [Timeout]    0.2 seconds
+    [Timeout]    0.1 seconds
     Timeouted UK Using Non Timeouted UK 2
 
 Run Keyword With Timeout
-    [Timeout]    200 milliseconds
+    [Timeout]    100 milliseconds
     Run Keyword    Log    Hello
     Run Keyword If    True    Sleep    3
 
@@ -348,3 +379,39 @@ Negative timeout is ignored
 Invalid keyword timeout
     [Timeout]    ¡Bäng!
     No Operation
+
+Keyword with teardown
+    Sleep    1s
+    [Teardown]    Teardown keyword
+
+Keyword with timeout and teardown
+    [Timeout]    0.102s
+    Sleep    1s
+    [Teardown]    Teardown keyword
+
+Keyword teardown fails due to total time
+    [Timeout]    0.103s
+    No Operation
+    [Teardown]    Teardown keyword    sleep=0.11s
+
+Keyword teardown fails for own timeout
+    [Timeout]    0.104s
+    No Operation
+    [Teardown]    Teardown keyword    timeout=0.204s    sleep=1s
+
+Teardown keyword
+    [Arguments]    ${timeout}=NONE    ${sleep}=0
+    [Timeout]    ${timeout}
+    Log    I'm a teardown keyword
+    Sleep    ${sleep}
+
+Keyword in teardown fails for timeout
+    [Timeout]    99ms
+    No Operation
+    [Teardown]    Teardown keyword with keyword failing for timeout
+
+Teardown keyword with keyword failing for timeout
+    [Timeout]    99ms
+    Timeouted Keyword Timeouts
+    Fail    I'm still run!
+    [Teardown]    Teardown keyword    timeout=10ms    sleep=20ms

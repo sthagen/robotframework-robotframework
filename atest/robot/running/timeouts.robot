@@ -112,6 +112,30 @@ Timeouted Teardown Passes
 Timeouted Teardown Timeouts
     Check Test Case    ${TEST NAME}
 
+Keyword teardown after test timeout
+    ${tc} =    Check Test Case    ${TEST NAME}
+    Should Be Equal      ${tc[0].teardown.status}    PASS
+    Check Log Message    ${tc[0].teardown[0, 0]}     I'm a teardown keyword
+
+Keyword teardown after keyword timeout
+    ${tc} =    Check Test Case    ${TEST NAME}
+    Should Be Equal      ${tc[0].teardown.status}    PASS
+    Check Log Message    ${tc[0].teardown[0, 0]}     I'm a teardown keyword
+
+Keyword teardown fails due to total time
+    ${tc} =    Check Test Case    ${TEST NAME}
+    Should Be Equal      ${tc[0].teardown.status}    PASS
+    Check Log Message    ${tc[0].teardown[0, 0]}     I'm a teardown keyword
+
+Keyword teardown fails for own timeout
+    ${tc} =    Check Test Case    ${TEST NAME}
+    Should Be Equal      ${tc[0].teardown.status}    FAIL
+    Check Log Message    ${tc[0].teardown[0, 0]}     Keyword timeout 204 milliseconds active. 0.??? seconds left.    level=DEBUG    pattern=True
+    Check Log Message    ${tc[0].teardown[0, 1]}     I'm a teardown keyword
+
+Keyword in teardown fails for timeout
+    Check Test Case    ${TEST NAME}
+
 Timeouted UK Using Non Timeouted UK
     Check Test Case    ${TEST NAME}
 
@@ -156,7 +180,7 @@ Keyword Timeout Logging
     ${tc} =    Check Test Case    Timeouted Keyword Fails Before Timeout
     Keyword timeout should have been active    ${tc[0, 0]}    2 hours 30 minutes    3
     ${tc} =    Check Test Case    Timeouted Keyword Timeouts
-    Keyword timeout should have been active    ${tc[0, 0]}    99 milliseconds       2    exceeded=True
+    Keyword timeout should have been active    ${tc[0, 0]}    11 milliseconds       2    exceeded=True
 
 Zero timeout is ignored
     ${tc} =    Check Test Case    ${TEST NAME}
@@ -179,7 +203,7 @@ Invalid keyword timeout
 *** Keywords ***
 Timeout should have been active
     [Arguments]    ${kw}    ${timeout}    ${msg count}    ${exceeded}=False    ${type}=Test
-    Check Log Message    ${kw[0]}    ${type} timeout ${timeout} active. * left.    DEBUG    pattern=True
+    Check Log Message    ${kw[0]}    ${type} timeout ${timeout} active. *.??? seconds left.    DEBUG    pattern=True
     Length Should Be     ${kw.body}       ${msg count}
     IF    ${exceeded}    Timeout should have exceeded    ${kw}    ${timeout}    ${type}
 
