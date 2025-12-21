@@ -1,5 +1,5 @@
 =======================================
-Robot Framework 7.4 release candidate 1
+Robot Framework 7.4 release candidate 2
 =======================================
 
 .. default-role:: code
@@ -23,15 +23,14 @@ to install the latest available release or use
 
 ::
 
-   pip install robotframework==7.4rc1
+   pip install robotframework==7.4rc2
 
 to install exactly this version. Alternatively you can download the package
 from PyPI_ and install it manually. For more details and other installation
 approaches, see the `installation instructions`_.
 
-Robot Framework 7.4 release candidate 1 was released on Tuesday December 2, 2025.
-It was followed by the `second release candidate <rf-7.4rc2.rst>`__ on Tuesday
-December 2, 2025.
+Robot Framework 7.4 release candidate 2 was released on Tuesday December 9, 2025.
+`Robot Framework 7.4 final <rf-7.4rst>`_ was released on Friday December 12, 2025.
 
 .. _Robot Framework: http://robotframework.org
 .. _Robot Framework Foundation: http://robotframework.org/foundation
@@ -239,6 +238,50 @@ There were several enhancements to working with bytes:
   a string `"example"`. Earlier the value was converted with just `str(value)`
   that produced unusable results like a string `"b'example'"`.
 
+Argument conversion enhancements
+--------------------------------
+
+There have been various smallish enhancements to automatic argument conversion:
+
+- `object` got an explicit no-op argument converter (`#5529`_).
+
+- Conversion to `bytes` and `bytearray` supports integers and lists of
+  integers as input values (`#5557`_).
+
+- `bytes` and `bytearray` are converted to `str` using the same logic as when
+  converting `str` to `bytes` and `bytearray`. Earlier they were converted
+  using `str(value)` that produced unusable strings like `"b'example'"` (`#5567`_).
+
+- `None` converter accepts an empty string as an input value (`#5545`_).
+
+- Any sequence literal is accepted when converting string arguments to `list`,
+  `tuple` and `set` (`#5532`_).
+
+- `Sequence` and `Mapping` converters do not convert all arguments to `list` and
+  `dict`, but instead preserve the original type when feasible (`#5531`_).
+
+- Using `Callable` with empty argument list like `Callable[[], None]` has been
+  fixed (`#5562`_).
+
+Possibility to detect names of keywords executed by other keywords
+------------------------------------------------------------------
+
+Various keywords in the BuiltIn library and also in some external libraries
+execute other keywords either directly or allow registering them to be executed
+on a certain event. So far external tools have not been able to reliably differentiate
+arguments containing names and arguments of executed keywords from other arguments.
+This has made it hard, for example, for editors to provide automatic completion
+for keyword names.
+
+Nowadays names of executed keywords can be typed with `KeywordName` and
+their arguments with `KeywordArgument`. Both of these new types are defined in
+the new `robot.api.types`__ module that also exposes the `Secret` type discussed
+earlier. All BuiltIn keywords executing other keywords, such as `Run Keyword`
+and `Wait Until Keyword Succeeds`, use these new type hints making it easy
+to detect them (`#4857`_).
+
+__ https://robot-framework.readthedocs.io/en/master/autodoc/robot.api.html#module-robot.api.types
+
 Backwards incompatible changes
 ==============================
 
@@ -403,6 +446,11 @@ Full list of fixes and enhancements
       - critical
       - Support creating "secret" variables that hide their values in data and log files
       - beta 1
+    * - `#4857`_
+      - feature
+      - high
+      - Enhance detecting keyword names used in arguments of other keywords (e.g. `Wait Until Keyword Succeeds`)
+      - rc 2
     * - `#5373`_
       - feature
       - high
@@ -588,6 +636,11 @@ Full list of fixes and enhancements
       - low
       - Argument types are not escaped in Libdoc HTML output
       - rc 1
+    * - `#5573`_
+      - bug
+      - low
+      - User Guide explains normalizing full keyword names wrong
+      - rc 2
     * - `#3918`_
       - feature
       - low
@@ -634,9 +687,10 @@ Full list of fixes and enhancements
       - BuiltIn: Deprecate non-standard ways to get object length with `Get Length` and related keywords
       - rc 1
 
-Altogether 47 issues. View on the `issue tracker <https://github.com/robotframework/robotframework/issues?q=milestone%3Av7.4>`__.
+Altogether 49 issues. View on the `issue tracker <https://github.com/robotframework/robotframework/issues?q=milestone%3Av7.4>`__.
 
 .. _#4537: https://github.com/robotframework/robotframework/issues/4537
+.. _#4857: https://github.com/robotframework/robotframework/issues/4857
 .. _#5373: https://github.com/robotframework/robotframework/issues/5373
 .. _#5439: https://github.com/robotframework/robotframework/issues/5439
 .. _#5512: https://github.com/robotframework/robotframework/issues/5512
@@ -674,6 +728,7 @@ Altogether 47 issues. View on the `issue tracker <https://github.com/robotframew
 .. _#5505: https://github.com/robotframework/robotframework/issues/5505
 .. _#5543: https://github.com/robotframework/robotframework/issues/5543
 .. _#5563: https://github.com/robotframework/robotframework/issues/5563
+.. _#5573: https://github.com/robotframework/robotframework/issues/5573
 .. _#3918: https://github.com/robotframework/robotframework/issues/3918
 .. _#5122: https://github.com/robotframework/robotframework/issues/5122
 .. _#5506: https://github.com/robotframework/robotframework/issues/5506

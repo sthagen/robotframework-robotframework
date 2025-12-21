@@ -1372,7 +1372,7 @@ environment variables::
 Many systems running tests or tasks also support hiding secret values used on
 the command line.
 
-__ `Variable conversion on command line`
+__ `Variable conversion on command line`_
 
 Creating secrets programmatically
 '''''''''''''''''''''''''''''''''
@@ -1406,7 +1406,7 @@ Creating a keyword returning a secret is not much more complicated either:
           secrets from environment variables, get them from external systems or
           generate them randomly.
 
-__ `Programmatic modification of test data`
+__ `Programmatic modification of test data`_
 
 .. _built-in variable:
 
