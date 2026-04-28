@@ -330,12 +330,9 @@ development industry. Because of its natural fit for narrative documentation,
 using Markdown with Robot Framework allows you to create test data in a format
 that is easy to read, write and preview using standard editors and tools.
 
-.. note:: Using Markdown_ files with Robot Framework does not require any
-          external Python module to be installed.
-
 When Robot Framework parses Markdown files, it searches for code blocks
 starting with fences of at least three backticks :codesc:`\`\`\`` or tildes
-:codesc:`~~~` and the ``robotframework`` (or simply ``robot``) language tag.
+`~~~` and the ``robotframework`` or ``robot`` language tag.
 All content outside such blocks is ignored. The parser follows the CommonMark_
 specification for fenced code blocks, which means that the opening and closing
 fences must match and the closing fence must be at least as long as the
@@ -386,8 +383,10 @@ either :option:`--parseinclude` or :option:`--extension` option.
 
 __ `Selecting files to parse`_
 
-.. note:: Parsing :file:`.robot.md` files automatically is new in
-          Robot Framework 7.5.
+.. note:: Using Markdown_ files with Robot Framework does not require any
+          external Python module to be installed.
+
+.. note:: Markdown support is new in Robot Framework 7.5.
 
 JSON format
 ~~~~~~~~~~~
