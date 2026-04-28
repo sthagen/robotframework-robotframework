@@ -315,12 +315,13 @@ class _List:
                 "keyword is deprecated. Use '0' instead."
             )
             start = 0
-        length = len(list_)
+        if start < 0:
+            increment = max(start + len(list_), 0)
+        else:
+            increment = start
         list_ = self.get_slice_from_list(list_, start, end)
         try:
-            if start < 0:
-                start = length + start
-            return start + list_.index(value)
+            return list_.index(value) + increment
         except ValueError:
             return -1
 
