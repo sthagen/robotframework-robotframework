@@ -3233,16 +3233,33 @@ original exception afterwards:
             do_cleanup()
             raise
 
-.. note:: Prior to Robot Framework 7.5, this exception was a subtype of
-          `Exception`. It is now an isolated type, separate from `RobotError`.
-          This is to prevent this interrupt-like exception to be accidentally
-          silenced when catching (too broad) ranges of regular exceptions.
+`TimeoutExceeded` is based directly on Python's BaseException__, which means that
+it is not caught by code handling Exception__ and its subtypes. The motivation is
+to avoid timeouts being accidentally disabled if code catches all normal exceptions
+like in this example:
+
+.. sourcecode:: python
+
+    def example():
+        try:
+            do_something()
+        except Exception as err:
+            print(f"Error occurred: {err}")
+
+If you want to handle `TimeoutExceeded`, catch it explicitly or use `finally`
+like in the earlier examples.
+
+.. note:: Prior to Robot Framework 7.5, `TimeoutExceeded` was based on
+          `Exception`, not `BaseException`.
 
 .. note:: The `TimeoutExceeded` exception was named `TimeoutError` prior to
           Robot Framework 7.3. It was renamed to avoid a conflict with Python's
           standard exception with the same name. The old name still exists as
           a backwards compatible alias in the `robot.errors` module and can
           be used if older Robot Framework versions need to be supported.
+
+__ https://docs.python.org/3/library/exceptions.html#BaseException
+__ https://docs.python.org/3/library/exceptions.html#Exception
 
 Allowing timeouts to stop execution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
