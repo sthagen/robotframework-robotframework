@@ -15,10 +15,10 @@
 
 import os.path
 from abc import ABC
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Iterable
 
-from robot.errors import DataError, TimeoutExceeded
+from robot.errors import DataError
 from robot.model import BodyItem
 from robot.utils import (
     get_error_details, Importer, safe_str, split_args_from_name_or_path, type_name
@@ -34,7 +34,7 @@ class Listeners:
 
     def __init__(
         self,
-        listeners: Iterable["str|Any"] = (),
+        listeners: "Sequence[str|object]" = (),
         log_level: "LogLevel|SettableLevel" = "INFO",
     ):
         if isinstance(log_level, str):
@@ -49,45 +49,18 @@ class Listeners:
 
     def _import_listeners(self, listeners, library=None) -> "list[ListenerFacade]":
         imported = []
-        for li in listeners:
+        for listener in listeners:
+            if library and isinstance(listener, str) and listener.upper() == "SELF":
+                listener = library.instance
             try:
-                listener = self._import_listener(li, library)
+                facade = ListenerFacade.create(listener, self._log_level, library)
             except DataError as err:
-                name = li if isinstance(li, str) else type_name(li)
-                msg = f"Taking listener '{name}' into use failed: {err}"
                 if library:
-                    raise DataError(msg)
-                LOGGER.error(msg)
+                    raise
+                LOGGER.error(str(err))
             else:
-                imported.append(listener)
+                imported.append(facade)
         return imported
-
-    def _import_listener(self, listener, library=None) -> "ListenerFacade":
-        if library and isinstance(listener, str) and listener.upper() == "SELF":
-            listener = library.instance
-        if isinstance(listener, str):
-            name, args = split_args_from_name_or_path(listener)
-            importer = Importer("listener", logger=LOGGER)
-            listener = importer.import_class_or_module(
-                os.path.normpath(name),
-                instantiate_with_args=args,
-            )
-        else:
-            # Modules have `__name__`, with others better to use `type_name`.
-            name = getattr(listener, "__name__", None) or type_name(listener)
-        if self._get_version(listener) == 2:
-            return ListenerV2Facade(listener, name, self._log_level, library)
-        return ListenerV3Facade(listener, name, self._log_level, library)
-
-    def _get_version(self, listener):
-        version = getattr(listener, "ROBOT_LISTENER_API_VERSION", 3)
-        try:
-            version = int(version)
-            if version not in (2, 3):
-                raise ValueError
-        except (ValueError, TypeError):
-            raise DataError(f"Unsupported API version '{version}'.")
-        return version
 
     def __iter__(self):
         return iter(self.listeners)
@@ -146,6 +119,48 @@ class ListenerFacade(LoggerApi, ABC):
                 return float(priority)
         except (ValueError, TypeError):
             raise DataError(f"Invalid listener priority '{priority}'.")
+
+    @classmethod
+    def create(
+        cls,
+        listener: "str|object",
+        log_level: "LogLevel|SettableLevel" = "INFO",
+        library: object = None,
+    ) -> "ListenerFacade":
+        if isinstance(log_level, str):
+            log_level = LogLevel(log_level)
+        try:
+            return cls._import_listener(listener, log_level, library)
+        except DataError as err:
+            name = listener if isinstance(listener, str) else type_name(listener)
+            raise DataError(f"Taking listener '{name}' into use failed: {err}")
+
+    @classmethod
+    def _import_listener(cls, listener, log_level, library=None) -> "ListenerFacade":
+        if isinstance(listener, str):
+            name, args = split_args_from_name_or_path(listener)
+            importer = Importer("listener", logger=LOGGER)
+            listener = importer.import_class_or_module(
+                os.path.normpath(name),
+                instantiate_with_args=args,
+            )
+        else:
+            # Modules have `__name__`, with others better to use `type_name`.
+            name = getattr(listener, "__name__", None) or type_name(listener)
+        if cls._get_version(listener) == 2:
+            return ListenerV2Facade(listener, name, log_level, library)
+        return ListenerV3Facade(listener, name, log_level, library)
+
+    @classmethod
+    def _get_version(cls, listener):
+        version = getattr(listener, "ROBOT_LISTENER_API_VERSION", 3)
+        try:
+            version = int(version)
+            if version not in (2, 3):
+                raise ValueError
+        except (ValueError, TypeError):
+            raise DataError(f"Unsupported API version '{version}'.")
+        return version
 
     def _get_method(self, name, fallback=None):
         for method_name in self._get_method_names(name):
@@ -602,10 +617,6 @@ class ListenerMethod:
         try:
             if self.method is not None:
                 self.method(*args)
-        except TimeoutExceeded:
-            # Propagate possible timeouts:
-            # https://github.com/robotframework/robotframework/issues/2763
-            raise
         except Exception:
             message, details = get_error_details()
             LOGGER.error(

@@ -3,7 +3,7 @@ import unittest
 
 from robot.errors import DataError
 from robot.model import BodyItem
-from robot.output import LOGGER, LogLevel
+from robot.output import LOGGER
 from robot.output.listeners import ListenerFacade, Listeners
 from robot.running.outputcapture import OutputCapturer
 from robot.utils import DotDict
@@ -197,6 +197,7 @@ class TestListenerPriority(unittest.TestCase):
     def test_invalid_priority(self):
         assert_raises_with_msg(
             DataError,
+            "Taking listener 'Listener' into use failed: "
             "Invalid listener priority 'invalid'.",
             self._create_listener,
             "invalid",
@@ -209,7 +210,7 @@ class TestListenerPriority(unittest.TestCase):
             assert_equal(type(listener.priority), type(expected))
 
     def _create_listener(self, priority):
-        return ListenerFacade(Listener(priority), "xxx", LogLevel("INFO"))
+        return ListenerFacade.create(Listener(priority))
 
 
 if __name__ == "__main__":
