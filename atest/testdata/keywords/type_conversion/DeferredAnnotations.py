@@ -1,4 +1,10 @@
+from typing import TYPE_CHECKING
+
 from robot.api.deco import library
+
+if TYPE_CHECKING:
+    from typing import Sequence
+    class TypeCheckingOnly: ...
 
 
 class Library:
@@ -6,6 +12,14 @@ class Library:
     def deferred_evaluation_of_annotations(self, arg: Argument) -> str:  # noqa: F821
         return arg.value
 
+    def type_checking_annotation(self, arg: TypeCheckingOnly) -> TypeCheckingOnly:  # noqa: F821
+        return arg
+
+    def nonexisting_annotation(self, arg: NonExisting):  # noqa: F821
+        return arg
+
+    def my_sum(self, seq: Sequence[int]) -> int:  # noqa: F821
+        return sum(seq)
 
 class Argument:
 
