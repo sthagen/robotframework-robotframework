@@ -61,7 +61,7 @@ class StatementLexer(Lexer, ABC):
     def lex(self):
         raise NotImplementedError
 
-    def _lex_options(self, *names: str, end_index: "int|None" = None):
+    def _lex_options(self, *names: str, end_index: "int | None" = None):
         seen = set()
         for token in reversed(self.statement[:end_index]):
             if "=" in token.value:
@@ -201,7 +201,7 @@ class VariableLexer(TypeAndArguments):
 
 
 class KeywordCallLexer(StatementLexer):
-    ctx: "TestCaseContext|KeywordContext"
+    ctx: "TestCaseContext | KeywordContext"
 
     def lex(self):
         if self.ctx.template_set:
@@ -311,7 +311,7 @@ class ExceptHeaderLexer(StatementLexer):
 
     def lex(self):
         self.statement[0].type = Token.EXCEPT
-        as_index: "int|None" = None
+        as_index: int | None = None
         for index, token in enumerate(self.statement[1:], start=1):
             if token.value == "AS":
                 token.type = Token.AS
