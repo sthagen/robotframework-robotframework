@@ -89,8 +89,9 @@ class TypeDocBuilder:
 
     def _yield_names_and_infos(self, args: ArgumentSpec):
         for arg in args:
-            for type_info in self._yield_infos(arg.type):
-                yield arg.name, type_info
+            if not arg.is_marker:
+                for type_info in self._yield_infos(arg.type):
+                    yield arg.name, type_info
         if args.return_type:
             for type_info in self._yield_infos(args.return_type):
                 yield "return", type_info
@@ -165,7 +166,8 @@ class KeywordDocBuilder:
         return [self.build_keyword(kw) for kw in owner.keywords]
 
     def build_keyword(self, kw):
-        doc, tags = self._get_doc_and_tags(kw)
+        kw.update_docs()
+        doc, tags = self._get_doc_and_tags(kw)  # TODO: Move this update_docs().
         if kw.error:
             doc = f"*Creating keyword failed:* {kw.error}"
         if not self._resource:
