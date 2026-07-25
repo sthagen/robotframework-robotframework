@@ -18,11 +18,10 @@ import re
 import sys
 
 from robot.errors import DataError
-from robot.model import Tags
 from robot.running import (
     ArgumentSpec, ResourceFileBuilder, TestLibrary, TestSuiteBuilder, TypeInfo
 )
-from robot.utils import split_tags_from_doc, unescape
+from robot.utils import unescape
 from robot.variables import search_variable
 
 from .datatypes import TypeDoc
@@ -35,6 +34,7 @@ class LibraryDocBuilder:
     def build(self, library):
         name, args = self._split_library_name_and_args(library)
         lib = TestLibrary.from_name(name, args=args)
+        lib.update_docs()
         libdoc = LibraryDoc(
             name=lib.name,
             doc=self._get_doc(lib),
@@ -109,6 +109,7 @@ class ResourceDocBuilder:
     def build(self, path):
         path = self._find_resource_file(path)
         resource, name = self._import_resource(path)
+        resource.update_docs(unescape=True)
         libdoc = LibraryDoc(
             name=name,
             doc=self._get_doc(resource, name),
@@ -166,10 +167,10 @@ class KeywordDocBuilder:
         return [self.build_keyword(kw) for kw in owner.keywords]
 
     def build_keyword(self, kw):
-        kw.update_docs()
-        doc, tags = self._get_doc_and_tags(kw)  # TODO: Move this update_docs().
         if kw.error:
             doc = f"*Creating keyword failed:* {kw.error}"
+        else:
+            doc = kw.doc
         if not self._resource:
             self._escape_strings_in_defaults(kw.args.defaults)
         if kw.args.embedded:
@@ -178,8 +179,8 @@ class KeywordDocBuilder:
             name=kw.name,
             args=kw.args,
             doc=doc,
-            tags=tags,
-            private=tags.robot("private"),
+            tags=kw.tags,
+            private=kw.tags.robot("private"),
             deprecated=doc.startswith("*DEPRECATED") and "*" in doc[1:],
             source=kw.source,
             lineno=kw.lineno,
@@ -210,17 +211,6 @@ class KeywordDocBuilder:
                 result += f"[{escape(item)}]"
             match = search_variable(match.after)
         return result + match.string
-
-    def _get_doc_and_tags(self, kw):
-        doc, doc_tags = split_tags_from_doc(self._get_doc(kw))
-        tags = Tags(kw.tags)
-        tags.add(doc_tags, remove_negated=self._resource)
-        return doc, tags
-
-    def _get_doc(self, kw):
-        if self._resource:
-            return unescape(kw.doc)
-        return kw.doc
 
     def _remove_embedded(self, spec: ArgumentSpec):
         embedded = len(spec.embedded)
