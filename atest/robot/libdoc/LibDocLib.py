@@ -39,12 +39,16 @@ class LibDocLib:
         cmd = self.libdoc + self._split_args(args)
         cmd[-1] = cmd[-1].replace("/", os.sep)
         logger.info(" ".join(cmd))
+        if self.interpreter.version_info >= (3, 15):
+            encoding = "UTF-8"
+        else:
+            encoding = SYSTEM_ENCODING
         result = run(
             cmd,
             cwd=ROOT / "src",
             stdout=PIPE,
             stderr=STDOUT,
-            encoding=SYSTEM_ENCODING,
+            encoding=encoding,
             timeout=120,
             text=True,
         )
