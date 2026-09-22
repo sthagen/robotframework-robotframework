@@ -40,6 +40,11 @@ class Telnet:
     Telnet is Robot Framework's standard library that makes it possible to
     connect to Telnet servers and execute commands on the opened connections.
 
+    > [!NOTE]
+    > Telnet is deprecated as a standard library and needs to be installed
+    > separately in the future. For more information, see issue
+    > [#3537](https://github.com/robotframework/robotframework/issues/3537).
+
     ### Table of contents
 
     %TOC%
@@ -50,9 +55,8 @@ class Telnet:
     the Python standard library until Python 3.12, but with newer versions
     the [telnetlib-313-and-up] package needs to be installed separately.
 
-    If there is a need to do [Terminal emulation], the [pyte] module needs
-    to be installed. It is an optional dependency and only needed with
-    terminal emulation.
+    If [terminal emulation] is needed, the [pyte] module must be installed
+    as well.
 
     # Connections
 
@@ -819,7 +823,7 @@ class TelnetConnection(telnetlib.Telnet):
             level: Default log level to use for logging.
 
         Returns:
-            The dld default log level.
+            The old default log level.
 
         The old default log level is returned and can be used to restore the
         log level later.
